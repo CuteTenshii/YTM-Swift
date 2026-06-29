@@ -1,0 +1,123 @@
+//
+//  StreamResolver.swift
+//  YT Music
+//
+//  Turns a videoId into a final, playable audio URL: requests the player
+//  response (with the correct signatureTimestamp), picks an AVPlayer-compatible
+//  audio stream, and deciphers its URL.
+//
+
+import Foundation
+
+enum StreamError: LocalizedError {
+    case notPlayable(String)
+    case noCompatibleAudio
+
+    var errorDescription: String? {
+        switch self {
+        case .notPlayable(let reason): "Can't play this track: \(reason)"
+        case .noCompatibleAudio:       "No AAC audio stream was available for this track."
+        }
+    }
+}
+
+/// A resolved, playable stream plus the track's authoritative length (from the
+/// player response), used so the scrubber doesn't trust AVPlayer's estimate.
+struct ResolvedStream: Sendable {
+    let url: URL
+    let duration: Double?
+}
+
+/// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
+/// tested with a stub.
+protocol StreamResolving: Sendable {
+    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream
+}
+
+extension StreamResolving {
+    /// Convenience for callers (and tests) that don't care about preferences.
+    func audioStream(videoId: String) async throws -> ResolvedStream {
+        try await audioStream(videoId: videoId, preferences: StreamPreferences())
+    }
+}
+
+actor StreamResolver: StreamResolving {
+    static let shared = StreamResolver()
+
+    private let client = InnerTubeClient.shared
+    private let decipher = SignatureDecipher.shared
+
+    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream {
+        PlaybackLog.note("resolving videoId=\(videoId)")
+        let signatureTimestamp = try await decipher.signatureTimestamp()
+        let response = try await client.player(
+            videoId: videoId,
+            signatureTimestamp: signatureTimestamp
+        )
+
+        let status = response.playabilityStatus?.status ?? "nil"
+        let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
+        PlaybackLog.note("playabilityStatus=\(status) · adaptiveFormats=\(adaptiveCount) · lengthSeconds=\(response.videoDetails?.lengthSeconds ?? "nil")")
+
+        if let status = response.playabilityStatus?.status, status != "OK" {
+            let reason = response.playabilityStatus?.reason ?? status
+            PlaybackLog.problem("not playable: \(reason)")
+            throw StreamError.notPlayable(reason)
+        }
+
+        let format = try selectAudioFormat(response, preferences: preferences)
+        PlaybackLog.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
+        let url = try await decipher.streamURL(for: format)
+        PlaybackLog.note("resolved stream host=\(url.host ?? "?")")
+        return ResolvedStream(url: url, duration: response.videoDetails?.duration)
+    }
+
+    /// Picks a playable stream honouring the user's preferences:
+    /// - "prefer audio over video" keeps us on adaptive audio-only streams and
+    ///   only falls back to a muxed (video+audio) MP4 when no audio stream is
+    ///   compatible. With it off, a muxed stream is allowed to win on quality.
+    /// - audio quality selects a rung on the bitrate-sorted ladder (auto/high =
+    ///   best, medium = middle, low = lowest).
+    /// `nonisolated` so it can be unit-tested without the actor hop.
+    nonisolated func selectAudioFormat(
+        _ response: PlayerResponse,
+        preferences: StreamPreferences = StreamPreferences()
+    ) throws -> PlayerResponse.Format {
+        let adaptiveAudio = (response.streamingData?.adaptiveFormats ?? [])
+            .filter { $0.isAudio && $0.isAVPlayerCompatible }
+        let muxed = (response.streamingData?.formats ?? [])
+            .filter { $0.isAVPlayerCompatible }
+
+        if preferences.preferAudioOverVideo {
+            // Stay on audio-only streams; use a muxed (video+audio) stream only
+            // when no compatible audio-only stream exists.
+            if let chosen = pick(from: adaptiveAudio, quality: preferences.audioQuality) {
+                return chosen
+            }
+            if let chosen = pick(from: muxed, quality: preferences.audioQuality) {
+                return chosen
+            }
+        } else {
+            // Let audio-only and muxed compete together on the quality ladder.
+            if let chosen = pick(from: adaptiveAudio + muxed, quality: preferences.audioQuality) {
+                return chosen
+            }
+        }
+        throw StreamError.noCompatibleAudio
+    }
+
+    /// Ranks `formats` by bitrate (ascending) and returns the rung matching the
+    /// requested quality. Returns nil for an empty pool.
+    private nonisolated func pick(
+        from formats: [PlayerResponse.Format],
+        quality: AudioQuality
+    ) -> PlayerResponse.Format? {
+        let ranked = formats.sorted { ($0.bitrate ?? 0) < ($1.bitrate ?? 0) }
+        guard !ranked.isEmpty else { return nil }
+        switch quality {
+        case .low:           return ranked.first
+        case .medium:        return ranked[ranked.count / 2]
+        case .high, .auto:   return ranked.last
+        }
+    }
+}
