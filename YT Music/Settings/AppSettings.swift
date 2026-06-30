@@ -13,7 +13,7 @@ import SwiftUI
 /// Preferred audio fidelity. The resolver maps this onto the available adaptive
 /// streams (which are ranked by bitrate) rather than fixed kbps values, since
 /// YouTube's ladder varies per track.
-enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifiable {
+nonisolated enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifiable {
     case low
     case medium
     case high
@@ -33,7 +33,7 @@ enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifiable {
 
 /// The subset of settings the (nonisolated) stream resolver needs. A plain
 /// Sendable value so it can be passed across the actor boundary on each resolve.
-struct StreamPreferences: Sendable, Equatable {
+nonisolated struct StreamPreferences: Sendable, Equatable {
     var audioQuality: AudioQuality = .auto
     /// When true, music videos are played as audio-only adaptive streams and a
     /// muxed (video+audio) stream is used only as a last resort.
@@ -53,6 +53,11 @@ final class AppSettings {
         didSet { store(preferAudioOverVideo, for: .preferAudioOverVideo) }
     }
 
+    /// Output volume, 0...1. Persisted so the level survives relaunches.
+    var volume: Double {
+        didSet { store(volume, for: .volume) }
+    }
+
     // MARK: Crossfade
 
     var crossfadeEnabled: Bool {
@@ -64,20 +69,48 @@ final class AppSettings {
         didSet { store(crossfadeSeconds, for: .crossfadeSeconds) }
     }
 
-    // MARK: Plugins
+    // MARK: Equalizer
 
-    var discordRPCEnabled: Bool {
-        didSet { store(discordRPCEnabled, for: .discordRPCEnabled) }
+    var equalizerEnabled: Bool {
+        didSet {
+            store(equalizerEnabled, for: .equalizerEnabled)
+            notifyEqualizerChanged()
+        }
     }
 
-    var downloaderEnabled: Bool {
-        didSet { store(downloaderEnabled, for: .downloaderEnabled) }
+    /// Per-band gain in dB (one entry per `EqualizerBands` frequency).
+    var equalizerGains: [Double] {
+        didSet {
+            store(try? JSONEncoder().encode(equalizerGains), for: .equalizerGains)
+            notifyEqualizerChanged()
+        }
     }
+
+    /// Called whenever the equalizer configuration changes so the audio engine
+    /// can re-equalize the playing track. Set by PlayerState at startup.
+    @ObservationIgnored var onEqualizerChange: ((EqualizerSettings) -> Void)?
+
+    /// Snapshot consumed by the audio engine's equalizer taps.
+    var equalizerSettings: EqualizerSettings {
+        EqualizerSettings(isEnabled: equalizerEnabled, gains: equalizerGains)
+    }
+
+    /// Replaces every band gain at once (e.g. when picking a preset).
+    func applyEqualizerPreset(_ preset: EqualizerPreset) {
+        equalizerGains = preset.gains
+    }
+
+    private func notifyEqualizerChanged() {
+        onEqualizerChange?(equalizerSettings)
+    }
+
+    // MARK: Downloader
 
     /// Where the downloader writes files. nil → the user's Downloads folder.
-    var downloadDirectory: URL? {
-        didSet { store(downloadDirectory?.path, for: .downloadDirectory) }
-    }
+    /// Persisted as a security-scoped bookmark so write access (granted via the
+    /// open panel) survives relaunches under the App Sandbox. Set it through
+    /// `setDownloadDirectory(_:)`, which mints the bookmark.
+    private(set) var downloadDirectory: URL?
 
     /// Snapshot consumed by the resolver on each track load.
     var streamPreferences: StreamPreferences {
@@ -100,12 +133,54 @@ final class AppSettings {
         self.audioQuality = (defaults.string(forKey: Key.audioQuality.rawValue)
             .flatMap(AudioQuality.init)) ?? .auto
         self.preferAudioOverVideo = defaults.object(forKey: Key.preferAudioOverVideo.rawValue) as? Bool ?? true
+        self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
         self.crossfadeEnabled = defaults.bool(forKey: Key.crossfadeEnabled.rawValue)
         self.crossfadeSeconds = defaults.object(forKey: Key.crossfadeSeconds.rawValue) as? Double ?? 6
-        self.discordRPCEnabled = defaults.bool(forKey: Key.discordRPCEnabled.rawValue)
-        self.downloaderEnabled = defaults.bool(forKey: Key.downloaderEnabled.rawValue)
-        self.downloadDirectory = defaults.string(forKey: Key.downloadDirectory.rawValue)
-            .map { URL(fileURLWithPath: $0) }
+        self.equalizerEnabled = defaults.bool(forKey: Key.equalizerEnabled.rawValue)
+        self.equalizerGains = Self.decodeGains(defaults.data(forKey: Key.equalizerGains.rawValue))
+        self.downloadDirectory = Self.resolveBookmark(defaults.data(forKey: Key.downloadDirectory.rawValue))
+    }
+
+    /// Decodes persisted band gains, falling back to a flat curve if absent or
+    /// malformed. Always returns exactly `EqualizerBands.count` entries.
+    private static func decodeGains(_ data: Data?) -> [Double] {
+        guard let data,
+              let gains = try? JSONDecoder().decode([Double].self, from: data) else {
+            return EqualizerSettings.flat.gains
+        }
+        return EqualizerSettings(isEnabled: false, gains: gains).normalizedGains
+    }
+
+    /// Records a user-chosen download folder, minting a security-scoped bookmark
+    /// so the grant persists. Pass nil to revert to the Downloads folder.
+    func setDownloadDirectory(_ url: URL?) {
+        guard let url else {
+            downloadDirectory = nil
+            store(nil, for: .downloadDirectory)
+            return
+        }
+        downloadDirectory = url
+        let bookmark = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        store(bookmark, for: .downloadDirectory)
+    }
+
+    /// Resolves a stored security-scoped bookmark and begins accessing it (held
+    /// for the app's lifetime — there's only ever one download folder).
+    private static func resolveBookmark(_ data: Data?) -> URL? {
+        guard let data else { return nil }
+        var stale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: data,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ) else { return nil }
+        _ = url.startAccessingSecurityScopedResource()
+        return url
     }
 
     // MARK: - Persistence
@@ -113,10 +188,11 @@ final class AppSettings {
     private enum Key: String {
         case audioQuality        = "settings.audioQuality"
         case preferAudioOverVideo = "settings.preferAudioOverVideo"
+        case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
         case crossfadeSeconds    = "settings.crossfadeSeconds"
-        case discordRPCEnabled   = "settings.discordRPCEnabled"
-        case downloaderEnabled   = "settings.downloaderEnabled"
+        case equalizerEnabled    = "settings.equalizerEnabled"
+        case equalizerGains      = "settings.equalizerGains"
         case downloadDirectory   = "settings.downloadDirectory"
     }
 
