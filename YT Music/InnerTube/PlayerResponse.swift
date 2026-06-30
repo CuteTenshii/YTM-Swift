@@ -12,16 +12,29 @@ struct PlayerResponse: Decodable, Sendable {
     let playabilityStatus: PlayabilityStatus?
     let streamingData: StreamingData?
     let videoDetails: VideoDetails?
+    let playbackTracking: PlaybackTracking?
 
     struct PlayabilityStatus: Decodable, Sendable {
         let status: String?     // "OK", "LOGIN_REQUIRED", "UNPLAYABLE", "ERROR"
         let reason: String?
     }
 
+    /// Stats endpoints the web player pings during playback. Pinging
+    /// `videostatsPlaybackUrl` (with a content-playback nonce) is what registers
+    /// a play in the signed-in user's YouTube Music watch history.
+    nonisolated struct PlaybackTracking: Decodable, Sendable {
+        let videostatsPlaybackUrl: TrackingURL?
+        let videostatsWatchtimeUrl: TrackingURL?
+
+        nonisolated struct TrackingURL: Decodable, Sendable {
+            let baseUrl: String?
+        }
+    }
+
     /// Authoritative metadata for the video — notably `lengthSeconds`, which is
     /// the true track length (AVPlayer's `duration` can be a bad estimate while a
     /// progressive stream is still buffering).
-    struct VideoDetails: Decodable, Sendable {
+    nonisolated struct VideoDetails: Decodable, Sendable {
         let lengthSeconds: String?
         let title: String?
         let author: String?

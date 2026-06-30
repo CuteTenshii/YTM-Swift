@@ -26,6 +26,15 @@ enum StreamError: LocalizedError {
 struct ResolvedStream: Sendable {
     let url: URL
     let duration: Double?
+    /// The player response's `videostatsPlaybackUrl`, if present — ping it to
+    /// record the play in the user's watch history. nil when YouTube omits it.
+    var historyURL: URL? = nil
+    /// The player response's `videostatsWatchtimeUrl`, if present — reports
+    /// accumulated listen time, which drives YT Music history.
+    var watchtimeURL: URL? = nil
+    /// The content-playback nonce that tags `url`; reused for the history ping so
+    /// YouTube correlates the two. nil when no history URL is being reported.
+    var cpn: String? = nil
 }
 
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
@@ -67,9 +76,20 @@ actor StreamResolver: StreamResolving {
 
         let format = try selectAudioFormat(response, preferences: preferences)
         PlaybackLog.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
-        let url = try await decipher.streamURL(for: format)
+
+        // One content-playback nonce tags the media we fetch and the history
+        // ping, so YouTube correlates them and the play counts toward history.
+        let cpn = WatchHistory.generateCPN()
+        let deciphered = try await decipher.streamURL(for: format)
+        let url = WatchHistory.appendingCPN(to: deciphered, cpn: cpn)
         PlaybackLog.note("resolved stream host=\(url.host ?? "?")")
-        return ResolvedStream(url: url, duration: response.videoDetails?.duration)
+
+        let historyURL = response.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+            .flatMap { URL(string: $0) }
+        let watchtimeURL = response.playbackTracking?.videostatsWatchtimeUrl?.baseUrl
+            .flatMap { URL(string: $0) }
+        return ResolvedStream(url: url, duration: response.videoDetails?.duration,
+                              historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn)
     }
 
     /// Picks a playable stream honouring the user's preferences:
