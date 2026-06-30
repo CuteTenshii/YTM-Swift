@@ -17,6 +17,29 @@ struct PersistedPlayback: Codable {
     var currentIndex: Int
     var repeatMode: PlayerState.RepeatMode
     var album: String
+    var isShuffled: Bool = false
+
+    init(nowPlaying: PlayerState.NowPlaying, tracks: [StoredTrack], currentIndex: Int,
+         repeatMode: PlayerState.RepeatMode, album: String, isShuffled: Bool = false) {
+        self.nowPlaying = nowPlaying
+        self.tracks = tracks
+        self.currentIndex = currentIndex
+        self.repeatMode = repeatMode
+        self.album = album
+        self.isShuffled = isShuffled
+    }
+
+    // Tolerant decode so snapshots saved before shuffle existed still restore
+    // (the new key defaults to false rather than failing the whole restore).
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nowPlaying = try c.decode(PlayerState.NowPlaying.self, forKey: .nowPlaying)
+        tracks = try c.decode([StoredTrack].self, forKey: .tracks)
+        currentIndex = try c.decode(Int.self, forKey: .currentIndex)
+        repeatMode = try c.decode(PlayerState.RepeatMode.self, forKey: .repeatMode)
+        album = try c.decode(String.self, forKey: .album)
+        isShuffled = try c.decodeIfPresent(Bool.self, forKey: .isShuffled) ?? false
+    }
 
     /// Codable mirror of `Track` (which carries a non-persisted UUID id).
     struct StoredTrack: Codable {
@@ -26,6 +49,34 @@ struct PersistedPlayback: Codable {
         var duration: String?
         var thumbnailURL: URL?
         var videoId: String?
+        var artists: [EntityLink] = []
+        var albumLink: EntityLink?
+
+        init(index: Int, title: String, subtitle: String, duration: String?,
+             thumbnailURL: URL?, videoId: String?, artists: [EntityLink] = [],
+             albumLink: EntityLink? = nil) {
+            self.index = index
+            self.title = title
+            self.subtitle = subtitle
+            self.duration = duration
+            self.thumbnailURL = thumbnailURL
+            self.videoId = videoId
+            self.artists = artists
+            self.albumLink = albumLink
+        }
+
+        // Tolerant decode so snapshots saved before links existed still restore.
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            index = try c.decode(Int.self, forKey: .index)
+            title = try c.decode(String.self, forKey: .title)
+            subtitle = try c.decode(String.self, forKey: .subtitle)
+            duration = try c.decodeIfPresent(String.self, forKey: .duration)
+            thumbnailURL = try c.decodeIfPresent(URL.self, forKey: .thumbnailURL)
+            videoId = try c.decodeIfPresent(String.self, forKey: .videoId)
+            artists = try c.decodeIfPresent([EntityLink].self, forKey: .artists) ?? []
+            albumLink = try c.decodeIfPresent(EntityLink.self, forKey: .albumLink)
+        }
     }
 }
 
@@ -37,13 +88,16 @@ extension PersistedPlayback.StoredTrack {
             subtitle: track.subtitle,
             duration: track.duration,
             thumbnailURL: track.thumbnailURL,
-            videoId: track.videoId
+            videoId: track.videoId,
+            artists: track.artists,
+            albumLink: track.albumLink
         )
     }
 
     var track: Track {
         Track(index: index, title: title, subtitle: subtitle,
-              duration: duration, thumbnailURL: thumbnailURL, videoId: videoId)
+              duration: duration, thumbnailURL: thumbnailURL, videoId: videoId,
+              artists: artists, albumLink: albumLink)
     }
 }
 
