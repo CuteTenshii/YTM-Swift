@@ -61,6 +61,8 @@ struct BrowseResponse: Decodable {
         let musicShelfRenderer: MusicShelfRenderer?
         let musicPlaylistShelfRenderer: MusicShelfRenderer?
         let gridRenderer: GridRenderer?
+        let itemSectionRenderer: ItemSectionRenderer?
+        let musicCardShelfRenderer: MusicCardShelfRenderer?
 
         var carousel: MusicCarouselShelfRenderer? {
             musicCarouselShelfRenderer ?? musicImmersiveCarouselShelfRenderer
@@ -71,6 +73,21 @@ struct BrowseResponse: Decodable {
             musicShelfRenderer ?? musicPlaylistShelfRenderer
         }
     }
+}
+
+/// Search wraps each ungrouped result row in its own `itemSectionRenderer`; its
+/// `contents` are the usual card/row renderers.
+nonisolated struct ItemSectionRenderer: Decodable {
+    let contents: [CarouselItem]?
+}
+
+/// The "top result" hero card at the head of a search response. Its tap target
+/// (artist/album/song) lives in `onTap`.
+nonisolated struct MusicCardShelfRenderer: Decodable {
+    let title: InnerTubeText?
+    let subtitle: InnerTubeText?
+    let thumbnail: ThumbnailRendererWrapper?
+    let onTap: NavigationEndpoint?
 }
 
 /// A wrapping grid of cards. Used by the Library landing page.
@@ -188,6 +205,14 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
             .first { !$0.isEmpty }
     }
 
+    /// Artist/album links carried by the flex-column text runs (the title column
+    /// is skipped; artist/album endpoints live in the byline columns).
+    var entityLinks: [EntityLink] {
+        (flexColumns ?? [])
+            .dropFirst()
+            .flatMap { $0.musicResponsiveListItemFlexColumnRenderer?.text?.entityLinks ?? [] }
+    }
+
     var playEndpoint: NavigationEndpoint? {
         navigationEndpoint
             ?? overlay?.musicItemThumbnailOverlayRenderer?
@@ -213,6 +238,18 @@ nonisolated struct InnerTubeText: Decodable {
 
     var text: String {
         (runs ?? []).map(\.text).joined()
+    }
+
+    /// Artist/album navigation links carried by individual runs (each run is a
+    /// distinct name with its own browse endpoint).
+    var entityLinks: [EntityLink] {
+        (runs ?? []).compactMap { run in
+            guard let browse = run.navigationEndpoint?.browseEndpoint,
+                  let browseId = browse.browseId,
+                  let kind = browse.kind,
+                  !run.text.isEmpty else { return nil }
+            return EntityLink(name: run.text, browseId: browseId, kind: kind)
+        }
     }
 }
 
@@ -253,6 +290,21 @@ struct NavigationEndpoint: Decodable {
     struct WatchEndpoint: Decodable {
         let videoId: String?
         let playlistId: String?
+        let watchEndpointMusicSupportedConfigs: MusicConfigs?
+
+        struct MusicConfigs: Decodable {
+            let watchEndpointMusicConfig: MusicConfig?
+
+            struct MusicConfig: Decodable {
+                let musicVideoType: String?   // e.g. _ATV (song) / _OMV / _UGC / _PODCAST_EPISODE
+            }
+        }
+
+        /// The track's "music video type", distinguishing a plain audio song
+        /// (`…_ATV`) from a music video (`…_OMV`/`…_UGC`) or podcast episode.
+        var musicVideoType: String? {
+            watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType
+        }
     }
 
     nonisolated struct BrowseEndpoint: Decodable {
@@ -270,6 +322,17 @@ struct NavigationEndpoint: Decodable {
         var pageType: String? {
             browseEndpointContextSupportedConfigs?
                 .browseEndpointContextMusicConfig?.pageType
+        }
+
+        /// The domain kind this browse endpoint targets, if it's one we navigate
+        /// to (album / playlist / artist).
+        var kind: HomeItem.Kind? {
+            switch pageType {
+            case "MUSIC_PAGE_TYPE_ALBUM":    .album
+            case "MUSIC_PAGE_TYPE_PLAYLIST": .playlist
+            case "MUSIC_PAGE_TYPE_ARTIST":   .artist
+            default:                         nil
+            }
         }
     }
 }

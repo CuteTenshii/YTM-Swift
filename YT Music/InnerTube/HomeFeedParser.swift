@@ -26,14 +26,17 @@ nonisolated enum HomeFeedParser {
     private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
         guard let carousel = section.carousel else { return nil }
 
-        let items = (carousel.contents ?? []).compactMap(item(from:))
+        let items = (carousel.contents ?? []).compactMap { makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
 
         let title = carousel.title.isEmpty ? "More" : carousel.title
         return HomeShelf(title: title, items: items)
     }
 
-    private static func item(from carouselItem: CarouselItem) -> HomeItem? {
+    /// Maps a single carousel/list entry to a `HomeItem`, dispatching on whichever
+    /// card renderer it carries. Shared by the home, library, explore, and search
+    /// parsers (all built from the same two row renderers).
+    static func makeItem(from carouselItem: CarouselItem) -> HomeItem? {
         if let row = carouselItem.musicTwoRowItemRenderer {
             return makeItem(from: row)
         }
@@ -50,6 +53,7 @@ nonisolated enum HomeFeedParser {
         guard !title.isEmpty else { return nil }
 
         let (kind, videoId, browseId, playlistId) = resolve(row.navigationEndpoint)
+        let links = row.subtitle?.entityLinks ?? []
 
         return HomeItem(
             title: title,
@@ -58,7 +62,9 @@ nonisolated enum HomeFeedParser {
             kind: kind,
             videoId: videoId,
             browseId: browseId,
-            playlistId: playlistId
+            playlistId: playlistId,
+            artists: links.filter { $0.kind == .artist },
+            albumLink: links.first { $0.kind == .album }
         )
     }
 
@@ -70,6 +76,7 @@ nonisolated enum HomeFeedParser {
 
         let subtitle = columns.dropFirst().joined(separator: " • ")
         let (kind, videoId, browseId, playlistId) = resolve(row.playEndpoint)
+        let links = row.entityLinks
 
         return HomeItem(
             title: title,
@@ -78,11 +85,35 @@ nonisolated enum HomeFeedParser {
             kind: kind,
             videoId: videoId,
             browseId: browseId,
-            playlistId: playlistId
+            playlistId: playlistId,
+            artists: links.filter { $0.kind == .artist },
+            albumLink: links.first { $0.kind == .album }
         )
     }
 
     // MARK: - Endpoint resolution
+
+    /// Builds a `HomeItem` from already-extracted text plus a navigation endpoint.
+    /// Used for renderers that don't fit the two row shapes (e.g. the search
+    /// top-result card), reusing the shared endpoint resolution.
+    static func makeItem(
+        title: String,
+        subtitle: String,
+        thumbnailURL: URL?,
+        endpoint: NavigationEndpoint?
+    ) -> HomeItem? {
+        guard !title.isEmpty else { return nil }
+        let (kind, videoId, browseId, playlistId) = resolve(endpoint)
+        return HomeItem(
+            title: title,
+            subtitle: subtitle,
+            thumbnailURL: thumbnailURL,
+            kind: kind,
+            videoId: videoId,
+            browseId: browseId,
+            playlistId: playlistId
+        )
+    }
 
     private static func resolve(
         _ endpoint: NavigationEndpoint?

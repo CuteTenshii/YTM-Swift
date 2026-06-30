@@ -18,6 +18,21 @@ struct EntityDestination: Hashable {
     let thumbnailURL: URL?
 }
 
+/// A named, navigable reference to an artist or album, extracted from the
+/// navigation endpoints carried by a track row's text runs. Lets the now-playing
+/// bar turn the artist/album into clickable links.
+struct EntityLink: Hashable, Codable, Sendable {
+    var name: String
+    var browseId: String
+    var kind: HomeItem.Kind
+
+    /// A push destination for this link (no artwork/subtitle — the page fills
+    /// those in once loaded).
+    var destination: EntityDestination {
+        EntityDestination(browseId: browseId, kind: kind, title: name, subtitle: "", thumbnailURL: nil)
+    }
+}
+
 /// A fully-loaded album / playlist / artist page.
 struct EntityPage: Sendable {
     var header: EntityHeader
@@ -31,8 +46,21 @@ struct EntityHeader: Sendable {
     var description: String
     var thumbnailURL: URL?
     var kind: HomeItem.Kind
+    /// Subscribe-button state for artist pages (nil for albums/playlists, or when
+    /// signed out and the header carries no subscribe button).
+    var subscription: ArtistSubscription? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist }
+}
+
+/// The artist subscribe button's state and the InnerTube params needed to toggle
+/// it. Parsed from the artist immersive header's `subscribeButtonRenderer`.
+struct ArtistSubscription: Sendable, Equatable {
+    var channelId: String
+    var isSubscribed: Bool
+    /// Opaque params for the subscribe / unsubscribe service endpoints.
+    var subscribeParams: String?
+    var unsubscribeParams: String?
 }
 
 /// A single playable track in a listing.
@@ -44,4 +72,8 @@ struct Track: Identifiable, Sendable {
     var duration: String?      // "3:45"
     var thumbnailURL: URL?
     var videoId: String?
+    /// Navigable artist links parsed from the row, if any.
+    var artists: [EntityLink] = []
+    /// Navigable album link parsed from the row, if any.
+    var albumLink: EntityLink?
 }

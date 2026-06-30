@@ -22,7 +22,7 @@ struct HomeShelf: Identifiable, Sendable {
 
 /// A single card inside a shelf.
 struct HomeItem: Identifiable, Sendable {
-    enum Kind: Sendable {
+    enum Kind: Sendable, Hashable, Codable {
         case song          // playable track
         case video         // music video
         case album
@@ -43,6 +43,12 @@ struct HomeItem: Identifiable, Sendable {
     var browseId: String?
     /// Set for playlists/albums that can be queued.
     var playlistId: String?
+
+    /// Navigable artist links parsed from the row's byline, if any. Lets cards /
+    /// rows offer "Go to artist" and render clickable artist names.
+    var artists: [EntityLink] = []
+    /// Navigable album link parsed from the row's byline, if any.
+    var albumLink: EntityLink?
 
     /// Artists render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist }

@@ -96,7 +96,8 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: immersive.foregroundThumbnail?.musicThumbnailRenderer?.bestURL
                     ?? immersive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind
+                kind: fallback.kind,
+                subscription: parseSubscription(immersive.subscriptionButton)
             )
         }
 
@@ -123,34 +124,60 @@ nonisolated enum EntityPageParser {
             guard let title = columns.first else { return nil }
 
             defer { index += 1 }
+            let links = row.entityLinks
             return Track(
                 index: index,
                 title: title,
                 subtitle: columns.dropFirst().joined(separator: " • "),
                 duration: row.durationText,
                 thumbnailURL: row.thumbnail?.bestURL,
-                videoId: row.trackVideoId
+                videoId: row.trackVideoId,
+                artists: links.filter { $0.kind == .artist },
+                albumLink: links.first { $0.kind == .album }
             )
         }
+    }
+
+    // MARK: - Subscription
+
+    /// Turns the artist header's subscribe button into our `ArtistSubscription`,
+    /// pulling the channel id, current subscribed state, and the params for the
+    /// subscribe / unsubscribe service endpoints.
+    private static func parseSubscription(
+        _ button: EntityBrowseResponse.HeaderContainer.ImmersiveHeader.SubscriptionButton?
+    ) -> ArtistSubscription? {
+        guard let renderer = button?.subscribeButtonRenderer else { return nil }
+
+        var channelId = renderer.channelId
+        var subscribeParams: String?
+        var unsubscribeParams: String?
+        for endpoint in renderer.serviceEndpoints ?? [] {
+            if let subscribe = endpoint.subscribeEndpoint {
+                subscribeParams = subscribe.params
+                channelId = channelId ?? subscribe.channelIds?.first
+            }
+            if let unsubscribe = endpoint.unsubscribeEndpoint {
+                unsubscribeParams = unsubscribe.params
+                channelId = channelId ?? unsubscribe.channelIds?.first
+            }
+        }
+
+        guard let channelId else { return nil }
+        return ArtistSubscription(
+            channelId: channelId,
+            isSubscribed: renderer.subscribed ?? false,
+            subscribeParams: subscribeParams,
+            unsubscribeParams: unsubscribeParams
+        )
     }
 
     // MARK: - Carousels (reuse the Home shelf shape)
 
     private static func makeShelf(from carousel: MusicCarouselShelfRenderer) -> HomeShelf? {
-        let items = (carousel.contents ?? []).compactMap(homeItem(from:))
+        let items = (carousel.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         let title = carousel.title.isEmpty ? "More" : carousel.title
         return HomeShelf(title: title, items: items)
-    }
-
-    private static func homeItem(from carouselItem: CarouselItem) -> HomeItem? {
-        if let row = carouselItem.musicTwoRowItemRenderer {
-            return HomeFeedParser.makeItem(from: row)
-        }
-        if let row = carouselItem.musicResponsiveListItemRenderer {
-            return HomeFeedParser.makeItem(from: row)
-        }
-        return nil
     }
 
     // MARK: - Helpers

@@ -36,18 +36,8 @@ nonisolated enum LibraryParser {
     }
 
     private static func makeShelf(title: String, contents: [CarouselItem]?) -> HomeShelf? {
-        let items = (contents ?? []).compactMap(item(from:))
+        let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         return HomeShelf(title: title.isEmpty ? "Library" : title, items: items)
-    }
-
-    private static func item(from carouselItem: CarouselItem) -> HomeItem? {
-        if let row = carouselItem.musicTwoRowItemRenderer {
-            return HomeFeedParser.makeItem(from: row)
-        }
-        if let row = carouselItem.musicResponsiveListItemRenderer {
-            return HomeFeedParser.makeItem(from: row)
-        }
-        return nil
     }
 }

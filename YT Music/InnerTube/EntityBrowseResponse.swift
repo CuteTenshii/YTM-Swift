@@ -54,6 +54,27 @@ struct EntityBrowseResponse: Decodable {
             let description: InnerTubeText?
             let thumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let foregroundThumbnail: ResponsiveHeader.ResponsiveThumbnail?
+            let subscriptionButton: SubscriptionButton?
+
+            struct SubscriptionButton: Decodable {
+                let subscribeButtonRenderer: SubscribeButtonRenderer?
+
+                struct SubscribeButtonRenderer: Decodable {
+                    let channelId: String?
+                    let subscribed: Bool?
+                    let serviceEndpoints: [ServiceEndpoint]?
+
+                    struct ServiceEndpoint: Decodable {
+                        let subscribeEndpoint: SubEndpoint?
+                        let unsubscribeEndpoint: SubEndpoint?
+
+                        struct SubEndpoint: Decodable {
+                            let channelIds: [String]?
+                            let params: String?
+                        }
+                    }
+                }
+            }
         }
 
         /// Detail-header artwork is nested under `croppedSquareThumbnailRenderer`.

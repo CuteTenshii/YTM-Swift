@@ -18,9 +18,35 @@ import Foundation
 
 struct WatchNextResponse: Decodable {
     let contents: Contents?
+    /// Carries the seed track's like button (account-relative rating).
+    let playerOverlays: PlayerOverlays?
 
     struct Contents: Decodable {
         let singleColumnMusicWatchNextResultsRenderer: SingleColumn?
+    }
+
+    // Like state lives at
+    //   playerOverlays.playerOverlayRenderer.actions[].likeButtonRenderer
+    //     { likeStatus: LIKE | DISLIKE | INDIFFERENT, target: { videoId } }
+    struct PlayerOverlays: Decodable {
+        let playerOverlayRenderer: PlayerOverlayRenderer?
+    }
+
+    struct PlayerOverlayRenderer: Decodable {
+        let actions: [OverlayAction]?
+    }
+
+    struct OverlayAction: Decodable {
+        let likeButtonRenderer: LikeButtonRenderer?
+    }
+
+    struct LikeButtonRenderer: Decodable {
+        let likeStatus: String?
+        let target: LikeTarget?
+
+        struct LikeTarget: Decodable {
+            let videoId: String?
+        }
     }
 
     struct SingleColumn: Decodable {
@@ -104,14 +130,32 @@ nonisolated enum WatchNextParser {
             guard let video = item.playlistPanelVideoRenderer,
                   let videoId = video.videoId else { return nil }
             defer { index += 1 }
+            let links = video.longBylineText?.entityLinks ?? []
             return Track(
                 index: index,
                 title: video.title?.text ?? "",
                 subtitle: video.longBylineText?.text ?? "",
                 duration: video.lengthText?.text,
                 thumbnailURL: video.thumbnail?.bestURL,
-                videoId: videoId
+                videoId: videoId,
+                artists: links.filter { $0.kind == .artist },
+                albumLink: links.first { $0.kind == .album }
             )
+        }
+    }
+
+    /// The seed track's like rating from the watch-next overlay, scoped to the
+    /// expected `videoId` so a mismatched response doesn't mislabel the track.
+    /// Defaults to `.indifferent` when absent (e.g. signed out, or likes not
+    /// allowed for the video).
+    static func likeStatus(_ response: WatchNextResponse, expecting videoId: String) -> LikeStatus {
+        let button = response.playerOverlays?.playerOverlayRenderer?
+            .actions?.compactMap(\.likeButtonRenderer)
+            .first { $0.target?.videoId == videoId }
+        switch button?.likeStatus {
+        case "LIKE":    return .liked
+        case "DISLIKE": return .disliked
+        default:        return .indifferent
         }
     }
 }

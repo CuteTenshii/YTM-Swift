@@ -58,7 +58,9 @@ struct ItemCard: View {
             thumbnailURL: item.thumbnailURL,
             videoId: item.videoId,
             playlistId: item.playlistId,
-            browseId: item.browseId
+            browseId: item.browseId,
+            artists: item.artists,
+            albumLink: item.albumLink
         )
     }
 
@@ -140,6 +142,7 @@ struct ArtworkView: View {
 
 private struct MusicContextMenu: ViewModifier {
     @Environment(PlayerState.self) private var player
+    @Environment(Navigator.self) private var navigator
 
     let title: String
     let subtitle: String
@@ -147,6 +150,8 @@ private struct MusicContextMenu: ViewModifier {
     let videoId: String?
     let playlistId: String?
     let browseId: String?
+    let artists: [EntityLink]
+    let albumLink: EntityLink?
 
     private var link: URL? {
         MusicLinks.url(videoId: videoId, playlistId: playlistId, browseId: browseId)
@@ -167,6 +172,19 @@ private struct MusicContextMenu: ViewModifier {
                 }
 
                 Button {
+                    player.playNext(
+                        title: title,
+                        subtitle: subtitle,
+                        thumbnailURL: thumbnailURL,
+                        videoId: videoId,
+                        artists: artists,
+                        albumLink: albumLink
+                    )
+                } label: {
+                    Label("Play Next", systemImage: "text.insert")
+                }
+
+                Button {
                     player.startRadio(
                         title: title,
                         subtitle: subtitle,
@@ -178,12 +196,11 @@ private struct MusicContextMenu: ViewModifier {
                 }
             }
 
+            goToArtist
+            goToAlbum
+
             if let link {
-                Button {
-                    NSWorkspace.shared.open(link)
-                } label: {
-                    Label("Open in YouTube Music", systemImage: "arrow.up.forward.app")
-                }
+                ShareLink(item: link)
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
@@ -194,17 +211,62 @@ private struct MusicContextMenu: ViewModifier {
             }
         }
     }
+
+    /// "Go to artist" for a single artist, or a submenu listing each when a track
+    /// has several (e.g. "Artist 1", "Artist 2"). An entry is disabled when its
+    /// page is already the one on screen.
+    @ViewBuilder
+    private var goToArtist: some View {
+        if artists.count == 1, let artist = artists.first {
+            Button {
+                navigator.open(artist.destination)
+            } label: {
+                Label("Go to artist", systemImage: "music.mic")
+            }
+            .disabled(isCurrentPage(artist))
+        } else if artists.count > 1 {
+            Menu {
+                ForEach(artists, id: \.self) { artist in
+                    Button(artist.name) { navigator.open(artist.destination) }
+                        .disabled(isCurrentPage(artist))
+                }
+            } label: {
+                Label("Go to artist", systemImage: "music.mic")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var goToAlbum: some View {
+        if let albumLink {
+            Button {
+                navigator.open(albumLink.destination)
+            } label: {
+                Label("Go to album", systemImage: "square.stack")
+            }
+            .disabled(isCurrentPage(albumLink))
+        }
+    }
+
+    /// Whether `link` points at the entity page currently on screen (Home stack),
+    /// so navigating there would be a no-op.
+    private func isCurrentPage(_ link: EntityLink) -> Bool {
+        navigator.section == .home && navigator.homePath.last?.browseId == link.browseId
+    }
 }
 
 extension View {
-    /// Adds the standard right-click menu (Play / Open / Copy link) for a music item.
+    /// Adds the standard right-click menu (Play / Share / Copy link) for a music
+    /// item, plus "Go to artist"/"Go to album" when those links are known.
     func musicContextMenu(
         title: String,
         subtitle: String,
         thumbnailURL: URL?,
         videoId: String?,
         playlistId: String?,
-        browseId: String?
+        browseId: String?,
+        artists: [EntityLink] = [],
+        albumLink: EntityLink? = nil
     ) -> some View {
         modifier(MusicContextMenu(
             title: title,
@@ -212,7 +274,9 @@ extension View {
             thumbnailURL: thumbnailURL,
             videoId: videoId,
             playlistId: playlistId,
-            browseId: browseId
+            browseId: browseId,
+            artists: artists,
+            albumLink: albumLink
         ))
     }
 }

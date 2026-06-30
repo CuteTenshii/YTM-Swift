@@ -47,4 +47,27 @@ struct WatchNextParserTests {
         let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
         #expect(WatchNextParser.parse(response).isEmpty)
     }
+
+    // Like state lives in the player overlay, scoped to a target videoId.
+    private let likeFixture = """
+    {"playerOverlays":{"playerOverlayRenderer":{"actions":[
+    {"likeButtonRenderer":{"likeStatus":"LIKE","target":{"videoId":"vid"}}}
+    ]}}}
+    """
+
+    @Test("Reads the seed track's like status from the player overlay")
+    func parsesLikeStatus() throws {
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(likeFixture.utf8))
+        #expect(WatchNextParser.likeStatus(response, expecting: "vid") == .liked)
+    }
+
+    @Test("Like status defaults to indifferent when absent or for a different video")
+    func likeStatusDefaults() throws {
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(likeFixture.utf8))
+        // Mismatched videoId → don't mislabel this track.
+        #expect(WatchNextParser.likeStatus(response, expecting: "other") == .indifferent)
+
+        let empty = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
+        #expect(WatchNextParser.likeStatus(empty, expecting: "vid") == .indifferent)
+    }
 }
