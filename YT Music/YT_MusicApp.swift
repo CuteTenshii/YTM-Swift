@@ -17,17 +17,47 @@ struct YT_MusicApp: App {
     // (and reopening it from the Dock) restores the same state — and playback
     // keeps going while no window is open. The player also persists its last
     // track so a fresh launch repopulates the now-playing bar.
-    @State private var player = PlayerState(store: UserDefaultsPlaybackStore())
+    @State private var settings: AppSettings
+    @State private var player: PlayerState
     @State private var auth = AuthStore()
-    @State private var selection: ContentView.Section = .home
+    @State private var downloader: Downloader
+    @State private var pluginHost: PluginHost
+    @State private var navigator = Navigator()
+
+    init() {
+        // Settings must exist before the player, which reads audio-quality /
+        // crossfade preferences from it on every track.
+        let settings = AppSettings()
+        _settings = State(initialValue: settings)
+        _player = State(initialValue: PlayerState(
+            store: UserDefaultsPlaybackStore(),
+            settings: settings
+        ))
+
+        // The plugin registry. Adding a plugin = add one line here.
+        let downloader = Downloader()
+        _downloader = State(initialValue: downloader)
+        let plugins: [any Plugin] = [
+            DiscordPlugin(),
+            NotificationsPlugin(),
+            LastfmPlugin(),
+            DownloaderPlugin(downloader: downloader),
+        ]
+        _pluginHost = State(initialValue: PluginHost(plugins: plugins))
+    }
 
     var body: some Scene {
         // `Window` (not `WindowGroup`) is a single unique window: no "New Window"
         // command and no ⌘N, so the user can't open multiple copies.
         Window("YT Music", id: "main") {
-            ContentView(selection: $selection)
+            ContentView()
                 .environment(player)
                 .environment(auth)
+                .environment(settings)
+                .environment(downloader)
+                .environment(pluginHost)
+                .environment(navigator)
+                .pluginBridge(player: player, host: pluginHost)
         }
     }
 }

@@ -74,7 +74,7 @@ actor SignatureDecipher {
 
     private let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        + "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        + "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 
     // Tail of the player module — `var _yt_player={};(function(g){…})(_yt_player)`.
     // We inject the solver immediately before this so it closes over `g`/`window`.

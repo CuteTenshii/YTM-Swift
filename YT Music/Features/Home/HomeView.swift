@@ -11,10 +11,13 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(Navigator.self) private var navigator
     @State private var model = HomeViewModel()
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.homePath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 
@@ -82,5 +85,6 @@ struct HomeView: View {
     HomeView()
         .environment(PlayerState())
         .environment(AuthStore())
+        .environment(Navigator())
         .frame(width: 900, height: 600)
 }

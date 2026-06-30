@@ -12,29 +12,34 @@ struct ContentView: View {
     enum Section: String, CaseIterable, Identifiable {
         case home = "Home"
         case explore = "Explore"
+        case search = "Search"
         case library = "Library"
+        case settings = "Settings"
 
         var id: Self { self }
 
         var icon: String {
             switch self {
-            case .home:    "house.fill"
-            case .explore: "square.grid.2x2.fill"
-            case .library: "books.vertical.fill"
+            case .home:     "house.fill"
+            case .explore:  "square.grid.2x2.fill"
+            case .search:   "magnifyingglass"
+            case .library:  "books.vertical.fill"
+            case .settings: "gearshape.fill"
             }
         }
     }
 
     @Environment(PlayerState.self) private var player
     @Environment(AuthStore.self) private var auth
-    @Binding var selection: Section
+    @Environment(Navigator.self) private var navigator
 
     var body: some View {
         @Bindable var auth = auth
+        @Bindable var navigator = navigator
 
         VStack(spacing: 0) {
             NavigationSplitView {
-                List(Section.allCases, selection: $selection) { section in
+                List(Section.allCases, selection: $navigator.section) { section in
                     Label(section.rawValue, systemImage: section.icon)
                         .tag(section)
                 }
@@ -43,38 +48,28 @@ struct ContentView: View {
                     AccountControl(auth: auth)
                 }
             } detail: {
-                switch selection {
+                switch navigator.section {
                 case .home:
                     HomeView()
+                case .explore:
+                    ExploreView()
+                case .search:
+                    SearchView()
                 case .library:
                     LibraryView()
-                case .explore:
-                    placeholder(selection)
+                case .settings:
+                    SettingsView()
                 }
             }
 
             // Docked transport bar: a permanent full-width row, never an overlay.
             if player.nowPlaying != nil {
-                NowPlayingBar(player: player)
+                NowPlayingBar(player: player, isSignedIn: auth.isSignedIn, navigate: navigator.open)
             }
         }
         .sheet(isPresented: $auth.isPresentingLogin) {
             LoginView()
                 .environment(auth)
-        }
-    }
-
-    private func placeholder(_ section: Section) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 12) {
-                Image(systemName: section.icon)
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-                Text("\(section.rawValue) coming soon")
-                    .font(.title3)
-                    .foregroundStyle(.white)
-            }
         }
     }
 }
@@ -145,34 +140,40 @@ private struct AccountControl: View {
 /// Persistent transport bar reflecting the current track and playback state.
 private struct NowPlayingBar: View {
     let player: PlayerState
+    /// Whether the user is signed in (the like action requires a session).
+    let isSignedIn: Bool
+    /// Opens an artist/album page (the bar lives outside the nav stack).
+    let navigate: (EntityDestination) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             Divider().overlay(.white.opacity(0.1))
-            HStack(spacing: 14) {
-                if let nowPlaying = player.nowPlaying {
-                    ArtworkView(url: nowPlaying.thumbnailURL, size: 52)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(nowPlaying.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Text(subtitleText(nowPlaying))
-                            .font(.caption)
-                            .foregroundStyle(player.loadError == nil ? Color.secondary : Color.red)
-                            .lineLimit(1)
+            HStack(spacing: 16) {
+                // Left and right clusters share a fixed width so the transport
+                // controls between the two Spacers stay truly centered.
+                HStack(spacing: 14) {
+                    trackInfo
+                    if isSignedIn {
+                        likeButton
                     }
-                    .frame(minWidth: 160, alignment: .leading)
+                    Spacer(minLength: 0)
                 }
+                .frame(width: sideWidth, alignment: .leading)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 12)
 
-                scrubber
+                // Transport controls sit directly above the scrubber.
+                VStack(spacing: 6) {
+                    transportControls
+                    scrubber
+                }
+                .frame(maxWidth: 520)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 12)
 
-                transportControls
+                volumeControl
+                    .frame(width: 130)
+                    .frame(width: sideWidth, alignment: .trailing)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -180,14 +181,112 @@ private struct NowPlayingBar: View {
         .background(.ultraThinMaterial)
     }
 
-    private func subtitleText(_ nowPlaying: PlayerState.NowPlaying) -> String {
-        if let error = player.loadError { return error }
-        if player.isLoading { return "Loading…" }
-        return nowPlaying.subtitle.isEmpty ? "—" : nowPlaying.subtitle
+    /// Equal width reserved for the track-info (left) and volume (right)
+    /// clusters, so the centered transport block lands at the true midpoint.
+    private let sideWidth: CGFloat = 300
+
+    // MARK: - Track info (with clickable artists / album)
+
+    @ViewBuilder
+    private var trackInfo: some View {
+        if let nowPlaying = player.nowPlaying {
+            HStack(spacing: 12) {
+                ArtworkView(url: nowPlaying.thumbnailURL, size: 52)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nowPlaying.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    subtitle(nowPlaying)
+                }
+            }
+        }
     }
+
+    /// The artist/album line: shows an error or loading message, then clickable
+    /// links when we have them, otherwise the plain subtitle text.
+    @ViewBuilder
+    private func subtitle(_ nowPlaying: PlayerState.NowPlaying) -> some View {
+        if let error = player.loadError {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(1)
+        } else if player.isLoading {
+            Text("Loading…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else if !nowPlaying.artists.isEmpty || nowPlaying.albumLink != nil {
+            linksRow(artists: nowPlaying.artists, album: nowPlaying.albumLink)
+        } else {
+            let text = PlayerState.withoutTypeLabel(nowPlaying.subtitle)
+            Text(text.isEmpty ? "—" : text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    /// Artists are comma-separated; the album (if any) follows after a bullet —
+    /// matching YT Music's own "Artist, Artist • Album" convention.
+    ///
+    /// Layout priority decreases left-to-right so an over-long line truncates
+    /// from the right as a whole (album first, then trailing artists) instead of
+    /// each link getting its own ellipsis the way independent `lineLimit(1)`
+    /// children in an HStack otherwise would.
+    private func linksRow(artists: [EntityLink], album: EntityLink?) -> some View {
+        let total = artists.count + (album == nil ? 0 : 1)
+        return HStack(spacing: 0) {
+            ForEach(Array(artists.enumerated()), id: \.offset) { index, link in
+                if index > 0 {
+                    Text(", ")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                EntityLinkButton(link: link) { navigate(link.destination) }
+                    .layoutPriority(Double(total - index))
+            }
+            if let album {
+                Text(" • ")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                EntityLinkButton(link: album) { navigate(album.destination) }
+                    .layoutPriority(0)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    // MARK: - Like
+
+    private var likeButton: some View {
+        let liked = player.likeStatus == .liked
+        return Button(action: player.toggleLike) {
+            Image(systemName: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(liked ? Color.red : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(player.isUpdatingLike)
+        .help(liked ? "Remove from liked songs" : "Like")
+    }
+
+    // MARK: - Transport
 
     private var transportControls: some View {
         HStack(spacing: 18) {
+            Button(action: player.toggleShuffle) {
+                Image(systemName: "shuffle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(shuffleTint)
+            }
+            .buttonStyle(.plain)
+            .disabled(player.queue.isEmpty)
+            .help("Shuffle")
+
             Button(action: player.cycleRepeatMode) {
                 Image(systemName: repeatIcon)
                     .font(.system(size: 15, weight: .semibold))
@@ -223,12 +322,17 @@ private struct NowPlayingBar: View {
         }
     }
 
+    private var shuffleTint: Color {
+        if player.queue.isEmpty { return .secondary }
+        return player.isShuffled ? .red : .secondary
+    }
+
     @ViewBuilder
     private var playButton: some View {
         if player.isLoading {
             ProgressView()
                 .controlSize(.small)
-                .frame(width: 40)
+                .frame(width: 36, height: 36)
         } else {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -240,6 +344,31 @@ private struct NowPlayingBar: View {
         }
     }
 
+    // MARK: - Volume
+
+    private var volumeControl: some View {
+        @Bindable var player = player
+        return HStack(spacing: 8) {
+            Image(systemName: volumeIcon)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Slider(value: $player.volume, in: 0...1)
+                .controlSize(.small)
+                .tint(.white)
+        }
+    }
+
+    private var volumeIcon: String {
+        switch player.volume {
+        case ..<0.01: "speaker.slash.fill"
+        case ..<0.5:  "speaker.wave.1.fill"
+        default:      "speaker.wave.2.fill"
+        }
+    }
+
+    // MARK: - Scrubber
+
     @ViewBuilder
     private var scrubber: some View {
         if player.duration > 0 {
@@ -248,20 +377,20 @@ private struct NowPlayingBar: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
-                Slider(
-                    value: Binding(
-                        get: { player.currentTime },
-                        set: { player.seek(to: $0) }
-                    ),
-                    in: 0...player.duration
+                SeekBar(
+                    currentTime: player.currentTime,
+                    bufferedTime: player.bufferedTime,
+                    duration: player.duration,
+                    onSeek: { player.seek(to: $0) }
                 )
-                .frame(maxWidth: 420)
-                .tint(.red)
 
                 Text(timeString(player.duration))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+        } else {
+            // Keep the row height stable before a duration is known.
+            Color.clear.frame(height: 11)
         }
     }
 
@@ -272,9 +401,97 @@ private struct NowPlayingBar: View {
     }
 }
 
+/// A single artist/album link in the now-playing bar: secondary text that turns
+/// white and underlines on hover to read as clickable.
+private struct EntityLinkButton: View {
+    let link: EntityLink
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(link.name)
+                .font(.caption)
+                .foregroundStyle(hovering ? Color.white : Color.secondary)
+                .underline(hovering)
+                .lineLimit(1)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(link.name)
+    }
+}
+
+/// A custom playback scrubber that shows played progress (red), cached/buffered
+/// progress (lighter fill), and the remaining track, with a draggable thumb.
+/// Replaces a plain Slider so the "cache progress" can sit behind the playhead.
+private struct SeekBar: View {
+    let currentTime: Double
+    let bufferedTime: Double
+    let duration: Double
+    let onSeek: (Double) -> Void
+
+    @State private var dragTime: Double?
+
+    private let trackHeight: CGFloat = 4
+    private let thumbSize: CGFloat = 11
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let played = dragTime ?? currentTime
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.white.opacity(0.15))
+                    .frame(height: trackHeight)
+
+                Capsule()
+                    .fill(.white.opacity(0.3))
+                    .frame(width: width * fraction(bufferedTime), height: trackHeight)
+
+                Capsule()
+                    .fill(.red)
+                    .frame(width: width * fraction(played), height: trackHeight)
+
+                Circle()
+                    .fill(.white)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .offset(x: width * fraction(played) - thumbSize / 2)
+            }
+            .frame(height: thumbSize)
+            .frame(maxHeight: .infinity)
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        dragTime = time(at: value.location.x, width: width)
+                    }
+                    .onEnded { value in
+                        onSeek(time(at: value.location.x, width: width))
+                        dragTime = nil
+                    }
+            )
+        }
+        .frame(height: thumbSize)
+    }
+
+    private func fraction(_ time: Double) -> Double {
+        guard duration > 0 else { return 0 }
+        return min(max(time / duration, 0), 1)
+    }
+
+    private func time(at x: CGFloat, width: CGFloat) -> Double {
+        guard width > 0 else { return 0 }
+        return min(max(Double(x / width), 0), 1) * duration
+    }
+}
+
 #Preview {
-    ContentView(selection: .constant(.home))
+    ContentView()
         .environment(PlayerState())
         .environment(AuthStore())
+        .environment(Navigator())
         .frame(width: 1000, height: 700)
 }
