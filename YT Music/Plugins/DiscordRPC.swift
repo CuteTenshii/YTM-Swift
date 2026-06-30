@@ -9,10 +9,11 @@
 //  Protocol: each frame is a little-endian UInt32 opcode + UInt32 byte-length +
 //  UTF-8 JSON payload. op 0 = handshake, op 1 = frame (commands), op 2 = close.
 //
-//  NOTE: under the App Sandbox the process's temp dir is redirected to its
-//  container, so Discord's socket isn't visible. Reaching a running Discord
-//  therefore requires relaxing the sandbox (or a temporary-exception
-//  entitlement). The client fails quietly when no socket is found.
+//  Discord creates `discord-ipc-N` (N = 0…9) in the per-user Darwin temp dir
+//  (`$TMPDIR`, e.g. `/var/folders/…/T/`). The App Sandbox is disabled for this
+//  app, so that temp dir is the real host one and connecting to the socket is
+//  permitted; `candidatePaths()` covers `$TMPDIR` plus the usual fallbacks. The
+//  client fails quietly when no socket is found (Discord not running).
 //
 
 import Foundation
@@ -95,11 +96,27 @@ final class DiscordRPC: @unchecked Sendable {
     private func candidatePaths() -> [String] {
         let env = ProcessInfo.processInfo.environment
         var dirs = ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"].compactMap { env[$0] }
+        if let darwinTemp = Self.darwinUserTempDir() { dirs.append(darwinTemp) }
         dirs.append("/tmp")
-        return dirs.flatMap { dir -> [String] in
+        // De-dupe while preserving order, then expand to per-index socket paths.
+        var seen = Set<String>()
+        let bases = dirs.compactMap { dir -> String? in
             let base = dir.hasSuffix("/") ? String(dir.dropLast()) : dir
-            return (0..<10).map { "\(base)/discord-ipc-\($0)" }
+            return seen.insert(base).inserted ? base : nil
         }
+        return bases.flatMap { base in (0..<10).map { "\(base)/discord-ipc-\($0)" } }
+    }
+
+    /// The per-user Darwin temp dir (`_CS_DARWIN_USER_TEMP_DIR`, e.g.
+    /// `/var/folders/…/T/`) where Discord writes its socket. Canonical even when
+    /// `TMPDIR` is absent from the launch environment.
+    private static func darwinUserTempDir() -> String? {
+        let size = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
+        guard size > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else { return nil }
+        let path = String(cString: buffer)
+        return path.isEmpty ? nil : path
     }
 
     private func syncDisconnect() {
