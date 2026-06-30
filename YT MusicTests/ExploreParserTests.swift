@@ -1,0 +1,62 @@
+//
+//  ExploreParserTests.swift
+//  YT MusicTests
+//
+//  Verifies explore parsing against a fixture shaped like the real
+//  `FEmusic_explore` browse response (no network): a carousel of new releases,
+//  plus a mood/genre chip grid that should be skipped (its buttons carry no card).
+//
+
+import Testing
+import Foundation
+@testable import YT_Music
+
+@Suite("Explore parser")
+struct ExploreParserTests {
+
+    private let fixture = """
+    {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+      {"musicCarouselShelfRenderer":{
+        "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"New albums & singles"}]}}},
+        "contents":[
+          {"musicTwoRowItemRenderer":{
+            "title":{"runs":[{"text":"Some Album"}]},
+            "subtitle":{"runs":[{"text":"Some Artist"}]},
+            "navigationEndpoint":{"browseEndpoint":{
+              "browseId":"MPREb_xyz",
+              "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}
+            }}
+          }}
+        ]
+      }},
+      {"gridRenderer":{
+        "header":{"gridHeaderRenderer":{"title":{"runs":[{"text":"Moods & genres"}]}}},
+        "items":[
+          {"musicNavigationButtonRenderer":{"buttonText":{"runs":[{"text":"Chill"}]}}}
+        ]
+      }}
+    ]}}}}]}}}
+    """
+
+    @Test("Parses new-release carousels and skips card-less chip grids")
+    func parsesCarouselsSkipsChips() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(fixture.utf8))
+        let shelves = ExploreParser.parse(response)
+
+        // The mood/genre grid has no card renderers, so only the carousel survives.
+        #expect(shelves.count == 1)
+        let shelf = try #require(shelves.first)
+        #expect(shelf.title == "New albums & singles")
+
+        let album = try #require(shelf.items.first)
+        #expect(album.kind == .album)
+        #expect(album.title == "Some Album")
+        #expect(album.browseId == "MPREb_xyz")
+    }
+
+    @Test("An empty response yields no shelves")
+    func emptyResponse() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("{}".utf8))
+        #expect(ExploreParser.parse(response).isEmpty)
+    }
+}
