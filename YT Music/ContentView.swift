@@ -46,61 +46,76 @@ struct ContentView: View {
         @Bindable var auth = auth
         @Bindable var navigator = navigator
 
-        VStack(spacing: 0) {
-            if auth.sessionExpired {
-                SessionExpiredBanner(auth: auth)
-            }
+        ZStack {
+            VStack(spacing: 0) {
+                if auth.sessionExpired {
+                    SessionExpiredBanner(auth: auth)
+                }
 
-            NavigationSplitView {
-                List(Section.allCases, selection: $navigator.section) { section in
-                    Label(section.rawValue, systemImage: section.icon)
-                        .tag(section)
+                NavigationSplitView {
+                    List(Section.allCases, selection: $navigator.section) { section in
+                        Label(section.rawValue, systemImage: section.icon)
+                            .tag(section)
+                    }
+                    .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        AccountControl(auth: auth)
+                    }
+                } detail: {
+                    switch navigator.section {
+                    case .home:
+                        HomeView()
+                    case .explore:
+                        ExploreView()
+                    case .search:
+                        SearchView()
+                    case .library:
+                        LibraryView()
+                    case .uploads:
+                        UploadsView()
+                    case .history:
+                        HistoryView()
+                    case .settings:
+                        SettingsView()
+                    }
                 }
-                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    AccountControl(auth: auth)
+                .inspector(isPresented: $navigator.showingPanel) {
+                    NowPlayingPanelView(player: player, tab: $navigator.panelTab,
+                                        navigate: navigator.open, comments: comments)
                 }
-            } detail: {
-                switch navigator.section {
-                case .home:
-                    HomeView()
-                case .explore:
-                    ExploreView()
-                case .search:
-                    SearchView()
-                case .library:
-                    LibraryView()
-                case .uploads:
-                    UploadsView()
-                case .history:
-                    HistoryView()
-                case .settings:
-                    SettingsView()
-                }
-            }
-            .inspector(isPresented: $navigator.showingPanel) {
-                NowPlayingPanelView(player: player, tab: $navigator.panelTab,
-                                    navigate: navigator.open, comments: comments)
-            }
 
-            // Docked transport bar: a permanent full-width row, never an overlay.
-            if player.nowPlaying != nil {
-                NowPlayingBar(
-                    player: player,
-                    isSignedIn: auth.isSignedIn,
-                    navigate: navigator.open,
-                    showingPanel: $navigator.showingPanel,
-                    panelTab: $navigator.panelTab,
-                    showingImmersiveLyrics: $navigator.showingImmersiveLyrics,
-                    comments: comments
-                )
+                // Docked transport bar: a permanent full-width row, never an overlay.
+                if player.nowPlaying != nil {
+                    NowPlayingBar(
+                        player: player,
+                        isSignedIn: auth.isSignedIn,
+                        navigate: navigator.open,
+                        showingPanel: $navigator.showingPanel,
+                        panelTab: $navigator.panelTab,
+                        showingImmersiveLyrics: $navigator.showingImmersiveLyrics,
+                        comments: comments
+                    )
+                }
             }
-        }
-        .overlay {
+            // The window toolbar (sidebar toggle + navigation title) is drawn in
+            // the titlebar. Hide it while the immersive view is up so nothing
+            // floats over the full-window overlay.
+            .toolbar(navigator.showingImmersiveLyrics ? .hidden : .automatic, for: .windowToolbar)
+
+            // The immersive view is a sibling layer (not an `.overlay` on the
+            // inset content) so `.ignoresSafeArea()` can bleed it edge-to-edge —
+            // otherwise the menu-bar / notch region stays black in full screen.
+            // A GeometryReader captures the top inset (read before ignoring it)
+            // so the header can still clear the notch.
             if navigator.showingImmersiveLyrics {
-                ImmersiveLyricsView(player: player, isPresented: $navigator.showingImmersiveLyrics)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
+                GeometryReader { geo in
+                    ImmersiveLyricsView(player: player,
+                                        isPresented: $navigator.showingImmersiveLyrics,
+                                        safeAreaTop: geo.safeAreaInsets.top)
+                        .ignoresSafeArea()
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(1)
             }
         }
         .sheet(isPresented: $auth.isPresentingLogin) {

@@ -47,7 +47,7 @@ struct LyricsStyle {
         activeColor: .white,
         inactiveColor: Color.white.opacity(0.4),
         lineSpacing: 18,
-        padding: EdgeInsets(top: 24, leading: 44, bottom: 220, trailing: 44),
+        padding: EdgeInsets(top: 64, leading: 44, bottom: 220, trailing: 44),
         maxBlur: 5,
         scrollAnchor: UnitPoint(x: 0.5, y: 0.4),
         activeScale: 1.04
