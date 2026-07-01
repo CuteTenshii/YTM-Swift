@@ -23,13 +23,35 @@ final class AuthStore {
     private(set) var account: AccountInfo?
     var isPresentingLogin = false
 
+    /// True after an authenticated request came back 401: the stored cookies are
+    /// stale and the user needs to sign in again. Drives the re-sign-in banner.
+    private(set) var sessionExpired = false
+
     /// Increments on every sign-in / sign-out, so views can `.task(id:)` reload.
     private(set) var generation = 0
 
     var isSignedIn: Bool { state == .signedIn }
 
     init() {
+        // A 401 on any authenticated request (posted by InnerTubeClient) means the
+        // session expired; surface a banner prompting re-authentication.
+        NotificationCenter.default.addObserver(
+            forName: .ytmSessionExpired, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.noteSessionExpired() }
+        }
         Task { await refresh() }
+    }
+
+    /// Marks the session expired (unless already signed out). Idempotent.
+    private func noteSessionExpired() {
+        guard state == .signedIn else { return }
+        sessionExpired = true
+    }
+
+    /// Dismisses the expired banner without signing out (the user can retry later).
+    func dismissExpiredNotice() {
+        sessionExpired = false
     }
 
     func refresh() async {
@@ -49,6 +71,7 @@ final class AuthStore {
 
         await CredentialStore.shared.update(credentials)
         state = .signedIn
+        sessionExpired = false
         isPresentingLogin = false
         generation += 1
         await loadAccountInfo()
@@ -59,6 +82,7 @@ final class AuthStore {
         await Self.clearWebData()
         state = .signedOut
         account = nil
+        sessionExpired = false
         generation += 1
     }
 
