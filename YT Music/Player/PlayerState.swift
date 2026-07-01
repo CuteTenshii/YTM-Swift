@@ -396,6 +396,49 @@ final class PlayerState {
         orderBeforeShuffle = []
     }
 
+    // MARK: - Queue editing
+
+    /// Jumps to and plays the track at `index` (tapping a row in the queue
+    /// panel). No-op for an out-of-range index.
+    func playQueueItem(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        currentIndex = index
+        startCurrent()
+    }
+
+    /// Removes the track at `index`. Removing the current track advances to
+    /// whatever slides into its place (or stops if it was the last); removing an
+    /// earlier track keeps the current one playing.
+    func removeFromQueue(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        let removed = queue.remove(at: index)
+        orderBeforeShuffle.removeAll { $0.id == removed.id }
+
+        if index == currentIndex {
+            if queue.isEmpty {
+                currentIndex = 0
+            } else {
+                if currentIndex >= queue.count { currentIndex = queue.count - 1 }
+                startCurrent()
+                return
+            }
+        } else if index < currentIndex {
+            currentIndex -= 1
+        }
+        persist()
+    }
+
+    /// Reorders the queue (drag-to-reorder in the queue panel), keeping the
+    /// currently-playing track current wherever it lands.
+    func moveInQueue(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let current = queue.indices.contains(currentIndex) ? queue[currentIndex] : nil
+        queue.move(fromOffsets: source, toOffset: destination)
+        if let current, let index = queue.firstIndex(where: { $0.id == current.id }) {
+            currentIndex = index
+        }
+        persist()
+    }
+
     /// Likes the current track, or removes the like if it's already liked.
     /// Updates the UI optimistically and reverts if the request fails (e.g.
     /// signed out). No-op while a previous like request is still in flight.
@@ -704,6 +747,11 @@ final class PlayerState {
     private func emitPlaybackChange() {
         onPlaybackChange?(currentSnapshot)
     }
+
+    /// The display artist for the current track (structured links if known, else
+    /// parsed from the subtitle). Empty when nothing is playing. Cheap to read
+    /// from a view without observing per-tick playback state.
+    var nowPlayingArtist: String { Self.cleanedArtist(nowPlaying) }
 
     /// The artist name for Now Playing / plugins. Prefers the structured artist
     /// links; otherwise parses it out of the subtitle.

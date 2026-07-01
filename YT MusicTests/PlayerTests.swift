@@ -366,6 +366,47 @@ struct PlayerStateQueueTests {
         p.cycleRepeatMode(); #expect(p.repeatMode == .off)
     }
 
+    @Test("playQueueItem jumps to and plays the chosen row")
+    func playQueueItemJumps() {
+        let p = player()
+        p.play(tracks(["a", "b", "c"]), startAt: 0)
+        p.playQueueItem(at: 2)
+        #expect(p.currentIndex == 2)
+        #expect(p.nowPlaying?.videoId == "c")
+        p.playQueueItem(at: 99) // out of range → no-op
+        #expect(p.currentIndex == 2)
+    }
+
+    @Test("removing a track before the current one keeps it playing")
+    func removeBeforeCurrent() {
+        let p = player()
+        p.play(tracks(["a", "b", "c"]), startAt: 2)
+        p.removeFromQueue(at: 0)
+        #expect(p.queue.map(\.videoId) == ["b", "c"])
+        #expect(p.currentIndex == 1)          // shifted down to follow "c"
+        #expect(p.nowPlaying?.videoId == "c")
+    }
+
+    @Test("removing the current track advances to what slides into its place")
+    func removeCurrentAdvances() {
+        let p = player()
+        p.play(tracks(["a", "b", "c"]), startAt: 1)
+        p.removeFromQueue(at: 1)
+        #expect(p.queue.map(\.videoId) == ["a", "c"])
+        #expect(p.currentIndex == 1)
+        #expect(p.nowPlaying?.videoId == "c")  // "c" slid into index 1 and plays
+    }
+
+    @Test("moving a track keeps the playing track current")
+    func moveKeepsCurrent() {
+        let p = player()
+        p.play(tracks(["a", "b", "c"]), startAt: 0) // "a" playing
+        p.moveInQueue(fromOffsets: IndexSet(integer: 0), toOffset: 3) // a → end
+        #expect(p.queue.map(\.videoId) == ["b", "c", "a"])
+        #expect(p.currentIndex == 2)            // still pointing at "a"
+        #expect(p.nowPlaying?.videoId == "a")
+    }
+
     @Test("a finished track advances to the next when repeat is off")
     func finishAdvances() {
         let audio = FakeAudioOutput()
