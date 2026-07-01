@@ -64,7 +64,8 @@ nonisolated enum HomeFeedParser {
             browseId: browseId,
             playlistId: playlistId,
             artists: links.filter { $0.kind == .artist },
-            albumLink: links.first { $0.kind == .album }
+            albumLink: links.first { $0.kind == .album },
+            deleteEntityId: row.deleteEntityId
         )
     }
 
@@ -75,7 +76,14 @@ nonisolated enum HomeFeedParser {
         guard let title = columns.first else { return nil }
 
         let subtitle = columns.dropFirst().joined(separator: " • ")
-        let (kind, videoId, browseId, playlistId) = resolve(row.playEndpoint)
+        var (kind, videoId, browseId, playlistId) = resolve(row.playEndpoint)
+        // Uploaded songs (and history rows) carry the video id in
+        // `playlistItemData` rather than a play endpoint — fall back to the most
+        // reliable id so these rows stay playable.
+        if videoId == nil, let id = row.trackVideoId {
+            videoId = id
+            if kind == .unknown { kind = .song }
+        }
         let links = row.entityLinks
 
         return HomeItem(
@@ -87,7 +95,8 @@ nonisolated enum HomeFeedParser {
             browseId: browseId,
             playlistId: playlistId,
             artists: links.filter { $0.kind == .artist },
-            albumLink: links.first { $0.kind == .album }
+            albumLink: links.first { $0.kind == .album },
+            deleteEntityId: row.deleteEntityId
         )
     }
 

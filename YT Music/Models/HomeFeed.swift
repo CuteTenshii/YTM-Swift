@@ -49,6 +49,9 @@ struct HomeItem: Identifiable, Sendable {
     var artists: [EntityLink] = []
     /// Navigable album link parsed from the row's byline, if any.
     var albumLink: EntityLink?
+    /// Delete entity id for an uploaded item (uploaded song/album), enabling a
+    /// "Delete upload" action. nil for everything that isn't a user upload.
+    var deleteEntityId: String? = nil
 
     /// Artists render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist }
