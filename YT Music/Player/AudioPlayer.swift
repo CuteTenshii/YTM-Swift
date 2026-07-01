@@ -93,6 +93,11 @@ final class AudioPlayer: AudioOutput {
             AVURLAssetPreferPreciseDurationAndTimingKey: false
         ])
         let item = AVPlayerItem(asset: asset)
+        // Keep buffering ~30s ahead once playing. This doesn't gate the start of
+        // playback (automaticallyWaitsToMinimizeStalling does), so time-to-first-
+        // audio is unchanged — it just builds a cushion so network jitter mid-track
+        // doesn't underrun the buffer and stutter.
+        item.preferredForwardBufferDuration = 30
         installEqualizer(on: item, asset: asset)
         return item
     }
