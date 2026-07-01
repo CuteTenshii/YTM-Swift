@@ -53,6 +53,13 @@ final class AppSettings {
         didSet { store(preferAudioOverVideo, for: .preferAudioOverVideo) }
     }
 
+    // MARK: Lyrics
+
+    /// Where the lyrics panel fetches from.
+    var lyricsProvider: LyricsProvider {
+        didSet { store(lyricsProvider.rawValue, for: .lyricsProvider) }
+    }
+
     /// Output volume, 0...1. Persisted so the level survives relaunches.
     var volume: Double {
         didSet { store(volume, for: .volume) }
@@ -133,6 +140,8 @@ final class AppSettings {
         self.audioQuality = (defaults.string(forKey: Key.audioQuality.rawValue)
             .flatMap(AudioQuality.init)) ?? .auto
         self.preferAudioOverVideo = defaults.object(forKey: Key.preferAudioOverVideo.rawValue) as? Bool ?? true
+        self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
+            .flatMap(LyricsProvider.init)) ?? .youtubeMusic
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
         self.crossfadeEnabled = defaults.bool(forKey: Key.crossfadeEnabled.rawValue)
         self.crossfadeSeconds = defaults.object(forKey: Key.crossfadeSeconds.rawValue) as? Double ?? 6
@@ -188,6 +197,7 @@ final class AppSettings {
     private enum Key: String {
         case audioQuality        = "settings.audioQuality"
         case preferAudioOverVideo = "settings.preferAudioOverVideo"
+        case lyricsProvider      = "settings.lyricsProvider"
         case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
         case crossfadeSeconds    = "settings.crossfadeSeconds"

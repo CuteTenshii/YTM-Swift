@@ -30,6 +30,17 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Lyrics") {
+                Picker("Lyrics source", selection: $settings.lyricsProvider) {
+                    ForEach(LyricsProvider.allCases) { provider in
+                        Text(provider.label).tag(provider)
+                    }
+                }
+                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database matched by title and artist, with wider coverage and synced (karaoke) lyrics. Musixmatch adds word-by-word timing where available, via an unofficial endpoint that can be less reliable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Crossfade") {
                 Toggle("Crossfade between tracks", isOn: $settings.crossfadeEnabled)
                 if settings.crossfadeEnabled {
