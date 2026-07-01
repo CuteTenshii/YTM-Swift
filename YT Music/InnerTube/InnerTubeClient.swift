@@ -406,11 +406,21 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// (excluding saved-but-not-owned playlists and "Liked Music"), unlike
     /// browsing the library playlists page. Requires auth.
     func addToPlaylistOptions(videoId: String) async throws -> [EditablePlaylist] {
-        let response: AddToPlaylistResponse = try await post(
+        let data = try await postData(
             "playlist/get_add_to_playlist",
             body: ["videoIds": [videoId], "excludeWatchLater": true]
         )
-        return AddToPlaylistParser.parse(response)
+        do {
+            let response = try JSONDecoder().decode(AddToPlaylistResponse.self, from: data)
+            return AddToPlaylistParser.parse(response)
+        } catch {
+            // Can't reach this API from tests (sandbox 403), so on a decode failure
+            // dump the raw response to Caches (`yt-add-to-playlist.json`) to diagnose
+            // the real layout. Read with Console.app or `open`.
+            let path = PlaybackLog.dumpData(data, to: "yt-add-to-playlist.json") ?? "(dump failed)"
+            PlaybackLog.problem("add-to-playlist: decode failed (\(error)) — dumped response to \(path)")
+            throw error
+        }
     }
 
     /// Creates a new playlist and returns its id. `videoIds` seeds it with tracks

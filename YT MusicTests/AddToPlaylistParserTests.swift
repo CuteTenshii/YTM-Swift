@@ -20,7 +20,7 @@ struct AddToPlaylistParserTests {
     @Test("Maps playlist options (runs or simpleText titles) to editable playlists")
     func parsesOptions() throws {
         let response = try response(from: """
-        { "contents": { "addToPlaylistRenderer": { "playlists": [
+        { "contents": [ { "addToPlaylistRenderer": { "playlists": [
           { "playlistAddToOptionRenderer": {
             "playlistId": "PLaaa",
             "title": { "runs": [ { "text": "Road Trip" } ] }
@@ -31,7 +31,7 @@ struct AddToPlaylistParserTests {
             "thumbnail": { "thumbnails": [ { "url": "https://img/x", "width": 60 } ] }
           } },
           { "playlistAddToOptionRenderer": { "title": { "simpleText": "No id, dropped" } } }
-        ] } } }
+        ] } } ] }
         """)
 
         let playlists = AddToPlaylistParser.parse(response)
@@ -40,6 +40,37 @@ struct AddToPlaylistParserTests {
         #expect(playlists.first?.title == "Road Trip")
         #expect(playlists.last?.title == "Focus")
         #expect(playlists.last?.thumbnailURL?.absoluteString == "https://img/x")
+    }
+
+    @Test("Tolerates the single-object contents envelope too")
+    func parsesSingleObjectContents() throws {
+        let response = try response(from: """
+        { "contents": { "addToPlaylistRenderer": { "playlists": [
+          { "playlistAddToOptionRenderer": { "playlistId": "PLccc", "title": { "simpleText": "Chill" } } }
+        ] } } }
+        """)
+
+        let playlists = AddToPlaylistParser.parse(response)
+        #expect(playlists.count == 1)
+        #expect(playlists.first?.id == "PLccc")
+    }
+
+    @Test("A thumbnail without a url doesn't fail the whole decode")
+    func toleratesMissingThumbnailURL() throws {
+        let response = try response(from: """
+        { "contents": [ { "addToPlaylistRenderer": { "playlists": [
+          { "playlistAddToOptionRenderer": {
+            "playlistId": "PLddd",
+            "title": { "simpleText": "No cover" },
+            "thumbnail": { "thumbnails": [ { "width": 60 } ] }
+          } }
+        ] } } ] }
+        """)
+
+        let playlists = AddToPlaylistParser.parse(response)
+        #expect(playlists.count == 1)
+        #expect(playlists.first?.title == "No cover")
+        #expect(playlists.first?.thumbnailURL == nil)
     }
 
     @Test("Empty / missing renderer yields no playlists")
