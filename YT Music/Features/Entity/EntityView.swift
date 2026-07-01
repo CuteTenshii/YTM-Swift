@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct EntityView: View {
+    @Environment(AuthStore.self) private var auth
     @State private var model: EntityViewModel
 
     init(destination: EntityDestination) {
@@ -32,6 +33,10 @@ struct EntityView: View {
         }
         .navigationTitle(model.destination.title)
         .task { await model.loadIfNeeded() }
+        // Re-check subscription state when auth changes (sign-in/out) or the page
+        // is revisited, so the subscribe button reflects the server, not a stale
+        // optimistic value.
+        .task(id: auth.generation) { await model.revalidateSubscription() }
     }
 
     // MARK: - Loaded content

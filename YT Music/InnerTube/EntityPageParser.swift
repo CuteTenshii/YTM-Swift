@@ -20,7 +20,7 @@ nonisolated enum EntityPageParser {
 
         for section in sections {
             if let shelf = section.listShelf {
-                tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1))
+                tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
             }
@@ -67,7 +67,8 @@ nonisolated enum EntityPageParser {
                 description: detail.description?.text ?? "",
                 thumbnailURL: detail.thumbnail?.croppedSquareThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind
+                kind: fallback.kind,
+                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist }
             )
         }
 
@@ -77,6 +78,8 @@ nonisolated enum EntityPageParser {
                 responsive.subtitle?.text,
                 responsive.secondSubtitle?.text
             )
+            let artists = ((responsive.straplineTextOne?.entityLinks ?? [])
+                + (responsive.subtitle?.entityLinks ?? [])).filter { $0.kind == .artist }
             return EntityHeader(
                 title: responsive.title?.text ?? fallback.title,
                 subtitle: subtitle.isEmpty ? fallback.subtitle : subtitle,
@@ -84,7 +87,8 @@ nonisolated enum EntityPageParser {
                     .description?.text ?? "",
                 thumbnailURL: responsive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind
+                kind: fallback.kind,
+                artists: artists
             )
         }
 
@@ -115,7 +119,8 @@ nonisolated enum EntityPageParser {
 
     private static func parseTracks(
         _ shelf: MusicShelfRenderer,
-        startIndex: Int
+        startIndex: Int,
+        header: EntityHeader
     ) -> [Track] {
         var index = startIndex
         return (shelf.contents ?? []).compactMap { item in
@@ -125,15 +130,33 @@ nonisolated enum EntityPageParser {
 
             defer { index += 1 }
             let links = row.entityLinks
+            let albumLink = links.first { $0.kind == .album }
+            let rowArtists = links.filter { $0.kind == .artist }
+
+            // Default: artists + subtitle come from the row itself.
+            var artists = rowArtists
+            var subtitle = columns.dropFirst().joined(separator: " • ")
+
+            // Album tracks usually omit a per-row artist — it's the album artist,
+            // carried only in the header (uploaded albums even leave the row's
+            // artist column empty, so the album name would otherwise leak into the
+            // subtitle). Inherit the header artist for both the links and text.
+            if rowArtists.isEmpty, header.kind == .album, !header.artists.isEmpty {
+                artists = header.artists
+                subtitle = header.artists.map(\.name).joined(separator: ", ")
+            }
+
             return Track(
                 index: index,
                 title: title,
-                subtitle: columns.dropFirst().joined(separator: " • "),
+                subtitle: subtitle,
                 duration: row.durationText,
-                thumbnailURL: row.thumbnail?.bestURL,
+                // Album/uploaded track rows carry no per-row artwork — fall back
+                // to the album cover instead of a blank placeholder.
+                thumbnailURL: row.thumbnail?.bestURL ?? header.thumbnailURL,
                 videoId: row.trackVideoId,
-                artists: links.filter { $0.kind == .artist },
-                albumLink: links.first { $0.kind == .album }
+                artists: artists,
+                albumLink: albumLink
             )
         }
     }

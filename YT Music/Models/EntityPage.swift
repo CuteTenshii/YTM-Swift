@@ -46,6 +46,9 @@ struct EntityHeader: Sendable {
     var description: String
     var thumbnailURL: URL?
     var kind: HomeItem.Kind
+    /// Navigable artist link(s) parsed from the header subtitle. For an album,
+    /// these are the album's artist(s) — inherited by tracks that carry none.
+    var artists: [EntityLink] = []
     /// Subscribe-button state for artist pages (nil for albums/playlists, or when
     /// signed out and the header carries no subscribe button).
     var subscription: ArtistSubscription? = nil
@@ -76,4 +79,8 @@ struct Track: Identifiable, Sendable {
     var artists: [EntityLink] = []
     /// Navigable album link parsed from the row, if any.
     var albumLink: EntityLink?
+    /// History-removal feedback token, when this track came from the history page.
+    var feedbackToken: String? = nil
+    /// Playlist-scoped id for removing this row from an owned playlist, if known.
+    var playlistSetVideoId: String? = nil
 }

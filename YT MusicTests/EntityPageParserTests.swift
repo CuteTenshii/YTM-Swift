@@ -63,6 +63,73 @@ struct EntityPageParserTests {
         let page = EntityPageParser.parse(response, fallback: artistDestination)
         #expect(page.header.subscription == nil)
     }
+
+    /// An uploaded album, shaped like the real `privately_owned_release_detail`
+    /// response: the artist link is only in the header (with a
+    /// `MUSIC_PAGE_TYPE_UNKNOWN` page type, its kind inferred from the browse id),
+    /// and the track row carries no artist and no thumbnail — only the album link.
+    private let uploadedAlbumFixture = """
+    {
+      "header":{"musicDetailHeaderRenderer":{
+        "title":{"runs":[{"text":"Rendez-vous"}]},
+        "subtitle":{"runs":[
+          {"text":"Album"},{"text":" • "},
+          {"text":"David Vendetta","navigationEndpoint":{"browseEndpoint":{
+            "browseId":"FEmusic_library_privately_owned_artist_detaila_po_XYZ",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_UNKNOWN"}}
+          }}},
+          {"text":" • "},{"text":"2007"}
+        ]},
+        "thumbnail":{"croppedSquareThumbnailRenderer":{"thumbnail":{"thumbnails":[
+          {"url":"https://img/cover.jpg","width":544,"height":544}
+        ]}}}
+      }},
+      "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+        {"musicShelfRenderer":{"contents":[
+          {"musicResponsiveListItemRenderer":{
+            "playlistItemData":{"videoId":"tYk0G1gzMg8"},
+            "flexColumns":[
+              {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Freaky Girl"}]}}},
+              {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[]}}},
+              {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                {"text":"Rendez-vous","navigationEndpoint":{"browseEndpoint":{
+                  "browseId":"FEmusic_library_privately_owned_release_detailb_po_ABC",
+                  "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}
+                }}}
+              ]}}}
+            ]
+          }}
+        ]}}
+      ]}}}}]}}
+    }
+    """
+
+    @Test("Uploaded album tracks inherit the artist and cover from the header")
+    func uploadedAlbumInheritsArtistAndCover() throws {
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(uploadedAlbumFixture.utf8)
+        )
+        let albumDestination = EntityDestination(
+            browseId: "FEmusic_library_privately_owned_release_detailb_po_ABC",
+            kind: .album, title: "Rendez-vous", subtitle: "", thumbnailURL: nil
+        )
+        let page = EntityPageParser.parse(response, fallback: albumDestination)
+
+        // The header artist link resolves despite the UNKNOWN page type.
+        #expect(page.header.artists.first?.name == "David Vendetta")
+        #expect(page.header.artists.first?.kind == .artist)
+
+        let track = try #require(page.tracks.first)
+        #expect(track.title == "Freaky Girl")
+        #expect(track.videoId == "tYk0G1gzMg8")
+        // Artist inherited from the header — not the album name.
+        #expect(track.subtitle == "David Vendetta")
+        #expect(track.artists.first?.name == "David Vendetta")
+        // Cover falls back to the album artwork instead of a blank placeholder.
+        #expect(track.thumbnailURL?.absoluteString == "https://img/cover.jpg")
+        // The row's album link is still captured.
+        #expect(track.albumLink?.name == "Rendez-vous")
+    }
 }
 
 @Suite("Playlist save target")

@@ -63,7 +63,8 @@ final class EntityViewModel {
     }
 
     /// Toggles the artist subscription, updating local state only once the request
-    /// succeeds (so a failed call leaves the button as it was).
+    /// succeeds (so a failed call leaves the button as it was), then reconciles
+    /// against the server's actual state so optimism can't drift.
     func toggleSubscription() async {
         guard let current = subscription, !isUpdatingSubscription else { return }
         let target = !current.isSubscribed
@@ -76,8 +77,21 @@ final class EntityViewModel {
                 subscribe: target
             )
             subscription?.isSubscribed = target
+            await revalidateSubscription()
         } catch {
             // Leave the previous state intact on failure.
+        }
+    }
+
+    /// Re-reads the artist's subscribe-button state from the server and updates
+    /// the local copy, so the button reflects reality after a toggle or an
+    /// external change (e.g. subscribing on another device, or signing in while
+    /// the page is open). No-op for non-artist pages or before the page loads.
+    func revalidateSubscription() async {
+        guard destination.kind == .artist, case .loaded = state else { return }
+        guard let page = try? await client.entity(destination) else { return }
+        if let fresh = page.header.subscription, !isUpdatingSubscription {
+            subscription = fresh
         }
     }
 
