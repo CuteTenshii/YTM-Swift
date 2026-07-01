@@ -764,13 +764,33 @@ final class PlayerState {
     }
 
     /// YT Music subtitles often lead with a content-type label
-    /// ("Song • Artist • Album • Year"); drop it so the line reads naturally.
+    /// ("Song • Artist • Album • Year"); videos additionally stuff a view count
+    /// and length into the byline ("femtanyl • 3.5M views • 2:46"). Drop the
+    /// type label, any view-count, and any bare duration component so the line
+    /// reads as a clean "Artist • Album" byline everywhere it's shown.
     static func withoutTypeLabel(_ subtitle: String) -> String {
         var components = subtitle.components(separatedBy: " • ")
         let labels: Set<String> = ["Song", "Video", "Episode", "Podcast"]
         if components.count > 1, let first = components.first, labels.contains(first) {
             components.removeFirst()
         }
+        components.removeAll { isViewCount($0) || isDuration($0) }
         return components.joined(separator: " • ")
+    }
+
+    /// A view-count component like "3.5M views" / "1,234 views" — a leading
+    /// number token followed by "view"/"views".
+    private static func isViewCount(_ component: String) -> Bool {
+        let text = component.trimmingCharacters(in: .whitespaces).lowercased()
+        guard text.hasSuffix(" views") || text.hasSuffix(" view") else { return false }
+        return text.first?.isNumber ?? false
+    }
+
+    /// A bare duration component like "2:46" or "1:02:30" — colon-separated
+    /// groups of digits and nothing else.
+    private static func isDuration(_ component: String) -> Bool {
+        let parts = component.trimmingCharacters(in: .whitespaces).split(separator: ":")
+        guard parts.count >= 2 else { return false }
+        return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
     }
 }

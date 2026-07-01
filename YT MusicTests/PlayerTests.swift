@@ -909,3 +909,35 @@ struct AudioPlayerTests {
         #expect(player.isPlaying == false)
     }
 }
+
+// MARK: - Subtitle cleaning (byline shown in the now-playing bar / queue)
+
+@Suite("PlayerState subtitle")
+@MainActor
+struct PlayerStateSubtitleTests {
+
+    @Test("drops view count and duration from a video byline")
+    func stripsVideoByline() {
+        #expect(PlayerState.withoutTypeLabel("femtanyl • 3.5M views • 2:46") == "femtanyl")
+    }
+
+    @Test("still strips a leading type label")
+    func stripsTypeLabel() {
+        #expect(PlayerState.withoutTypeLabel("Song • Artist • Album") == "Artist • Album")
+    }
+
+    @Test("keeps a plain artist • album byline intact")
+    func keepsArtistAlbum() {
+        #expect(PlayerState.withoutTypeLabel("Artist • Album • 2023") == "Artist • Album • 2023")
+    }
+
+    @Test("handles longer durations and comma-grouped view counts")
+    func stripsVariants() {
+        #expect(PlayerState.withoutTypeLabel("Artist • 1,234 views • 1:02:30") == "Artist")
+    }
+
+    @Test("does not treat a year as a duration")
+    func keepsYear() {
+        #expect(PlayerState.withoutTypeLabel("Artist • 2023") == "Artist • 2023")
+    }
+}
