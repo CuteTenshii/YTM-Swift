@@ -271,10 +271,10 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
         }
     }
 
-    /// Whether `link` points at the entity page currently on screen (Home stack),
-    /// so navigating there would be a no-op.
+    /// Whether `link` points at the entity page currently on screen (in whichever
+    /// tab's stack), so navigating there would be a no-op.
     private func isCurrentPage(_ link: EntityLink) -> Bool {
-        navigator.section == .home && navigator.homePath.last?.browseId == link.browseId
+        navigator.currentPath.last?.browseId == link.browseId
     }
 }
 

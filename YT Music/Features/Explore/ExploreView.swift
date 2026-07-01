@@ -4,16 +4,19 @@
 //
 //  The Explore tab: YouTube Music's `FEmusic_explore` landing — new releases,
 //  charts, and trending — as a vertical stack of horizontal shelves. Mirrors
-//  Home, and works signed out. Owns its own navigation stack for entity pages.
+//  Home, and works signed out. Its stack binds to the Navigator's `explorePath`.
 //
 
 import SwiftUI
 
 struct ExploreView: View {
+    @Environment(Navigator.self) private var navigator
     @State private var model = ExploreViewModel()
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.explorePath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 

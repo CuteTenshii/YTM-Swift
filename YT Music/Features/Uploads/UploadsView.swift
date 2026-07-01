@@ -12,13 +12,16 @@ import UniformTypeIdentifiers
 
 struct UploadsView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(Navigator.self) private var navigator
     @State private var model = UploadsViewModel()
     @State private var showingImporter = false
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.uploadsPath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 

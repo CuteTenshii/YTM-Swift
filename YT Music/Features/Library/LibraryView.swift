@@ -10,13 +10,16 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(Navigator.self) private var navigator
     @State private var model = LibraryViewModel()
     @State private var filter: LibraryFilter = .all
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.libraryPath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 

@@ -5,12 +5,13 @@
 //  The Search tab: a search field over YouTube Music's `search` endpoint, with
 //  results grouped into category shelves. Song/video shelves render as compact
 //  rows (tap to play); album/artist/playlist shelves render as artwork cards.
-//  Owns its own navigation stack for pushing entity pages.
+//  Its navigation stack binds to the shared Navigator's `searchPath`.
 //
 
 import SwiftUI
 
 struct SearchView: View {
+    @Environment(Navigator.self) private var navigator
     @State private var model = SearchViewModel()
     @State private var query = ""
     @FocusState private var fieldFocused: Bool
@@ -18,7 +19,9 @@ struct SearchView: View {
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.searchPath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 

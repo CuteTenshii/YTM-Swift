@@ -11,11 +11,14 @@ import SwiftUI
 
 struct HistoryView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(Navigator.self) private var navigator
     @State private var model = HistoryViewModel()
     @State private var confirmingClear = false
 
     var body: some View {
-        NavigationStack {
+        @Bindable var navigator = navigator
+
+        NavigationStack(path: $navigator.historyPath) {
             ZStack {
                 Color.black.ignoresSafeArea()
 
