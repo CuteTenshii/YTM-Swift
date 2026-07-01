@@ -23,6 +23,7 @@ struct YT_MusicApp: App {
     @State private var downloader: Downloader
     @State private var pluginHost: PluginHost
     @State private var navigator = Navigator()
+    @State private var playlists = PlaylistCoordinator()
 
     init() {
         // Settings must exist before the player, which reads audio-quality /
@@ -57,7 +58,11 @@ struct YT_MusicApp: App {
                 .environment(downloader)
                 .environment(pluginHost)
                 .environment(navigator)
+                .environment(playlists)
                 .pluginBridge(player: player, host: pluginHost)
+        }
+        .commands {
+            MediaCommands(player: player, navigator: navigator)
         }
     }
 }

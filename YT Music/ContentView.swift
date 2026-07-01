@@ -2,8 +2,8 @@
 //  ContentView.swift
 //  YT Music
 //
-//  App shell: a YT Music–style sidebar plus a persistent now-playing bar.
-//  Only Home is wired end-to-end for now; the other destinations are placeholders.
+//  App shell: a YT Music–style sidebar, a persistent now-playing bar, and a
+//  queue/lyrics inspector that slides in from the right.
 //
 
 import SwiftUI
@@ -14,6 +14,8 @@ struct ContentView: View {
         case explore = "Explore"
         case search = "Search"
         case library = "Library"
+        case uploads = "Uploads"
+        case history = "History"
         case settings = "Settings"
 
         var id: Self { self }
@@ -24,6 +26,8 @@ struct ContentView: View {
             case .explore:  "square.grid.2x2.fill"
             case .search:   "magnifyingglass"
             case .library:  "books.vertical.fill"
+            case .uploads:  "square.and.arrow.up.fill"
+            case .history:  "clock.arrow.circlepath"
             case .settings: "gearshape.fill"
             }
         }
@@ -32,12 +36,21 @@ struct ContentView: View {
     @Environment(PlayerState.self) private var player
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
+    @Environment(PlaylistCoordinator.self) private var playlists
+
+    /// Shared comments loader: drives both the panel's Comments tab and whether
+    /// the now-playing bar's Comments button is enabled.
+    @State private var comments = CommentsViewModel()
 
     var body: some View {
         @Bindable var auth = auth
         @Bindable var navigator = navigator
 
         VStack(spacing: 0) {
+            if auth.sessionExpired {
+                SessionExpiredBanner(auth: auth)
+            }
+
             NavigationSplitView {
                 List(Section.allCases, selection: $navigator.section) { section in
                     Label(section.rawValue, systemImage: section.icon)
@@ -57,20 +70,84 @@ struct ContentView: View {
                     SearchView()
                 case .library:
                     LibraryView()
+                case .uploads:
+                    UploadsView()
+                case .history:
+                    HistoryView()
                 case .settings:
                     SettingsView()
                 }
             }
+            .inspector(isPresented: $navigator.showingPanel) {
+                NowPlayingPanelView(player: player, tab: $navigator.panelTab,
+                                    navigate: navigator.open, comments: comments)
+            }
 
             // Docked transport bar: a permanent full-width row, never an overlay.
             if player.nowPlaying != nil {
-                NowPlayingBar(player: player, isSignedIn: auth.isSignedIn, navigate: navigator.open)
+                NowPlayingBar(
+                    player: player,
+                    isSignedIn: auth.isSignedIn,
+                    navigate: navigator.open,
+                    showingPanel: $navigator.showingPanel,
+                    panelTab: $navigator.panelTab,
+                    showingImmersiveLyrics: $navigator.showingImmersiveLyrics,
+                    comments: comments
+                )
+            }
+        }
+        .overlay {
+            if navigator.showingImmersiveLyrics {
+                ImmersiveLyricsView(player: player, isPresented: $navigator.showingImmersiveLyrics)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1)
             }
         }
         .sheet(isPresented: $auth.isPresentingLogin) {
             LoginView()
                 .environment(auth)
         }
+        .sheet(isPresented: playlistSheetBinding) {
+            if let add = playlists.pending {
+                AddToPlaylistSheet(add: add) { playlists.dismiss() }
+            }
+        }
+    }
+
+    /// Presents the "Add to Playlist" picker while the coordinator has a pending
+    /// track (dismissing clears it).
+    private var playlistSheetBinding: Binding<Bool> {
+        Binding(get: { playlists.pending != nil }, set: { if !$0 { playlists.dismiss() } })
+    }
+}
+
+/// A slim warning bar shown when the signed-in session has expired (a 401 came
+/// back), prompting the user to sign in again.
+private struct SessionExpiredBanner: View {
+    let auth: AuthStore
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.black)
+            Text("Your session expired. Sign in again to restore your library and playback.")
+                .foregroundStyle(.black)
+                .font(.callout.weight(.medium))
+            Spacer(minLength: 8)
+            Button("Sign in") { auth.isPresentingLogin = true }
+                .buttonStyle(.borderedProminent)
+                .tint(.black)
+            Button {
+                auth.dismissExpiredNotice()
+            } label: {
+                Image(systemName: "xmark").foregroundStyle(.black)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.yellow)
     }
 }
 
@@ -144,6 +221,13 @@ private struct NowPlayingBar: View {
     let isSignedIn: Bool
     /// Opens an artist/album page (the bar lives outside the nav stack).
     let navigate: (EntityDestination) -> Void
+    /// Drives the queue/lyrics inspector visibility and selected page.
+    @Binding var showingPanel: Bool
+    @Binding var panelTab: NowPlayingPanelTab
+    /// Opens the immersive full-window lyrics view.
+    @Binding var showingImmersiveLyrics: Bool
+    /// Comments loader, so the Comments button can disable when there are none.
+    let comments: CommentsViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -171,14 +255,55 @@ private struct NowPlayingBar: View {
 
                 Spacer(minLength: 12)
 
-                volumeControl
-                    .frame(width: 130)
-                    .frame(width: sideWidth, alignment: .trailing)
+                HStack(spacing: 16) {
+                    Spacer(minLength: 0)
+                    volumeControl
+                        .frame(width: 130)
+                    immersiveLyricsButton
+                    panelButton(.lyrics)
+                    panelButton(.comments)
+                    panelButton(.queue)
+                }
+                .frame(width: sideWidth, alignment: .trailing)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
         .background(.ultraThinMaterial)
+    }
+
+    /// Opens the immersive, full-window lyrics view.
+    private var immersiveLyricsButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.3)) { showingImmersiveLyrics = true }
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Full-screen lyrics")
+    }
+
+    /// Toggles the queue/lyrics inspector: opens it to `tab`, or closes it if
+    /// that page is already showing.
+    private func panelButton(_ tab: NowPlayingPanelTab) -> some View {
+        let active = showingPanel && panelTab == tab
+        return Button {
+            if active {
+                showingPanel = false
+            } else {
+                panelTab = tab
+                showingPanel = true
+            }
+        } label: {
+            Image(systemName: tab.icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(active ? Color.red : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(tab == .comments && comments.isUnavailable)
+        .help(tab.rawValue)
     }
 
     /// Equal width reserved for the track-info (left) and volume (right)
@@ -219,7 +344,11 @@ private struct NowPlayingBar: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-        } else if !nowPlaying.artists.isEmpty || nowPlaying.albumLink != nil {
+        } else if !nowPlaying.artists.isEmpty {
+            // Only use the clickable links row when we actually have artist links.
+            // A track whose artist is plain text (no channel page) but whose album
+            // is linked would otherwise render as a stray "• Album" with the artist
+            // name dropped — fall through to the full subtitle text instead.
             linksRow(artists: nowPlaying.artists, album: nowPlaying.albumLink)
         } else {
             let text = PlayerState.withoutTypeLabel(nowPlaying.subtitle)
@@ -426,7 +555,7 @@ private struct EntityLinkButton: View {
 /// A custom playback scrubber that shows played progress (red), cached/buffered
 /// progress (lighter fill), and the remaining track, with a draggable thumb.
 /// Replaces a plain Slider so the "cache progress" can sit behind the playhead.
-private struct SeekBar: View {
+struct SeekBar: View {
     let currentTime: Double
     let bufferedTime: Double
     let duration: Double
@@ -493,5 +622,7 @@ private struct SeekBar: View {
         .environment(PlayerState())
         .environment(AuthStore())
         .environment(Navigator())
+        .environment(PlaylistCoordinator())
+        .environment(AppSettings())
         .frame(width: 1000, height: 700)
 }

@@ -36,9 +36,16 @@ struct ShelfView: View {
 
 // MARK: - Card
 
-struct ItemCard: View {
+struct ItemCard<Extra: View>: View {
     @Environment(PlayerState.self) private var player
     let item: HomeItem
+    /// Screen-specific extra context-menu actions (e.g. "Delete upload").
+    @ViewBuilder var extraMenu: Extra
+
+    init(item: HomeItem, @ViewBuilder extraMenu: () -> Extra = { EmptyView() }) {
+        self.item = item
+        self.extraMenu = extraMenu()
+    }
 
     private let artworkSize: CGFloat = 160
 
@@ -60,7 +67,8 @@ struct ItemCard: View {
             playlistId: item.playlistId,
             browseId: item.browseId,
             artists: item.artists,
-            albumLink: item.albumLink
+            albumLink: item.albumLink,
+            extraActions: { extraMenu }
         )
     }
 
@@ -140,9 +148,11 @@ struct ArtworkView: View {
 
 // MARK: - Context menu
 
-private struct MusicContextMenu: ViewModifier {
+private struct MusicContextMenu<Extra: View>: ViewModifier {
     @Environment(PlayerState.self) private var player
     @Environment(Navigator.self) private var navigator
+    @Environment(AuthStore.self) private var auth
+    @Environment(PlaylistCoordinator.self) private var playlists
 
     let title: String
     let subtitle: String
@@ -152,6 +162,9 @@ private struct MusicContextMenu: ViewModifier {
     let browseId: String?
     let artists: [EntityLink]
     let albumLink: EntityLink?
+    /// Screen-specific extra actions (e.g. "Remove from history", "Delete
+    /// upload") appended below the standard entries. Built by the caller.
+    let extraActions: Extra
 
     private var link: URL? {
         MusicLinks.url(videoId: videoId, playlistId: playlistId, browseId: browseId)
@@ -194,6 +207,14 @@ private struct MusicContextMenu: ViewModifier {
                 } label: {
                     Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
                 }
+
+                if auth.isSignedIn {
+                    Button {
+                        playlists.requestAdd(videoId: videoId, title: title)
+                    } label: {
+                        Label("Add to Playlist…", systemImage: "text.badge.plus")
+                    }
+                }
             }
 
             goToArtist
@@ -209,6 +230,8 @@ private struct MusicContextMenu: ViewModifier {
                     Label("Copy Link", systemImage: "link")
                 }
             }
+
+            extraActions
         }
     }
 
@@ -256,9 +279,10 @@ private struct MusicContextMenu: ViewModifier {
 }
 
 extension View {
-    /// Adds the standard right-click menu (Play / Share / Copy link) for a music
-    /// item, plus "Go to artist"/"Go to album" when those links are known.
-    func musicContextMenu(
+    /// Adds the standard right-click menu (Play / Add to Playlist / Share / Copy
+    /// link) for a music item, plus "Go to artist"/"Go to album" when those links
+    /// are known, and any screen-specific `extraActions` appended at the bottom.
+    func musicContextMenu<Extra: View>(
         title: String,
         subtitle: String,
         thumbnailURL: URL?,
@@ -266,7 +290,8 @@ extension View {
         playlistId: String?,
         browseId: String?,
         artists: [EntityLink] = [],
-        albumLink: EntityLink? = nil
+        albumLink: EntityLink? = nil,
+        @ViewBuilder extraActions: () -> Extra = { EmptyView() }
     ) -> some View {
         modifier(MusicContextMenu(
             title: title,
@@ -276,7 +301,8 @@ extension View {
             playlistId: playlistId,
             browseId: browseId,
             artists: artists,
-            albumLink: albumLink
+            albumLink: albumLink,
+            extraActions: extraActions()
         ))
     }
 }
