@@ -26,6 +26,18 @@ struct BrowseResponse: Decodable {
 
     struct Contents: Decodable {
         let singleColumnBrowseResultsRenderer: SingleColumn?
+        let twoColumnBrowseResultsRenderer: TwoColumn?
+    }
+
+    /// Newer auth-gated pages (and artist pages) return a two-column layout: the
+    /// primary column under `tabs`, plus a `secondaryContents` section list.
+    struct TwoColumn: Decodable {
+        let tabs: [Tab]?
+        let secondaryContents: Secondary?
+
+        struct Secondary: Decodable {
+            let sectionListRenderer: SectionList?
+        }
     }
 
     struct SingleColumn: Decodable {
@@ -38,6 +50,10 @@ struct BrowseResponse: Decodable {
 
     struct TabRenderer: Decodable {
         let content: TabContent?
+        /// Whether this is the tab the page opens on. The uploads landing page
+        /// returns several tabs (Library / Downloads / Uploads) but only the
+        /// selected one carries content; the rest are lazy `continuations`.
+        let selected: Bool?
     }
 
     struct TabContent: Decodable {
@@ -141,6 +157,10 @@ struct MusicTwoRowItemRenderer: Decodable {
     let subtitle: InnerTubeText?
     let thumbnailRenderer: ThumbnailRendererWrapper?
     let navigationEndpoint: NavigationEndpoint?
+    let menu: RendererMenu?
+
+    /// The delete entity id for an uploaded album/release card, if present.
+    var deleteEntityId: String? { menu?.deleteEntityId }
 }
 
 /// The compact list rows used in shelves like "Quick picks" and in album /
@@ -152,6 +172,7 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let navigationEndpoint: NavigationEndpoint?
     let overlay: Overlay?
     let playlistItemData: PlaylistItemData?
+    let menu: RendererMenu?
 
     struct FlexColumn: Decodable {
         let musicResponsiveListItemFlexColumnRenderer: FlexRenderer?
@@ -172,6 +193,9 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
     struct PlaylistItemData: Decodable {
         let videoId: String?
+        /// The playlist-scoped id needed to remove/reorder this row within an
+        /// owned playlist (distinct from the plain videoId).
+        let playlistSetVideoId: String?
     }
 
     /// The play button overlay carries the watch endpoint for these rows.
@@ -223,9 +247,100 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     var trackVideoId: String? {
         playlistItemData?.videoId ?? playEndpoint?.watchEndpoint?.videoId
     }
+
+    /// Playlist-scoped id for removing/reordering this row within an owned
+    /// playlist (nil for rows that aren't playlist items).
+    var playlistSetVideoId: String? { playlistItemData?.playlistSetVideoId }
+
+    /// History-removal feedback token carried by the row's overflow menu.
+    var feedbackToken: String? { menu?.feedbackToken }
+
+    /// Delete entity id for an uploaded song row, if present.
+    var deleteEntityId: String? { menu?.deleteEntityId }
 }
 
 // MARK: - Shared primitives
+
+/// A renderer's overflow ("⋯") menu. We mine two service tokens from it: the
+/// `feedbackToken` that removes a listening-history row, and the `entityId` that
+/// deletes an uploaded item (which sits behind a confirm-delete dialog). Only the
+/// keys we consume are modeled; the menu carries many more actions.
+nonisolated struct RendererMenu: Decodable {
+    let menuRenderer: MenuRenderer?
+
+    struct MenuRenderer: Decodable {
+        let items: [Item]?
+    }
+
+    struct Item: Decodable {
+        let menuServiceItemRenderer: ServiceItem?
+        let menuNavigationItemRenderer: NavigationItem?
+    }
+
+    struct ServiceItem: Decodable {
+        let serviceEndpoint: ServiceEndpoint?
+    }
+
+    struct NavigationItem: Decodable {
+        let navigationEndpoint: NavEndpoint?
+    }
+
+    struct NavEndpoint: Decodable {
+        let confirmDialogEndpoint: ConfirmDialog?
+    }
+
+    struct ConfirmDialog: Decodable {
+        let content: Content?
+
+        struct Content: Decodable {
+            let confirmDialogRenderer: Renderer?
+
+            struct Renderer: Decodable {
+                let confirmButton: ConfirmButton?
+
+                struct ConfirmButton: Decodable {
+                    let buttonRenderer: ButtonRenderer?
+
+                    struct ButtonRenderer: Decodable {
+                        let serviceEndpoint: ServiceEndpoint?
+                    }
+                }
+            }
+        }
+    }
+
+    struct ServiceEndpoint: Decodable {
+        let feedbackEndpoint: FeedbackEndpoint?
+        let deletePrivatelyOwnedEntityCommand: DeleteEntity?
+
+        struct FeedbackEndpoint: Decodable { let feedbackToken: String? }
+        struct DeleteEntity: Decodable { let entityId: String? }
+    }
+
+    /// The history-removal feedback token, if this menu carries one.
+    var feedbackToken: String? {
+        (menuRenderer?.items ?? [])
+            .compactMap { $0.menuServiceItemRenderer?.serviceEndpoint?.feedbackEndpoint?.feedbackToken }
+            .first
+    }
+
+    /// The delete entity id for an uploaded item — either directly on a service
+    /// item, or behind the confirm-delete dialog on a navigation item.
+    var deleteEntityId: String? {
+        for item in menuRenderer?.items ?? [] {
+            if let id = item.menuServiceItemRenderer?.serviceEndpoint?
+                .deletePrivatelyOwnedEntityCommand?.entityId {
+                return id
+            }
+            if let id = item.menuNavigationItemRenderer?.navigationEndpoint?
+                .confirmDialogEndpoint?.content?.confirmDialogRenderer?.confirmButton?
+                .buttonRenderer?.serviceEndpoint?.deletePrivatelyOwnedEntityCommand?.entityId {
+                return id
+            }
+        }
+        return nil
+    }
+}
 
 /// YouTube wraps almost all display text in `{ "runs": [{ "text": ... }] }`.
 nonisolated struct InnerTubeText: Decodable {
@@ -328,11 +443,18 @@ struct NavigationEndpoint: Decodable {
         /// to (album / playlist / artist).
         var kind: HomeItem.Kind? {
             switch pageType {
-            case "MUSIC_PAGE_TYPE_ALBUM":    .album
-            case "MUSIC_PAGE_TYPE_PLAYLIST": .playlist
-            case "MUSIC_PAGE_TYPE_ARTIST":   .artist
-            default:                         nil
+            case "MUSIC_PAGE_TYPE_ALBUM":    return .album
+            case "MUSIC_PAGE_TYPE_PLAYLIST": return .playlist
+            case "MUSIC_PAGE_TYPE_ARTIST":   return .artist
+            default:                         break
             }
+            // Uploaded (privately owned) artists/albums report
+            // MUSIC_PAGE_TYPE_UNKNOWN, but their browse ids encode the kind.
+            if let browseId {
+                if browseId.contains("privately_owned_artist") { return .artist }
+                if browseId.contains("privately_owned_release") { return .album }
+            }
+            return nil
         }
     }
 }

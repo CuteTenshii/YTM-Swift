@@ -66,6 +66,10 @@ struct WatchNextResponse: Decodable {
     }
 
     struct TabRenderer: Decodable {
+        /// Tab label ("Up next", "Lyrics", "Related").
+        let title: String?
+        /// The browse endpoint a non-content tab (Lyrics/Related) points at.
+        let endpoint: NavigationEndpoint?
         let content: TabContent?
     }
 
@@ -157,5 +161,17 @@ nonisolated enum WatchNextParser {
         case "DISLIKE": return .disliked
         default:        return .indifferent
         }
+    }
+
+    /// The browse id of the watch-next "Lyrics" tab, if the track has lyrics.
+    /// Fed to a follow-up `browse` call to fetch the lyric text. nil when the
+    /// track exposes no lyrics tab.
+    static func lyricsBrowseId(_ response: WatchNextResponse) -> String? {
+        let tabs = response.contents?
+            .singleColumnMusicWatchNextResultsRenderer?
+            .tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs ?? []
+        return tabs.compactMap(\.tabRenderer)
+            .first { $0.title == "Lyrics" }?
+            .endpoint?.browseEndpoint?.browseId
     }
 }

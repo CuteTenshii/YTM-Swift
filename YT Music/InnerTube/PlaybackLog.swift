@@ -37,10 +37,22 @@ nonisolated enum PlaybackLog {
     /// Writes the player JS to Caches and returns the path so it can be shared.
     @discardableResult
     static func dumpBaseJS(_ js: String) -> String? {
+        dump(js: js, to: "yt-base.js")
+    }
+
+    /// Writes an arbitrary response body to Caches under `name` and returns the
+    /// path, for diagnosing network responses we can't reach from tests.
+    @discardableResult
+    static func dumpData(_ data: Data, to name: String) -> String? {
+        guard let string = String(data: data, encoding: .utf8) else { return nil }
+        return dump(js: string, to: name)
+    }
+
+    private static func dump(js: String, to name: String) -> String? {
         guard let dir = try? FileManager.default.url(
             for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ) else { return nil }
-        let url = dir.appendingPathComponent("yt-base.js")
+        let url = dir.appendingPathComponent(name)
         do {
             try js.write(to: url, atomically: true, encoding: .utf8)
             return url.path

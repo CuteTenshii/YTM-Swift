@@ -74,6 +74,19 @@ struct WatchHistoryTests {
         #expect(q.contains(URLQueryItem(name: "len", value: "200.000")))
     }
 
+    @Test("Client identity params (c=WEB_REMIX) are injected, base values kept")
+    func injectsClientParams() throws {
+        let base = URL(string: "https://s.youtube.com/api/stats/watchtime?docid=abc&hl=fr")!
+        let client = ["c": "WEB_REMIX", "cver": "1.20260623.13.00", "hl": "en"]
+        let url = try #require(WatchHistory.watchtimeURL(base: base, cpn: "CPN", position: 5,
+                                                         length: 200, client: client))
+        let q = items(url)
+        #expect(q.contains(URLQueryItem(name: "c", value: "WEB_REMIX")))
+        #expect(q.contains(URLQueryItem(name: "cver", value: "1.20260623.13.00")))
+        // hl already present on the base → not overwritten / not duplicated.
+        #expect(q.filter { $0.name == "hl" } == [URLQueryItem(name: "hl", value: "fr")])
+    }
+
     @Test("Builders don't overwrite a ver the base already carries, and omit len when unknown")
     func preservesVerAndOptionalLen() throws {
         let base = URL(string: "https://s.youtube.com/api/stats/playback?ver=3&docid=abc")!

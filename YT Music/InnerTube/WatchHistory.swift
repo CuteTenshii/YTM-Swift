@@ -53,29 +53,32 @@ enum WatchHistory {
         return components.url ?? streamURL
     }
 
-    /// Builds the stats `playback` URL — the start-of-play beacon.
-    /// Returns nil if `base` can't be parsed.
-    static func playbackURL(base: URL, cpn: String, position: Double, length: Double?) -> URL? {
-        statsURL(base: base, cpn: cpn, position: position, length: length, watchtime: false)
+    /// Builds the stats `playback` URL — the start-of-play beacon. `client` carries
+    /// the WEB_REMIX client-identity params (`c`, `cver`, …) to tag the play as a
+    /// Music listen. Returns nil if `base` can't be parsed.
+    static func playbackURL(base: URL, cpn: String, position: Double, length: Double?,
+                            client: [String: String] = [:]) -> URL? {
+        statsURL(base: base, cpn: cpn, position: position, length: length, watchtime: false, client: client)
     }
 
-    /// Builds the stats `watchtime` URL — a position heartbeat. YT Music history
-    /// is driven by actual listen time, so this reports watching from the start up
-    /// to `position` (`st=0`, `et=position`) of a `length`-second track.
+    /// Builds the stats `watchtime` URL — a position heartbeat that drives YT Music
+    /// history. `client` carries the WEB_REMIX client-identity params.
     /// Returns nil if `base` can't be parsed.
-    static func watchtimeURL(base: URL, cpn: String, position: Double, length: Double?) -> URL? {
-        statsURL(base: base, cpn: cpn, position: position, length: length, watchtime: true)
+    static func watchtimeURL(base: URL, cpn: String, position: Double, length: Double?,
+                             client: [String: String] = [:]) -> URL? {
+        statsURL(base: base, cpn: cpn, position: position, length: length, watchtime: true, client: client)
     }
 
     /// Shared builder for the playback / watchtime stats URLs. The base URL comes
-    /// from a WEB_REMIX (music) player response, so it already carries the
-    /// music-appropriate params (`c=WEB_REMIX`, its own `el`, `cver`, …). We
-    /// preserve those and only inject the live playback values the real client
-    /// sends:
+    /// from a WEB_REMIX (music) player response. We preserve its params and inject:
     ///   • `cpn`      — this session's nonce (we generate it).
     ///   • `ver=2`    — tracking protocol version (added only if absent).
     ///   • `cmt`      — current media time (the live position, in seconds).
     ///   • `len`      — track length (added only if absent).
+    ///   • `client`   — WEB_REMIX identity (`c=WEB_REMIX`, `cver`, `cplayer`, OS/
+    ///                  browser descriptors). The base URL omits these, and without
+    ///                  `c=WEB_REMIX` the play is filed as a generic YouTube watch
+    ///                  rather than a Music listen. Added only if absent.
     ///
     /// We also force the host to **music.youtube.com**. YouTube returns the stats
     /// base on the generic `s.youtube.com` sink, and pinging that records a plain
@@ -88,7 +91,7 @@ enum WatchHistory {
     ///                        equal to the current position, not a 0→pos range).
     ///   • `state=playing`.
     private static func statsURL(base: URL, cpn: String, position: Double,
-                                 length: Double?, watchtime: Bool) -> URL? {
+                                 length: Double?, watchtime: Bool, client: [String: String]) -> URL? {
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             return nil
         }
@@ -102,6 +105,12 @@ enum WatchHistory {
         items = setting(items, "cmt", seconds(position))
         if let length, length > 0, !items.contains(where: { $0.name == "len" }) {
             items.append(URLQueryItem(name: "len", value: seconds(length)))
+        }
+        // Client identity (sorted for deterministic output), added only if the base
+        // didn't already supply the key.
+        for (key, value) in client.sorted(by: { $0.key < $1.key })
+        where !items.contains(where: { $0.name == key }) {
+            items.append(URLQueryItem(name: key, value: value))
         }
         if watchtime {
             items = setting(items, "st", seconds(position))
