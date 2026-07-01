@@ -151,86 +151,116 @@ nonisolated struct ScrobbleTracker {
 // MARK: - Network / auth client
 
 /// Talks to the Last.fm API: signs requests, runs the desktop auth handshake, and
-/// fires `updateNowPlaying` / `scrobble`. The session key is persisted in the
-/// Keychain. Off the main actor so the plugin can fire-and-forget into it.
+/// fires `updateNowPlaying` / `scrobble`. The whole account (the user's own API key +
+/// shared secret plus the resulting session key) is persisted in the Keychain.
+/// Off the main actor so the plugin can fire-and-forget into it.
+///
+/// Auth is Last.fm's desktop flow: `auth.getToken` → the user approves the token in
+/// the browser (typing their password on last.fm, never in this app) →
+/// `auth.getSession` returns a permanent session key. Scrobbling is a write, so the
+/// API key + shared secret + session key are all required; a username can't do it.
 actor LastfmClient {
-    /// A Last.fm API account (key + shared secret) from https://www.last.fm/api/account/create .
-    /// Replace these placeholders with your own to enable scrobbling.
-    static let apiKey = "YOUR_LASTFM_API_KEY"
-    static let secret = "YOUR_LASTFM_SHARED_SECRET"
-
     private static let endpoint = URL(string: "https://ws.audioscrobbler.com/2.0/")!
     private static let keychainService = "moe.tenshii.YT-Music"
-    private static let keychainAccount = "lastfm-session"
+    private static let keychainAccount = "lastfm-account"
 
-    private let apiKey: String
-    private let secret: String
-    private let session: URLSession
-    private var account: LastfmSession?
-
-    init(apiKey: String = LastfmClient.apiKey,
-         secret: String = LastfmClient.secret,
-         session: URLSession = .shared) {
-        self.apiKey = apiKey
-        self.secret = secret
-        self.session = session
-        self.account = Self.loadSession()
+    /// Everything needed to sign authenticated calls, persisted together.
+    nonisolated struct StoredAccount: Codable, Equatable, Sendable {
+        var apiKey: String
+        var secret: String
+        var session: LastfmSession
     }
 
-    var isConfigured: Bool { apiKey != "YOUR_LASTFM_API_KEY" && !apiKey.isEmpty }
-    var currentSession: LastfmSession? { account }
+    private let session: URLSession
+    private var account: StoredAccount?
+    /// API key + secret captured at `requestToken`, reused by `completeAuthorization`.
+    private var pending: (apiKey: String, secret: String)?
+
+    init(session: URLSession = .shared) {
+        self.session = session
+        self.account = Self.loadAccount()
+    }
+
+    var currentSession: LastfmSession? { account?.session }
 
     // MARK: Auth
 
     /// Step 1: fetch an unauthorized request token to send the user to the browser.
-    func requestToken() async throws -> String {
-        let response = try await call(["method": "auth.getToken"], signed: true)
+    /// Remembers the API account so `completeAuthorization` can finish the exchange.
+    func requestToken(apiKey: String, secret: String) async throws -> String {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sec = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !sec.isEmpty else { throw LastfmError.notConfigured }
+        let response = try await call(["method": "auth.getToken"], apiKey: key, secret: sec)
         guard let token = response["token"] as? String else { throw LastfmError.malformedResponse }
+        pending = (key, sec)
         return token
     }
 
     /// The URL the user opens to authorize `token` against this API account.
-    nonisolated func authorizationURL(token: String) -> URL? {
+    nonisolated func authorizationURL(apiKey: String, token: String) -> URL? {
         var components = URLComponents(string: "https://www.last.fm/api/auth/")
         components?.queryItems = [
-            URLQueryItem(name: "api_key", value: apiKey),
+            URLQueryItem(name: "api_key", value: apiKey.trimmingCharacters(in: .whitespacesAndNewlines)),
             URLQueryItem(name: "token", value: token),
         ]
         return components?.url
     }
 
-    /// Step 2 (after the user authorizes): exchange the token for a session key.
+    /// Step 2 (after the user approves in the browser): exchange the token for a
+    /// session key and persist the whole account.
     func completeAuthorization(token: String) async throws -> LastfmSession {
-        let response = try await call(["method": "auth.getSession", "token": token], signed: true)
-        guard let session = response["session"] as? [String: Any],
-              let key = session["key"] as? String,
-              let name = session["name"] as? String else { throw LastfmError.malformedResponse }
-        let account = LastfmSession(username: name, key: key)
+        guard let pending else { throw LastfmError.notConfigured }
+        let response = try await call(["method": "auth.getSession", "token": token],
+                                      apiKey: pending.apiKey, secret: pending.secret)
+        guard let session = response["session"] as? [String: Any] else {
+            PlaybackLog.problem("Last.fm getSession missing `session`: \(response)")
+            throw LastfmError.malformedResponse
+        }
+        // Last.fm's JSON sometimes wraps text values as {"#text": "…"}, so pull the
+        // strings out tolerantly rather than casting straight to String.
+        guard let sk = Self.string(session["key"]), !sk.isEmpty,
+              let name = Self.string(session["name"]), !name.isEmpty else {
+            PlaybackLog.problem("Last.fm getSession unexpected shape: \(session)")
+            throw LastfmError.malformedResponse
+        }
+        let account = StoredAccount(apiKey: pending.apiKey, secret: pending.secret,
+                                    session: LastfmSession(username: name, key: sk))
         self.account = account
-        Self.saveSession(account)
-        return account
+        self.pending = nil
+        Self.saveAccount(account)
+        return account.session
+    }
+
+    /// Extracts a string from a Last.fm JSON value, unwrapping the `{"#text": …}`
+    /// form Last.fm uses for some fields.
+    private static func string(_ value: Any?) -> String? {
+        if let s = value as? String { return s }
+        if let dict = value as? [String: Any], let s = dict["#text"] as? String { return s }
+        return nil
     }
 
     func disconnect() {
         account = nil
-        Self.deleteSession()
+        pending = nil
+        Self.deleteAccount()
     }
 
     // MARK: Scrobbling
 
     func updateNowPlaying(_ track: ScrobbleTrack) async {
         guard let account else { return }
-        var params = Self.trackParams(track, sessionKey: account.key)
+        var params = Self.trackParams(track, sessionKey: account.session.key)
         params["method"] = "track.updateNowPlaying"
-        _ = try? await call(params, signed: true)
+        _ = try? await call(params, apiKey: account.apiKey, secret: account.secret)
     }
 
     func scrobble(_ track: ScrobbleTrack) async {
         guard let account else { return }
-        var params = Self.trackParams(track, sessionKey: account.key)
+        var params = Self.trackParams(track, sessionKey: account.session.key)
         params["method"] = "track.scrobble"
         params["timestamp"] = String(track.startedAt)
-        _ = try? await call(params, signed: true)
+        _ = try? await call(params, apiKey: account.apiKey, secret: account.secret)
     }
 
     private static func trackParams(_ track: ScrobbleTrack, sessionKey: String) -> [String: String] {
@@ -246,15 +276,13 @@ actor LastfmClient {
 
     // MARK: Request plumbing
 
-    /// Signs (optionally) and POSTs a form-encoded API call, returning the decoded
-    /// JSON object. Throws `LastfmError.api` on a Last.fm error payload.
+    /// Signs and POSTs a form-encoded API call, returning the decoded JSON object.
+    /// Throws `LastfmError.api` on a Last.fm error payload.
     @discardableResult
-    private func call(_ params: [String: String], signed: Bool) async throws -> [String: Any] {
-        guard isConfigured else { throw LastfmError.notConfigured }
-
+    private func call(_ params: [String: String], apiKey: String, secret: String) async throws -> [String: Any] {
         var fields = params
         fields["api_key"] = apiKey
-        if signed { fields["api_sig"] = LastfmSignature.sign(fields, secret: secret) }
+        fields["api_sig"] = LastfmSignature.sign(fields, secret: secret)
         fields["format"] = "json"
 
         var request = URLRequest(url: Self.endpoint)
@@ -287,17 +315,20 @@ actor LastfmClient {
 
     // MARK: Keychain
 
-    static func loadSession() -> LastfmSession? {
+    /// The persisted session (username + key) for UI display, if connected.
+    static func loadSession() -> LastfmSession? { loadAccount()?.session }
+
+    private static func loadAccount() -> StoredAccount? {
         guard let data = Keychain.get(service: keychainService, account: keychainAccount) else { return nil }
-        return try? JSONDecoder().decode(LastfmSession.self, from: data)
+        return try? JSONDecoder().decode(StoredAccount.self, from: data)
     }
 
-    private static func saveSession(_ session: LastfmSession) {
-        guard let data = try? JSONEncoder().encode(session) else { return }
+    private static func saveAccount(_ account: StoredAccount) {
+        guard let data = try? JSONEncoder().encode(account) else { return }
         Keychain.set(data, service: keychainService, account: keychainAccount)
     }
 
-    private static func deleteSession() {
+    private static func deleteAccount() {
         Keychain.delete(service: keychainService, account: keychainAccount)
     }
 }
