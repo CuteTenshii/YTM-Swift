@@ -130,6 +130,72 @@ struct EntityPageParserTests {
         // The row's album link is still captured.
         #expect(track.albumLink?.name == "Rendez-vous")
     }
+
+    /// A real (non-uploaded) album in the newer two-column layout: there is no
+    /// top-level `header`; the `musicResponsiveHeaderRenderer` lives inside the
+    /// primary tab's section list, and the tracks (with a "plays" byline, no
+    /// per-row artist, no per-row artwork) come from `secondaryContents`.
+    private let twoColumnAlbumFixture = """
+    {
+      "contents":{"twoColumnBrowseResultsRenderer":{
+        "tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicResponsiveHeaderRenderer":{
+            "title":{"runs":[{"text":"MG Ultra"}]},
+            "straplineTextOne":{"runs":[
+              {"text":"Some Artist","navigationEndpoint":{"browseEndpoint":{
+                "browseId":"UCartist",
+                "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
+              }}}
+            ]},
+            "subtitle":{"runs":[{"text":"Album"},{"text":" • "},{"text":"2024"}]},
+            "secondSubtitle":{"runs":[{"text":"12 songs • 45 minutes"}]},
+            "thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
+              {"url":"https://img/mgultra.jpg","width":544,"height":544}
+            ]}}}
+          }}
+        ]}}}}],
+        "secondaryContents":{"sectionListRenderer":{"contents":[
+          {"musicShelfRenderer":{"contents":[
+            {"musicResponsiveListItemRenderer":{
+              "playlistItemData":{"videoId":"vid1"},
+              "flexColumns":[
+                {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Until I Die"}]}}},
+                {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"1.3M plays"}]}}}
+              ]
+            }}
+          ]}}
+        ]}}
+      }}
+    }
+    """
+
+    @Test("A two-column album parses its nested header (cover, subtitle, artist)")
+    func twoColumnAlbumParsesNestedHeader() throws {
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(twoColumnAlbumFixture.utf8)
+        )
+        let albumDestination = EntityDestination(
+            browseId: "MPREb_mgultra", kind: .album,
+            title: "MG Ultra", subtitle: "", thumbnailURL: nil
+        )
+        let page = EntityPageParser.parse(response, fallback: albumDestination)
+
+        // Header details recovered from the body's responsive header.
+        #expect(page.header.title == "MG Ultra")
+        #expect(page.header.subtitle.contains("2024"))
+        #expect(page.header.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
+        #expect(page.header.artists.first?.name == "Some Artist")
+
+        let track = try #require(page.tracks.first)
+        #expect(track.title == "Until I Die")
+        #expect(track.videoId == "vid1")
+        // The row's "plays" byline is kept (not overwritten by the artist name)…
+        #expect(track.subtitle == "1.3M plays")
+        // …but the artist link is still adopted from the header for context menus.
+        #expect(track.artists.first?.name == "Some Artist")
+        // Track artwork falls back to the album cover.
+        #expect(track.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
+    }
 }
 
 @Suite("Playlist save target")

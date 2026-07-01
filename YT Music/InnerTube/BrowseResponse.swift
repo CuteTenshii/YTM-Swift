@@ -79,6 +79,9 @@ struct BrowseResponse: Decodable {
         let gridRenderer: GridRenderer?
         let itemSectionRenderer: ItemSectionRenderer?
         let musicCardShelfRenderer: MusicCardShelfRenderer?
+        // Real (non-uploaded) albums/playlists put their header inside the body's
+        // section list rather than the top-level `header` key.
+        let musicResponsiveHeaderRenderer: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?
 
         var carousel: MusicCarouselShelfRenderer? {
             musicCarouselShelfRenderer ?? musicImmersiveCarouselShelfRenderer

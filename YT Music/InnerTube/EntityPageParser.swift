@@ -12,8 +12,11 @@ import Foundation
 nonisolated enum EntityPageParser {
 
     static func parse(_ response: EntityBrowseResponse, fallback: EntityDestination) -> EntityPage {
-        let header = parseHeader(response.header, fallback: fallback)
         let sections = collectSections(response.contents)
+        // Non-uploaded albums/playlists carry no top-level `header`; their
+        // responsive header sits inside the body's section list instead.
+        let bodyHeader = sections.compactMap(\.musicResponsiveHeaderRenderer).first
+        let header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
@@ -58,6 +61,7 @@ nonisolated enum EntityPageParser {
 
     private static func parseHeader(
         _ container: EntityBrowseResponse.HeaderContainer?,
+        bodyResponsive: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?,
         fallback: EntityDestination
     ) -> EntityHeader {
         if let detail = container?.musicDetailHeaderRenderer {
@@ -72,7 +76,9 @@ nonisolated enum EntityPageParser {
             )
         }
 
-        if let responsive = container?.musicResponsiveHeaderRenderer {
+        // The responsive header appears either at the top level or nested in the
+        // body (the newer two-column album/playlist layout).
+        if let responsive = container?.musicResponsiveHeaderRenderer ?? bodyResponsive {
             let subtitle = joinNonEmpty(
                 responsive.straplineTextOne?.text,
                 responsive.subtitle?.text,
@@ -138,12 +144,16 @@ nonisolated enum EntityPageParser {
             var subtitle = columns.dropFirst().joined(separator: " • ")
 
             // Album tracks usually omit a per-row artist — it's the album artist,
-            // carried only in the header (uploaded albums even leave the row's
-            // artist column empty, so the album name would otherwise leak into the
-            // subtitle). Inherit the header artist for both the links and text.
+            // carried only in the header. Adopt the header artist for the links so
+            // the context menu / Now Playing resolve correctly. Only overwrite the
+            // visible byline when the row would otherwise be blank or leak the
+            // album name (uploaded albums); real albums put a useful "plays" column
+            // here, so keep it.
             if rowArtists.isEmpty, header.kind == .album, !header.artists.isEmpty {
                 artists = header.artists
-                subtitle = header.artists.map(\.name).joined(separator: ", ")
+                if subtitle.isEmpty || subtitle == albumLink?.name {
+                    subtitle = header.artists.map(\.name).joined(separator: ", ")
+                }
             }
 
             return Track(
