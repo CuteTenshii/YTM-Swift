@@ -53,8 +53,13 @@ protocol AudioOutput: AnyObject {
     /// Applies equalizer settings to current and future playback. Takes effect
     /// immediately on the playing track.
     func applyEqualizer(_ settings: EqualizerSettings)
+
+    /// Live spectrum meter for the visualizer, or nil for outputs that don't
+    /// provide one (e.g. the test fake).
+    var spectrum: SpectrumAnalyzer? { get }
 }
 
 extension AudioOutput {
     func applyEqualizer(_ settings: EqualizerSettings) {}
+    var spectrum: SpectrumAnalyzer? { nil }
 }

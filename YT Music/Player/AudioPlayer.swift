@@ -35,6 +35,9 @@ final class AudioPlayer: AudioOutput {
     /// `settings` re-equalizes the playing track on the next audio block.
     @ObservationIgnored private let equalizerBox = EqualizerSettingsBox()
 
+    /// Shared spectrum meter, fed by every item's tap and read by the visualizer.
+    @ObservationIgnored let spectrum: SpectrumAnalyzer? = SpectrumAnalyzer()
+
     private(set) var isPlaying = false
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
@@ -107,10 +110,11 @@ final class AudioPlayer: AudioOutput {
     /// meaningfully started); if there's no audio track the item plays as-is.
     private func installEqualizer(on item: AVPlayerItem, asset: AVURLAsset) {
         let box = equalizerBox
+        let meter = spectrum
         Task { [weak item] in
             guard let track = try? await asset.loadTracks(withMediaType: .audio).first
             else { return }
-            let processor = EqualizerProcessor(box: box)
+            let processor = EqualizerProcessor(box: box, spectrum: meter)
             if let mix = makeEqualizerAudioMix(for: track, processor: processor) {
                 item?.audioMix = mix
             }

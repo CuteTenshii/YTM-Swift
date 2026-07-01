@@ -202,6 +202,9 @@ nonisolated final class EqualizerSettingsBox: @unchecked Sendable {
 /// path: coefficients are rebuilt only when the box's version changes.
 nonisolated final class EqualizerProcessor: @unchecked Sendable {
     private let box: EqualizerSettingsBox
+    /// Optional spectrum meter fed the (channel-0) samples for the visualizer.
+    /// Independent of whether EQ filtering is enabled.
+    private let spectrum: SpectrumAnalyzer?
     private var sampleRate: Double = 44_100
     private var channelCount = 0
     private var enabled = false
@@ -214,8 +217,9 @@ nonisolated final class EqualizerProcessor: @unchecked Sendable {
     /// sentinel so the first `process` always builds.
     private var builtVersion: UInt64 = .max
 
-    init(box: EqualizerSettingsBox) {
+    init(box: EqualizerSettingsBox, spectrum: SpectrumAnalyzer? = nil) {
         self.box = box
+        self.spectrum = spectrum
     }
 
     /// Configures the processor for a stream's format. Resets all filter state.
@@ -227,6 +231,7 @@ nonisolated final class EqualizerProcessor: @unchecked Sendable {
             count: channelCount
         )
         builtVersion = .max   // force a rebuild on the next block
+        spectrum?.prepare(sampleRate: self.sampleRate)
     }
 
     /// Rebuilds coefficients from `gains` for the current sample rate.
@@ -266,6 +271,7 @@ nonisolated final class EqualizerProcessor: @unchecked Sendable {
 
     /// Applies the equalizer to a planar buffer (one `channel` per call).
     func processPlanar(_ samples: UnsafeMutablePointer<Float>, frames: Int, channel: Int) {
+        if channel == 0 { spectrum?.ingest(samples, frames: frames, stride: 1) }
         guard syncIfNeeded() else { return }
         filter(samples, frames: frames, stride: 1, offset: 0, channel: channel)
     }
@@ -273,6 +279,8 @@ nonisolated final class EqualizerProcessor: @unchecked Sendable {
     /// Applies the equalizer to an interleaved buffer carrying `channels`
     /// channels of `frames` frames each.
     func processInterleaved(_ samples: UnsafeMutablePointer<Float>, frames: Int, channels: Int) {
+        // Feed the meter the left channel (stride = channel count).
+        spectrum?.ingest(samples, frames: frames, stride: max(1, channels))
         guard syncIfNeeded() else { return }
         for channel in 0..<channels {
             filter(samples, frames: frames, stride: channels, offset: channel, channel: channel)

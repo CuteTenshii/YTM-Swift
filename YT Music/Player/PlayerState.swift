@@ -123,6 +123,9 @@ final class PlayerState {
     /// playback stops.
     var onPlaybackChange: ((PlaybackSnapshot?) -> Void)?
 
+    /// Live audio spectrum for the immersive visualizer (nil under a test fake).
+    var spectrum: SpectrumAnalyzer? { audio.spectrum }
+
     init(audio: AudioOutput? = nil, resolver: StreamResolving? = nil,
          radioProvider: RadioProviding? = nil, store: PlaybackStore? = nil,
          settings: AppSettings? = nil, historyReporter: WatchHistoryReporting? = nil,
