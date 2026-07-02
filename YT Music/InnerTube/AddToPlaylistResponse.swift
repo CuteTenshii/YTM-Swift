@@ -10,7 +10,12 @@
 //
 //  Path:
 //    contents[].addToPlaylistRenderer.playlists[]
-//      .playlistAddToOptionRenderer { playlistId, title, thumbnail }
+//      .playlistAddToOptionRenderer {
+//         playlistId,
+//         title.runs[].text,
+//         shortBylineText { simpleText | runs[] }  — e.g. "22 tracks" / "8,202 songs",
+//         thumbnailRenderer.musicThumbnailRenderer.thumbnail.thumbnails[]
+//      }
 //
 //  `contents` arrives as an *array* of renderer wrappers (the same shape as most
 //  InnerTube surfaces), so we decode it as a list. A stray single-object variant
@@ -56,7 +61,22 @@ nonisolated struct AddToPlaylistResponse: Decodable {
     struct OptionRenderer: Decodable {
         let playlistId: String?
         let title: OptionText?
-        let thumbnail: ThumbnailList?
+        /// Track count byline, e.g. "22 tracks" / "8,202 songs". Arrives split
+        /// across `runs` ("22" + " tracks") or as a flat `simpleText`.
+        let shortBylineText: OptionText?
+        /// Cover art is nested under thumbnailRenderer → musicThumbnailRenderer,
+        /// NOT a bare top-level `thumbnail` key.
+        let thumbnailRenderer: ThumbnailRenderer?
+    }
+
+    struct ThumbnailRenderer: Decodable {
+        let musicThumbnailRenderer: MusicThumbnail?
+
+        struct MusicThumbnail: Decodable {
+            let thumbnail: ThumbnailList?
+        }
+
+        var bestURL: URL? { musicThumbnailRenderer?.thumbnail?.bestURL }
     }
 
     /// The option title can arrive as either `runs` or a flat `simpleText`.
@@ -95,8 +115,8 @@ nonisolated enum AddToPlaylistParser {
             return EditablePlaylist(
                 id: id,
                 title: title.isEmpty ? "Playlist" : title,
-                subtitle: "",
-                thumbnailURL: renderer.thumbnail?.bestURL
+                subtitle: renderer.shortBylineText?.text ?? "",
+                thumbnailURL: renderer.thumbnailRenderer?.bestURL
             )
         }
     }

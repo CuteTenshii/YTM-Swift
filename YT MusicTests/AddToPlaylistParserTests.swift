@@ -28,7 +28,7 @@ struct AddToPlaylistParserTests {
           { "playlistAddToOptionRenderer": {
             "playlistId": "PLbbb",
             "title": { "simpleText": "Focus" },
-            "thumbnail": { "thumbnails": [ { "url": "https://img/x", "width": 60 } ] }
+            "thumbnailRenderer": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [ { "url": "https://img/x", "width": 60 } ] } } }
           } },
           { "playlistAddToOptionRenderer": { "title": { "simpleText": "No id, dropped" } } }
         ] } } ] }
