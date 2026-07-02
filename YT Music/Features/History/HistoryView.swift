@@ -157,14 +157,30 @@ private struct HistoryTrackRow: View {
 
     @State private var hovering = false
 
+    /// Whether this row is the track currently loaded in the player.
+    private var isCurrent: Bool {
+        track.videoId != nil && track.videoId == player.nowPlaying?.videoId
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            ArtworkView(url: track.thumbnailURL, size: 40)
+            ZStack {
+                ArtworkView(url: track.thumbnailURL, size: 40)
+                if isCurrent {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.black.opacity(0.45))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.title)
                     .font(.body)
-                    .foregroundStyle(.white)
+                    .fontWeight(isCurrent ? .semibold : .regular)
+                    .foregroundStyle(isCurrent ? Color.red : .white)
                     .lineLimit(1)
                 if !track.subtitle.isEmpty {
                     Text(track.subtitle)

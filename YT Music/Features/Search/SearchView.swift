@@ -264,14 +264,30 @@ private struct SearchResultRow: View {
         item.artists + (item.albumLink.map { [$0] } ?? [])
     }
 
+    /// Whether this row is the track currently loaded in the player.
+    private var isCurrent: Bool {
+        item.videoId != nil && item.videoId == player.nowPlaying?.videoId
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 44)
+            ZStack {
+                ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 44)
+                if isCurrent {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.black.opacity(0.45))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.body)
-                    .foregroundStyle(.white)
+                    .fontWeight(isCurrent ? .semibold : .regular)
+                    .foregroundStyle(isCurrent ? Color.red : .white)
                     .lineLimit(1)
                 subtitle
             }

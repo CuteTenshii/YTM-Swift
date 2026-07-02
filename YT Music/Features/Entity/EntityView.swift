@@ -491,19 +491,33 @@ private struct TrackRow: View {
 
     @State private var hovering = false
 
+    /// Whether this row is the track currently loaded in the player.
+    private var isCurrent: Bool {
+        track.videoId != nil && track.videoId == player.nowPlaying?.videoId
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            Text("\(track.index)")
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 28, alignment: .trailing)
+            Group {
+                if isCurrent {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.red)
+                } else {
+                    Text("\(track.index)")
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 28, alignment: .trailing)
 
             ArtworkView(url: track.thumbnailURL, size: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.title)
                     .font(.body)
-                    .foregroundStyle(.white)
+                    .fontWeight(isCurrent ? .semibold : .regular)
+                    .foregroundStyle(isCurrent ? Color.red : .white)
                     .lineLimit(1)
                 if !track.subtitle.isEmpty {
                     Text(track.subtitle)
