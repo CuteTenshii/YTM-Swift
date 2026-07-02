@@ -47,7 +47,8 @@ nonisolated enum HistoryParser {
                 videoId: row.trackVideoId,
                 artists: links.filter { $0.kind == .artist },
                 albumLink: links.first { $0.kind == .album },
-                feedbackToken: row.feedbackToken
+                feedbackToken: row.feedbackToken,
+                likeStatus: row.likeStatus ?? .indifferent
             )
         }
     }

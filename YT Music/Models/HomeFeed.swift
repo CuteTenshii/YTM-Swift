@@ -52,6 +52,9 @@ struct HomeItem: Identifiable, Sendable {
     /// Delete entity id for an uploaded item (uploaded song/album), enabling a
     /// "Delete upload" action. nil for everything that isn't a user upload.
     var deleteEntityId: String? = nil
+    /// The account's current like rating for a song row, parsed from its menu
+    /// when signed in. `.indifferent` when unknown or not a track.
+    var likeStatus: LikeStatus = .indifferent
 
     /// Artists render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist }

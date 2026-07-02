@@ -301,7 +301,8 @@ private struct SearchResultRow: View {
             playlistId: item.playlistId,
             browseId: item.browseId,
             artists: item.artists,
-            albumLink: item.albumLink
+            albumLink: item.albumLink,
+            likeStatus: item.likeStatus
         )
     }
 

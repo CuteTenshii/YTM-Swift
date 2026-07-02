@@ -81,6 +81,10 @@ final class PlayerState {
     /// Set once the user toggles the like for the current track, so a slower
     /// background status fetch doesn't clobber their action. Reset per track.
     private var likeInteracted = false
+    /// Like ratings learned for tracks other than the one playing, so a row's
+    /// context menu can offer "Remove from Likes" without a fresh fetch. Keyed
+    /// by videoId; the current track's live `likeStatus` takes precedence.
+    private var likeStatusCache: [String: LikeStatus] = [:]
 
     /// The playable tracks (those with a videoId) for the current context, and
     /// the index within it that is currently playing. Empty for one-off plays.
@@ -451,6 +455,7 @@ final class PlayerState {
         let previous = likeStatus
         let target: LikeStatus = likeStatus == .liked ? .indifferent : .liked
         likeStatus = target
+        likeStatusCache[videoId] = target
         isUpdatingLike = true
         Task {
             defer { isUpdatingLike = false }
@@ -458,6 +463,7 @@ final class PlayerState {
                 try await likeProvider.setLikeStatus(videoId: videoId, status: target)
             } catch {
                 // Revert only if we're still on the same track.
+                likeStatusCache[videoId] = previous
                 if nowPlaying?.videoId == videoId { likeStatus = previous }
             }
         }
@@ -470,8 +476,40 @@ final class PlayerState {
         likeFetchTask?.cancel()
         likeFetchTask = Task {
             guard let status = try? await likeProvider.likeStatus(for: videoId) else { return }
-            guard !Task.isCancelled, nowPlaying?.videoId == videoId, !likeInteracted else { return }
+            guard !Task.isCancelled else { return }
+            likeStatusCache[videoId] = status
+            guard nowPlaying?.videoId == videoId, !likeInteracted else { return }
             likeStatus = status
+        }
+    }
+
+    /// The known like rating for a row's context menu, without a network call:
+    /// the live status for the current track (so in-session toggles show), else
+    /// an in-session cached toggle, else `fallback` — the rating the row's
+    /// response already carried.
+    func knownLikeStatus(for videoId: String, default fallback: LikeStatus = .indifferent) -> LikeStatus {
+        if videoId == nowPlaying?.videoId { return likeStatus }
+        return likeStatusCache[videoId] ?? fallback
+    }
+
+    /// Sets a specific track's like rating (from a row's context menu, which may
+    /// target a track other than the one playing). Mirrors the change onto the
+    /// now-playing UI, and reverts it, when it's the current track.
+    func setLikeStatus(for videoId: String, to status: LikeStatus) {
+        let isCurrent = videoId == nowPlaying?.videoId
+        let previous = knownLikeStatus(for: videoId)
+        if isCurrent {
+            likeInteracted = true
+            likeStatus = status
+        }
+        likeStatusCache[videoId] = status
+        Task {
+            do {
+                try await likeProvider.setLikeStatus(videoId: videoId, status: status)
+            } catch {
+                likeStatusCache[videoId] = previous
+                if isCurrent, nowPlaying?.videoId == videoId { likeStatus = previous }
+            }
         }
     }
 

@@ -78,6 +78,16 @@ nonisolated enum LikeStatus: String, Codable, Sendable {
     case indifferent
     case liked
     case disliked
+
+    /// Maps YT's raw `likeButtonRenderer.likeStatus` string ("LIKE"/"DISLIKE"/
+    /// "INDIFFERENT"). Anything else (including nil) is treated as indifferent.
+    init(innerTube raw: String?) {
+        switch raw {
+        case "LIKE":    self = .liked
+        case "DISLIKE": self = .disliked
+        default:        self = .indifferent
+        }
+    }
 }
 
 /// Sets a track's like rating, and reads its current rating. Abstracted so

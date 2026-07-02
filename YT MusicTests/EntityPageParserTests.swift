@@ -161,7 +161,10 @@ struct EntityPageParserTests {
               "flexColumns":[
                 {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Until I Die"}]}}},
                 {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"1.3M plays"}]}}}
-              ]
+              ],
+              "menu":{"menuRenderer":{"topLevelButtons":[
+                {"likeButtonRenderer":{"likeStatus":"LIKE","target":{"videoId":"vid1"}}}
+              ]}}
             }}
           ]}}
         ]}}
@@ -195,6 +198,8 @@ struct EntityPageParserTests {
         #expect(track.artists.first?.name == "Some Artist")
         // Track artwork falls back to the album cover.
         #expect(track.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
+        // The current like rating is read straight from the row's menu.
+        #expect(track.likeStatus == .liked)
     }
 }
 

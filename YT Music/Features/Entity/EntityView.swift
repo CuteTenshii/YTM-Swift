@@ -536,7 +536,8 @@ private struct TrackRow: View {
             playlistId: nil,
             browseId: nil,
             artists: track.artists,
-            albumLink: track.albumLink
+            albumLink: track.albumLink,
+            likeStatus: track.likeStatus
         )
     }
 }

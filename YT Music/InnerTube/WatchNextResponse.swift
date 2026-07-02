@@ -156,11 +156,7 @@ nonisolated enum WatchNextParser {
         let button = response.playerOverlays?.playerOverlayRenderer?
             .actions?.compactMap(\.likeButtonRenderer)
             .first { $0.target?.videoId == videoId }
-        switch button?.likeStatus {
-        case "LIKE":    return .liked
-        case "DISLIKE": return .disliked
-        default:        return .indifferent
-        }
+        return LikeStatus(innerTube: button?.likeStatus)
     }
 
     /// The browse id of the watch-next "Lyrics" tab, if the track has lyrics.

@@ -170,7 +170,8 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: row.thumbnail?.bestURL ?? header.thumbnailURL,
                 videoId: row.trackVideoId,
                 artists: artists,
-                albumLink: albumLink
+                albumLink: albumLink,
+                likeStatus: row.likeStatus ?? .indifferent
             )
         }
     }

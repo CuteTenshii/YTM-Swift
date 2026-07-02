@@ -258,6 +258,9 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     /// History-removal feedback token carried by the row's overflow menu.
     var feedbackToken: String? { menu?.feedbackToken }
 
+    /// The track's current like rating from its menu, if signed in and present.
+    var likeStatus: LikeStatus? { menu?.likeStatus }
+
     /// Delete entity id for an uploaded song row, if present.
     var deleteEntityId: String? { menu?.deleteEntityId }
 }
@@ -273,6 +276,18 @@ nonisolated struct RendererMenu: Decodable {
 
     struct MenuRenderer: Decodable {
         let items: [Item]?
+        /// Prominent buttons above the overflow list — the track's like/dislike
+        /// toggle lives here, carrying its *current* rating.
+        let topLevelButtons: [TopLevelButton]?
+    }
+
+    struct TopLevelButton: Decodable {
+        let likeButtonRenderer: LikeButton?
+
+        struct LikeButton: Decodable {
+            /// "LIKE" / "DISLIKE" / "INDIFFERENT" — the account-relative rating.
+            let likeStatus: String?
+        }
     }
 
     struct Item: Decodable {
@@ -325,6 +340,15 @@ nonisolated struct RendererMenu: Decodable {
         (menuRenderer?.items ?? [])
             .compactMap { $0.menuServiceItemRenderer?.serviceEndpoint?.feedbackEndpoint?.feedbackToken }
             .first
+    }
+
+    /// The track's current like rating from the menu's like button, if present.
+    /// nil when the menu carries no like button (e.g. signed out, or a non-track
+    /// row) — the caller decides how to treat "unknown".
+    var likeStatus: LikeStatus? {
+        guard let raw = (menuRenderer?.topLevelButtons ?? [])
+            .compactMap(\.likeButtonRenderer?.likeStatus).first else { return nil }
+        return LikeStatus(innerTube: raw)
     }
 
     /// The delete entity id for an uploaded item — either directly on a service

@@ -68,6 +68,7 @@ struct ItemCard<Extra: View>: View {
             browseId: item.browseId,
             artists: item.artists,
             albumLink: item.albumLink,
+            likeStatus: item.likeStatus,
             extraActions: { extraMenu }
         )
     }
@@ -148,6 +149,29 @@ struct ArtworkView: View {
 
 // MARK: - Context menu
 
+/// A context-menu toggle that likes a track, or removes an existing like. The
+/// rating is known up front: the browse/entity/history response carries each
+/// track's current `likeStatus` in its menu, so no extra request is needed. The
+/// now-playing track's live rating (which reflects in-session toggles) takes
+/// precedence when this row happens to be the current track.
+private struct LikeMenuButton: View {
+    @Environment(PlayerState.self) private var player
+    let videoId: String
+    /// The rating parsed from this row's response, used unless the player has a
+    /// fresher one (it's the current track, or the user already toggled it).
+    let parsedStatus: LikeStatus
+
+    var body: some View {
+        let liked = player.knownLikeStatus(for: videoId, default: parsedStatus) == .liked
+        Button {
+            player.setLikeStatus(for: videoId, to: liked ? .indifferent : .liked)
+        } label: {
+            Label(liked ? "Remove from Likes" : "Like",
+                  systemImage: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+        }
+    }
+}
+
 private struct MusicContextMenu<Extra: View>: ViewModifier {
     @Environment(PlayerState.self) private var player
     @Environment(Navigator.self) private var navigator
@@ -162,6 +186,9 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
     let browseId: String?
     let artists: [EntityLink]
     let albumLink: EntityLink?
+    /// This track's current like rating, parsed from the row's response so the
+    /// "Like" / "Remove from Likes" entry is labelled correctly with no fetch.
+    let likeStatus: LikeStatus
     /// Screen-specific extra actions (e.g. "Remove from history", "Delete
     /// upload") appended below the standard entries. Built by the caller.
     let extraActions: Extra
@@ -209,6 +236,8 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                 }
 
                 if auth.isSignedIn {
+                    LikeMenuButton(videoId: videoId, parsedStatus: likeStatus)
+
                     Button {
                         playlists.requestAdd(videoId: videoId, title: title)
                     } label: {
@@ -291,6 +320,7 @@ extension View {
         browseId: String?,
         artists: [EntityLink] = [],
         albumLink: EntityLink? = nil,
+        likeStatus: LikeStatus = .indifferent,
         @ViewBuilder extraActions: () -> Extra = { EmptyView() }
     ) -> some View {
         modifier(MusicContextMenu(
@@ -302,6 +332,7 @@ extension View {
             browseId: browseId,
             artists: artists,
             albumLink: albumLink,
+            likeStatus: likeStatus,
             extraActions: extraActions()
         ))
     }

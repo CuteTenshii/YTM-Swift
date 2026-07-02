@@ -887,6 +887,32 @@ struct PlayerStateLikeTests {
         await eventually { !like.statusQueries.isEmpty && !p.isUpdatingLike }
         #expect(p.likeStatus == .liked)
     }
+
+    @Test("knownLikeStatus falls back to the rating parsed from the row")
+    func knownLikeStatusUsesParsedDefault() async {
+        let like = FakeLikeProvider()
+        let p = player(like)
+        p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        // A non-current row with no cached toggle reports the response's rating.
+        #expect(p.knownLikeStatus(for: "other", default: .liked) == .liked)
+        #expect(p.knownLikeStatus(for: "other") == .indifferent)   // no default given
+        // The current track's live status wins over any passed default.
+        #expect(p.knownLikeStatus(for: "vid", default: .liked) == .indifferent)
+    }
+
+    @Test("setLikeStatus updates a non-current track without touching the current one")
+    func setLikeStatusForOtherTrack() async {
+        let like = FakeLikeProvider()
+        let p = player(like)
+        p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        p.setLikeStatus(for: "other", to: .liked)
+        #expect(p.knownLikeStatus(for: "other") == .liked)   // cached optimistically
+        #expect(p.likeStatus == .indifferent)                // current track untouched
+
+        await eventually { like.calls.contains { $0.videoId == "other" && $0.status == .liked } }
+    }
 }
 
 // MARK: - AudioPlayer (real instance, no playback required)

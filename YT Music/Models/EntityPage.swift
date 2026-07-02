@@ -86,4 +86,8 @@ struct Track: Identifiable, Sendable {
     var feedbackToken: String? = nil
     /// Playlist-scoped id for removing this row from an owned playlist, if known.
     var playlistSetVideoId: String? = nil
+    /// The account's current like rating for this track, parsed from the row's
+    /// menu when available (signed in). `.indifferent` when unknown — enough for
+    /// a context menu to show the right "Like" / "Remove from Likes" label.
+    var likeStatus: LikeStatus = .indifferent
 }

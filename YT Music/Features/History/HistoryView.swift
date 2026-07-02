@@ -197,7 +197,8 @@ private struct HistoryTrackRow: View {
             playlistId: nil,
             browseId: nil,
             artists: track.artists,
-            albumLink: track.albumLink
+            albumLink: track.albumLink,
+            likeStatus: track.likeStatus
         ) {
             if track.feedbackToken != nil {
                 Divider()
