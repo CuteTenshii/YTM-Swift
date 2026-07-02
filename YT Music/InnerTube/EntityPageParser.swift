@@ -99,6 +99,9 @@ nonisolated enum EntityPageParser {
         }
 
         if let immersive = container?.musicImmersiveHeaderRenderer {
+            // The immersive header's `thumbnail` is a wide background image — the
+            // artist banner. `foregroundThumbnail`, when present, is the circular
+            // artist portrait; otherwise the banner doubles as the avatar.
             return EntityHeader(
                 title: immersive.title?.text ?? fallback.title,
                 subtitle: immersive.subtitle?.text ?? fallback.subtitle,
@@ -106,6 +109,7 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: immersive.foregroundThumbnail?.musicThumbnailRenderer?.bestURL
                     ?? immersive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
+                bannerURL: immersive.thumbnail?.musicThumbnailRenderer?.bestURL,
                 kind: fallback.kind,
                 subscription: parseSubscription(immersive.subscriptionButton)
             )

@@ -45,6 +45,9 @@ struct EntityHeader: Sendable {
     var subtitle: String       // e.g. "Album • Artist • 2020"
     var description: String
     var thumbnailURL: URL?
+    /// Wide banner artwork for artist pages (the immersive header's large
+    /// background image). Nil for albums/playlists and artists without one.
+    var bannerURL: URL? = nil
     var kind: HomeItem.Kind
     /// Navigable artist link(s) parsed from the header subtitle. For an album,
     /// these are the album's artist(s) — inherited by tracks that carry none.
