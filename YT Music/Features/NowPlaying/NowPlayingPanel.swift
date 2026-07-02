@@ -110,6 +110,18 @@ private struct QueueListView: View {
                             } label: {
                                 Label("Play", systemImage: "play.fill")
                             }
+                            if let videoId = track.videoId {
+                                Button {
+                                    player.startRadio(
+                                        title: track.title,
+                                        subtitle: track.subtitle,
+                                        thumbnailURL: track.thumbnailURL,
+                                        videoId: videoId
+                                    )
+                                } label: {
+                                    Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+                                }
+                            }
                             if !track.artists.isEmpty, let artist = track.artists.first {
                                 Button {
                                     navigate(artist.destination)
