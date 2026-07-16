@@ -26,7 +26,11 @@ nonisolated enum ExploreParser {
 
     private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
         if let carousel = section.carousel {
-            return makeShelf(title: carousel.title, contents: carousel.contents)
+            return makeShelf(
+                title: carousel.title,
+                contents: carousel.contents,
+                buttons: HomeFeedParser.shelfButtons(from: carousel)
+            )
         }
         if let grid = section.gridRenderer {
             return makeShelf(title: grid.title, contents: grid.items)
@@ -34,9 +38,13 @@ nonisolated enum ExploreParser {
         return nil
     }
 
-    private static func makeShelf(title: String, contents: [CarouselItem]?) -> HomeShelf? {
+    private static func makeShelf(
+        title: String,
+        contents: [CarouselItem]?,
+        buttons: [ShelfButton] = []
+    ) -> HomeShelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: title.isEmpty ? "Explore" : title, items: items)
+        return HomeShelf(title: title.isEmpty ? "Explore" : title, items: items, buttons: buttons)
     }
 }

@@ -17,7 +17,16 @@ struct ExploreParserTests {
     private let fixture = """
     {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
       {"musicCarouselShelfRenderer":{
-        "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"New albums & singles"}]}}},
+        "header":{"musicCarouselShelfBasicHeaderRenderer":{
+          "title":{"runs":[{"text":"New albums & singles"}]},
+          "moreContentButton":{"buttonRenderer":{
+            "text":{"runs":[{"text":"More"}]},
+            "navigationEndpoint":{"browseEndpoint":{
+              "browseId":"FEmusic_new_releases_albums",
+              "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}
+            }}
+          }}
+        }},
         "contents":[
           {"musicTwoRowItemRenderer":{
             "title":{"runs":[{"text":"Some Album"}]},
@@ -52,6 +61,52 @@ struct ExploreParserTests {
         #expect(album.kind == .album)
         #expect(album.title == "Some Album")
         #expect(album.browseId == "MPREb_xyz")
+    }
+
+    @Test("Parses the shelf header \"More\" button as a navigation action")
+    func parsesShelfMoreButton() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(fixture.utf8))
+        let shelf = try #require(ExploreParser.parse(response).first)
+
+        let button = try #require(shelf.buttons.first)
+        #expect(button.title == "More")
+        guard case .navigate(let destination) = button.action else {
+            Issue.record("expected a navigate action, got \(button.action)")
+            return
+        }
+        #expect(destination.browseId == "FEmusic_new_releases_albums")
+        #expect(destination.kind == .playlist)
+        // Titled with the shelf name so the destination reads sensibly while loading.
+        #expect(destination.title == "New albums & singles")
+    }
+
+    @Test("A watch-endpoint header button parses as a play action")
+    func parsesPlayAllButton() throws {
+        let json = """
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicCarouselShelfRenderer":{
+            "header":{"musicCarouselShelfBasicHeaderRenderer":{
+              "title":{"runs":[{"text":"Quick picks"}]},
+              "moreContentButton":{"buttonRenderer":{
+                "text":{"runs":[{"text":"Play all"}]},
+                "navigationEndpoint":{"watchEndpoint":{"videoId":"vid123","playlistId":"PL42"}}
+              }}
+            }},
+            "contents":[
+              {"musicResponsiveListItemRenderer":{
+                "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Song"}]}}}],
+                "playlistItemData":{"videoId":"vid123"}
+              }}
+            ]
+          }}
+        ]}}}}]}}}
+        """
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(json.utf8))
+        let shelf = try #require(ExploreParser.parse(response).first)
+
+        let button = try #require(shelf.buttons.first)
+        #expect(button.title == "Play all")
+        #expect(button.action == .play(videoId: "vid123", playlistId: "PL42"))
     }
 
     @Test("An empty response yields no shelves")

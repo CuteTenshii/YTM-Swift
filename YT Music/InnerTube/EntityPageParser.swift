@@ -26,6 +26,10 @@ nonisolated enum EntityPageParser {
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
+            } else if let grid = section.gridRenderer {
+                // Feed pages (e.g. a shelf's "More" → "Listen again") lay their
+                // content out as grids rather than carousels.
+                if let shelf = makeShelf(from: grid) { shelves.append(shelf) }
             }
         }
 
@@ -115,6 +119,23 @@ nonisolated enum EntityPageParser {
             )
         }
 
+        // Plain YouTube channels (a video/song byline target) use a lighter
+        // header: avatar (`foregroundThumbnail`) + subscribe button + subscriber
+        // count, but no bio. Reuse the artist subscribe parsing.
+        if let visual = container?.musicVisualHeaderRenderer {
+            let subscribers = visual.subscriptionButton?.subscribeButtonRenderer?
+                .subscriberCountText?.text ?? ""
+            return EntityHeader(
+                title: visual.title?.text ?? fallback.title,
+                subtitle: formatSubscribers(subscribers),
+                description: "",
+                thumbnailURL: visual.foregroundThumbnail?.musicThumbnailRenderer?.bestURL
+                    ?? fallback.thumbnailURL,
+                kind: fallback.kind,
+                subscription: parseSubscription(visual.subscriptionButton)
+            )
+        }
+
         // No recognizable header — fall back to what navigation gave us.
         return EntityHeader(
             title: fallback.title,
@@ -123,6 +144,14 @@ nonisolated enum EntityPageParser {
             thumbnailURL: fallback.thumbnailURL,
             kind: fallback.kind
         )
+    }
+
+    /// Formats a subscriber count for display. YouTube sometimes returns just the
+    /// number ("79") and sometimes the full "1.2M subscribers"; append the noun
+    /// only when it's missing.
+    private static func formatSubscribers(_ text: String) -> String {
+        guard !text.isEmpty else { return "" }
+        return text.lowercased().contains("subscrib") ? text : "\(text) subscribers"
     }
 
     // MARK: - Tracks
@@ -215,7 +244,13 @@ nonisolated enum EntityPageParser {
         let items = (carousel.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(title: title, items: items)
+        return HomeShelf(title: title, items: items, buttons: HomeFeedParser.shelfButtons(from: carousel))
+    }
+
+    private static func makeShelf(from grid: GridRenderer) -> HomeShelf? {
+        let items = (grid.items ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
+        guard !items.isEmpty else { return nil }
+        return HomeShelf(title: grid.title.isEmpty ? "More" : grid.title, items: items)
     }
 
     // MARK: - Helpers

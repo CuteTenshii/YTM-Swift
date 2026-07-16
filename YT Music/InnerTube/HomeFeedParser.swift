@@ -30,7 +30,40 @@ nonisolated enum HomeFeedParser {
         guard !items.isEmpty else { return nil }
 
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(title: title, items: items)
+        return HomeShelf(title: title, items: items, buttons: shelfButtons(from: carousel))
+    }
+
+    // MARK: - Shelf header buttons
+
+    /// Builds the tappable header buttons ("More", "Play all", …) for a carousel,
+    /// resolving each button's endpoint to a navigate or play action. Shared by
+    /// the home, explore, and entity-page parsers.
+    static func shelfButtons(from carousel: MusicCarouselShelfRenderer) -> [ShelfButton] {
+        carousel.headerButtons.compactMap { makeShelfButton(from: $0, pageTitle: carousel.title) }
+    }
+
+    /// Maps a single header button to a `ShelfButton`: a watch endpoint with a
+    /// playlist becomes a "Play all" action; a browse endpoint becomes a "More"
+    /// navigation. The destination is titled with the shelf's own name so it
+    /// reads sensibly while loading (a feed page fills in nothing else).
+    static func makeShelfButton(from button: ButtonRenderer, pageTitle: String) -> ShelfButton? {
+        let label = button.text?.text ?? ""
+        guard !label.isEmpty else { return nil }
+
+        if let watch = button.navigationEndpoint?.watchEndpoint, let playlistId = watch.playlistId {
+            return ShelfButton(title: label, action: .play(videoId: watch.videoId, playlistId: playlistId))
+        }
+        if let browse = button.navigationEndpoint?.browseEndpoint, let browseId = browse.browseId {
+            let destination = EntityDestination(
+                browseId: browseId,
+                kind: browse.kind ?? .unknown,
+                title: pageTitle.isEmpty ? label : pageTitle,
+                subtitle: "",
+                thumbnailURL: nil
+            )
+            return ShelfButton(title: label, action: .navigate(destination))
+        }
+        return nil
     }
 
     /// Maps a single carousel/list entry to a `HomeItem`, dispatching on whichever
@@ -65,7 +98,8 @@ nonisolated enum HomeFeedParser {
             playlistId: playlistId,
             artists: links.filter { $0.kind == .artist },
             albumLink: links.first { $0.kind == .album },
-            deleteEntityId: row.deleteEntityId
+            deleteEntityId: row.deleteEntityId,
+            likeStatus: row.likeStatus
         )
     }
 
@@ -97,7 +131,7 @@ nonisolated enum HomeFeedParser {
             artists: links.filter { $0.kind == .artist },
             albumLink: links.first { $0.kind == .album },
             deleteEntityId: row.deleteEntityId,
-            likeStatus: row.likeStatus ?? .indifferent
+            likeStatus: row.likeStatus
         )
     }
 

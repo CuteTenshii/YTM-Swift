@@ -12,6 +12,15 @@ import SwiftUI
 /// can be driven by a fake in tests (no network).
 protocol RadioProviding: Sendable {
     func radio(for videoId: String) async throws -> [Track]
+    /// The ordered watch queue for a `next` endpoint (a "Play all" button, or a
+    /// playlist/album radio). Defaults to the plain radio for `videoId`.
+    func watchQueue(videoId: String, playlistId: String) async throws -> [Track]
+}
+
+extension RadioProviding {
+    func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
+        try await radio(for: videoId)
+    }
 }
 
 extension InnerTubeClient: RadioProviding {}
@@ -255,6 +264,25 @@ final class PlayerState {
         persist()
     }
 
+    /// "Play all" for a shelf header button: fetches the button's watch queue (a
+    /// real playlist/album) and plays it as the queue. Unlike a single-seed play
+    /// this yields real per-track metadata (title/artist/artwork) instead of the
+    /// button's own label.
+    func playAll(videoId: String?, playlistId: String) {
+        loadTask?.cancel()
+        radioTask?.cancel()
+        radioTask = Task { await loadAndPlayAll(videoId: videoId, playlistId: playlistId) }
+    }
+
+    /// Fetches then plays a "Play all" queue, starting at the seed track when it's
+    /// present in the returned queue. Split out so tests can await it directly.
+    func loadAndPlayAll(videoId: String?, playlistId: String) async {
+        guard let tracks = try? await radioProvider.watchQueue(videoId: videoId ?? "", playlistId: playlistId),
+              !tracks.isEmpty else { return }
+        let start = videoId.flatMap { id in tracks.firstIndex { $0.videoId == id } } ?? 0
+        play(tracks, startAt: start)
+    }
+
     /// Autoplay: when the current track has nothing after it (a one-off play, or
     /// the last track of an album/playlist) and repeat is off, fetch a radio
     /// based on it and append it so playback keeps going. No-op when more tracks
@@ -490,6 +518,15 @@ final class PlayerState {
     func knownLikeStatus(for videoId: String, default fallback: LikeStatus = .indifferent) -> LikeStatus {
         if videoId == nowPlaying?.videoId { return likeStatus }
         return likeStatusCache[videoId] ?? fallback
+    }
+
+    /// The rating for `videoId` only when we actually know it — the current
+    /// track's live rating, or one learned this session — else nil. Unlike
+    /// `knownLikeStatus` it invents no `.indifferent` fallback, so callers can
+    /// tell "not liked" apart from "unknown".
+    func likeStatusIfKnown(for videoId: String) -> LikeStatus? {
+        if videoId == nowPlaying?.videoId { return likeStatus }
+        return likeStatusCache[videoId]
     }
 
     /// Sets a specific track's like rating (from a row's context menu, which may

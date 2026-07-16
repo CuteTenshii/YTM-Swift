@@ -316,11 +316,20 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// Fetches an endless radio queue seeded from a video (the "Start radio"
     /// action). The queue's first entry is the seed track itself.
     func radio(for videoId: String) async throws -> [Track] {
+        // RDAMVM<id> = this song's radio.
+        try await watchQueue(videoId: videoId, playlistId: "RDAMVM\(videoId)")
+    }
+
+    /// Fetches the ordered watch queue for a `next` endpoint (a "Play all" button
+    /// on a shelf, or a playlist/album radio). Returns the queue's tracks — the
+    /// same renderer a radio uses — so the caller can play them with real
+    /// per-track metadata rather than a single seed.
+    func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
         let response: WatchNextResponse = try await post(
             "next",
             body: [
                 "videoId": videoId,
-                "playlistId": "RDAMVM\(videoId)",   // RDAMVM<id> = this song's radio
+                "playlistId": playlistId,
                 "isAudioOnly": true,
                 "enablePersistentPlaylistPanel": true,
                 "tunerSettingValue": "AUTOMIX_SETTING_NORMAL",

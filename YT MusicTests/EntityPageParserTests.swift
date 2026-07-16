@@ -64,6 +64,67 @@ struct EntityPageParserTests {
         #expect(page.header.subscription == nil)
     }
 
+    /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
+    /// entity header and lays its cards out as a grid rather than a track list.
+    private let feedFixture = """
+    {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+      {"gridRenderer":{"items":[
+        {"musicTwoRowItemRenderer":{
+          "title":{"runs":[{"text":"Some Song"}]},
+          "subtitle":{"runs":[{"text":"Some Artist"}]},
+          "navigationEndpoint":{"watchEndpoint":{"videoId":"vid1"}}
+        }}
+      ]}}
+    ]}}}}]}}}
+    """
+
+    @Test("A channel's visual header yields avatar, subscribers, and a subscribe button")
+    func parsesChannelVisualHeader() throws {
+        let fixture = """
+        {"header":{"musicVisualHeaderRenderer":{
+          "title":{"runs":[{"text":"Camille Bonzon"}]},
+          "foregroundThumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
+            {"url":"https://example.com/avatar.jpg","width":120,"height":120}
+          ]}}},
+          "subscriptionButton":{"subscribeButtonRenderer":{
+            "channelId":"UCchan","subscribed":false,
+            "subscriberCountText":{"runs":[{"text":"79"}]},
+            "serviceEndpoints":[
+              {"subscribeEndpoint":{"channelIds":["UCchan"],"params":"SUB"}},
+              {"unsubscribeEndpoint":{"channelIds":["UCchan"],"params":"UNSUB"}}
+            ]
+          }}
+        }}}
+        """
+        let channelDestination = EntityDestination(
+            browseId: "UCchan", kind: .artist, title: "Camille Bonzon", subtitle: "", thumbnailURL: nil
+        )
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let page = EntityPageParser.parse(response, fallback: channelDestination)
+
+        #expect(page.header.title == "Camille Bonzon")
+        #expect(page.header.subtitle == "79 subscribers")
+        #expect(page.header.thumbnailURL?.absoluteString == "https://example.com/avatar.jpg")
+        #expect(page.header.subscription?.channelId == "UCchan")
+        #expect(page.header.subscription?.isSubscribed == false)
+        #expect(page.header.subscription?.subscribeParams == "SUB")
+    }
+
+    @Test("A feed page parses its grid into a shelf and reads as a feed")
+    func parsesFeedGridAsShelf() throws {
+        let feedDestination = EntityDestination(
+            browseId: "FEmusic_listen_again", kind: .unknown,
+            title: "Listen again", subtitle: "", thumbnailURL: nil
+        )
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(feedFixture.utf8))
+        let page = EntityPageParser.parse(response, fallback: feedDestination)
+
+        #expect(page.isFeed)
+        #expect(page.tracks.isEmpty)
+        let shelf = try #require(page.shelves.first)
+        #expect(shelf.items.first?.title == "Some Song")
+    }
+
     /// An uploaded album, shaped like the real `privately_owned_release_detail`
     /// response: the artist link is only in the header (with a
     /// `MUSIC_PAGE_TYPE_UNKNOWN` page type, its kind inferred from the browse id),

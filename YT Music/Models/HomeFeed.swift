@@ -18,6 +18,25 @@ struct HomeShelf: Identifiable, Sendable {
     let id = UUID()
     var title: String
     var items: [HomeItem]
+    /// Tappable actions in the shelf header ("More", "Play all", …), parsed from
+    /// the shelf's header buttons. Empty when the shelf carries none.
+    var buttons: [ShelfButton] = []
+}
+
+/// A tappable action in a shelf header. YouTube shelves carry buttons beside the
+/// title — a "More" link to a fuller listing, or a "Play all"-style play button.
+struct ShelfButton: Identifiable, Sendable {
+    let id = UUID()
+    var title: String
+    var action: Action
+
+    enum Action: Sendable, Hashable {
+        /// Push a page (e.g. "More" → all of an artist's albums, a feed page).
+        case navigate(EntityDestination)
+        /// Play a playlist/album watch queue ("Play all"), optionally seeded at a
+        /// specific video within it.
+        case play(videoId: String?, playlistId: String)
+    }
 }
 
 /// A single card inside a shelf.
@@ -53,8 +72,10 @@ struct HomeItem: Identifiable, Sendable {
     /// "Delete upload" action. nil for everything that isn't a user upload.
     var deleteEntityId: String? = nil
     /// The account's current like rating for a song row, parsed from its menu
-    /// when signed in. `.indifferent` when unknown or not a track.
-    var likeStatus: LikeStatus = .indifferent
+    /// when signed in. `nil` when the row carried no like info at all (e.g. a
+    /// feed-page card) — distinct from a known `.indifferent` — so the UI can
+    /// decide whether to resolve it on demand.
+    var likeStatus: LikeStatus? = nil
 
     /// Artists render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist }

@@ -17,10 +17,7 @@ struct ShelfView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(shelf.title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 24)
+            ShelfHeader(shelf: shelf)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 16) {
@@ -31,6 +28,94 @@ struct ShelfView: View {
                 .padding(.horizontal, 24)
             }
         }
+    }
+}
+
+/// The same shelf as `ShelfView`, but its cards wrap onto multiple rows instead
+/// of scrolling horizontally — used for full-page feeds (a shelf's "More") where
+/// a single long horizontal strip reads poorly.
+struct ShelfGridView: View {
+    let shelf: HomeShelf
+    /// Hidden for a feed's sole shelf, whose title only repeats the page title.
+    var showsHeader = true
+
+    private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if showsHeader {
+                ShelfHeader(shelf: shelf)
+            }
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                ForEach(shelf.items) { item in
+                    ItemCard(item: item)
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+}
+
+/// A shelf's title row plus any header action pills ("More", "Play all").
+private struct ShelfHeader: View {
+    let shelf: HomeShelf
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(shelf.title)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white)
+
+            Spacer(minLength: 12)
+
+            ForEach(shelf.buttons) { button in
+                ShelfButtonView(button: button)
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+}
+
+/// A shelf-header action pill. "More" (a browse endpoint) pushes a fuller
+/// listing; "Play all" and similar watch-endpoint buttons start playback.
+private struct ShelfButtonView: View {
+    @Environment(PlayerState.self) private var player
+    let button: ShelfButton
+
+    var body: some View {
+        switch button.action {
+        case .navigate(let destination):
+            NavigationLink(value: destination) { pill }
+                .buttonStyle(.plain)
+        case .play(let videoId, let playlistId):
+            Button {
+                player.playAll(videoId: videoId, playlistId: playlistId)
+            } label: {
+                pill
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var pill: some View {
+        HStack(spacing: 5) {
+            if case .play = button.action {
+                Image(systemName: "play.fill")
+                    .font(.caption)
+            }
+            Text(button.title)
+            if case .navigate = button.action {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(.white.opacity(0.1), in: Capsule())
+        .contentShape(Capsule())
     }
 }
 
@@ -150,24 +235,25 @@ struct ArtworkView: View {
 // MARK: - Context menu
 
 /// A context-menu toggle that likes a track, or removes an existing like. The
-/// rating is known up front: the browse/entity/history response carries each
-/// track's current `likeStatus` in its menu, so no extra request is needed. The
-/// now-playing track's live rating (which reflects in-session toggles) takes
-/// precedence when this row happens to be the current track.
+/// rating comes from the row's parsed `likeStatus` (no extra request), or the
+/// player's live/session rating when fresher. When the rating is genuinely
+/// unknown (e.g. a "Listen again" feed card, which carries none) the entry is
+/// omitted entirely rather than guessing "Like".
 private struct LikeMenuButton: View {
     @Environment(PlayerState.self) private var player
     let videoId: String
-    /// The rating parsed from this row's response, used unless the player has a
-    /// fresher one (it's the current track, or the user already toggled it).
-    let parsedStatus: LikeStatus
+    /// The rating parsed from this row's response, or nil when it carried none.
+    let parsedStatus: LikeStatus?
 
     var body: some View {
-        let liked = player.knownLikeStatus(for: videoId, default: parsedStatus) == .liked
-        Button {
-            player.setLikeStatus(for: videoId, to: liked ? .indifferent : .liked)
-        } label: {
-            Label(liked ? "Remove from Likes" : "Like",
-                  systemImage: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+        if let status = player.likeStatusIfKnown(for: videoId) ?? parsedStatus {
+            let liked = status == .liked
+            Button {
+                player.setLikeStatus(for: videoId, to: liked ? .indifferent : .liked)
+            } label: {
+                Label(liked ? "Remove from Likes" : "Like",
+                      systemImage: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+            }
         }
     }
 }
@@ -187,8 +273,10 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
     let artists: [EntityLink]
     let albumLink: EntityLink?
     /// This track's current like rating, parsed from the row's response so the
-    /// "Like" / "Remove from Likes" entry is labelled correctly with no fetch.
-    let likeStatus: LikeStatus
+    /// "Like" / "Remove from Likes" entry is labelled correctly. `nil` when the
+    /// row carried no like info (e.g. a feed-page card), in which case it's
+    /// resolved on demand when the menu opens.
+    let likeStatus: LikeStatus?
     /// Screen-specific extra actions (e.g. "Remove from history", "Delete
     /// upload") appended below the standard entries. Built by the caller.
     let extraActions: Extra
@@ -320,7 +408,7 @@ extension View {
         browseId: String?,
         artists: [EntityLink] = [],
         albumLink: EntityLink? = nil,
-        likeStatus: LikeStatus = .indifferent,
+        likeStatus: LikeStatus? = nil,
         @ViewBuilder extraActions: () -> Extra = { EmptyView() }
     ) -> some View {
         modifier(MusicContextMenu(

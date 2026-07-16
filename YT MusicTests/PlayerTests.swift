@@ -51,7 +51,12 @@ final class FakeHistoryReporter: WatchHistoryReporting, @unchecked Sendable {
 
 nonisolated struct StubRadio: RadioProviding {
     var tracks: [Track] = []
+    /// Tracks returned by `watchQueue` (a "Play all"); falls back to `tracks`.
+    var watchQueueTracks: [Track]? = nil
     func radio(for videoId: String) async throws -> [Track] { tracks }
+    func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
+        watchQueueTracks ?? tracks
+    }
 }
 
 @MainActor
@@ -510,6 +515,46 @@ struct PlayerStateQueueTests {
         #expect(p.queue.isEmpty)
     }
 
+    // MARK: - Play all
+
+    @Test("playAll plays the fetched watch queue with real track metadata")
+    func playAllBuildsQueue() async {
+        // A "Play all" resolves the real playlist tracks, not the button label.
+        let queue = [
+            Track(index: 1, title: "First", subtitle: "A", duration: nil, thumbnailURL: nil, videoId: "a"),
+            Track(index: 2, title: "Second", subtitle: "B", duration: nil, thumbnailURL: nil, videoId: "b"),
+        ]
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: queue))
+
+        await p.loadAndPlayAll(videoId: nil, playlistId: "PL42")
+
+        #expect(p.queue.map(\.videoId) == ["a", "b"])
+        #expect(p.currentIndex == 0)
+        #expect(p.nowPlaying?.title == "First")
+    }
+
+    @Test("playAll starts at the seed video when one is given")
+    func playAllStartsAtSeed() async {
+        let queue = tracks(["a", "b", "c"])
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: queue))
+
+        await p.loadAndPlayAll(videoId: "b", playlistId: "PL42")
+
+        #expect(p.currentIndex == 1)
+        #expect(p.nowPlaying?.videoId == "b")
+    }
+
+    @Test("playAll is a no-op when the watch queue is empty")
+    func playAllEmptyQueue() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: []))
+        await p.loadAndPlayAll(videoId: nil, playlistId: "PL42")
+        #expect(p.queue.isEmpty)
+        #expect(p.nowPlaying == nil)
+    }
+
     // MARK: - Crossfade
 
     /// Fresh AppSettings on an isolated UserDefaults so tests don't share state.
@@ -899,6 +944,18 @@ struct PlayerStateLikeTests {
         #expect(p.knownLikeStatus(for: "other") == .indifferent)   // no default given
         // The current track's live status wins over any passed default.
         #expect(p.knownLikeStatus(for: "vid", default: .liked) == .indifferent)
+    }
+
+    @Test("likeStatusIfKnown returns nil when the rating isn't known")
+    func likeStatusIfKnownNilWhenUnknown() async {
+        let like = FakeLikeProvider()
+        let p = player(like)
+        // Nothing playing, nothing cached → unknown (so the Like entry is hidden).
+        #expect(p.likeStatusIfKnown(for: "vid") == nil)
+
+        // A rating learned this session becomes known.
+        p.setLikeStatus(for: "vid", to: .liked)
+        #expect(p.likeStatusIfKnown(for: "vid") == .liked)
     }
 
     @Test("setLikeStatus updates a non-current track without touching the current one")

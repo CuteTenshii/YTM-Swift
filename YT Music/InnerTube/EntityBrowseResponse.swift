@@ -21,6 +21,15 @@ struct EntityBrowseResponse: Decodable {
         let musicDetailHeaderRenderer: DetailHeader?
         let musicResponsiveHeaderRenderer: ResponsiveHeader?
         let musicImmersiveHeaderRenderer: ImmersiveHeader?
+        /// Plain YouTube channels (a song/video byline target) use this lighter
+        /// header: avatar + subscribe button + subscriber count, but no bio.
+        let musicVisualHeaderRenderer: VisualHeader?
+
+        struct VisualHeader: Decodable {
+            let title: InnerTubeText?
+            let foregroundThumbnail: ResponsiveHeader.ResponsiveThumbnail?
+            let subscriptionButton: ImmersiveHeader.SubscriptionButton?
+        }
 
         struct DetailHeader: Decodable {
             let title: InnerTubeText?
@@ -63,6 +72,8 @@ struct EntityBrowseResponse: Decodable {
                     let channelId: String?
                     let subscribed: Bool?
                     let serviceEndpoints: [ServiceEndpoint]?
+                    /// Subscriber count, e.g. "79" or "1.2M" (channel headers).
+                    let subscriberCountText: InnerTubeText?
 
                     struct ServiceEndpoint: Decodable {
                         let subscribeEndpoint: SubEndpoint?

@@ -62,16 +62,31 @@ struct EntityView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    HeaderView(header: page.header, tracks: page.tracks,
-                               album: album, model: model, topInset: topInset)
-
-                    if !page.tracks.isEmpty {
-                        TrackListView(tracks: page.tracks, album: album)
+                    if page.isFeed {
+                        // A bare feed (a shelf's "More"): skip the album-style
+                        // artwork header, just title the page above its shelves,
+                        // whose cards wrap into a grid rather than scrolling.
+                        Text(page.header.title)
+                            .font(.system(size: 40, weight: .bold))
+                            .foregroundStyle(.white)
                             .padding(.horizontal, 24)
-                    }
+                            .padding(.top, topInset + 16)
 
-                    ForEach(page.shelves) { shelf in
-                        ShelfView(shelf: shelf)
+                        ForEach(page.shelves) { shelf in
+                            ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
+                        }
+                    } else {
+                        HeaderView(header: page.header, tracks: page.tracks,
+                                   album: album, model: model, topInset: topInset)
+
+                        if !page.tracks.isEmpty {
+                            TrackListView(tracks: page.tracks, album: album)
+                                .padding(.horizontal, 24)
+                        }
+
+                        ForEach(page.shelves) { shelf in
+                            ShelfView(shelf: shelf)
+                        }
                     }
                 }
                 .padding(.bottom, 24)

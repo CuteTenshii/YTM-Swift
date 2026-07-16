@@ -139,12 +139,32 @@ nonisolated struct MusicCarouselShelfRenderer: Decodable {
 
         struct Basic: Decodable {
             let title: InnerTubeText?
+            /// The "More" button beside the shelf title, navigating to a fuller
+            /// listing (e.g. all of an artist's albums, or a home feed page).
+            let moreContentButton: MoreButton?
+
+            struct MoreButton: Decodable {
+                let buttonRenderer: ButtonRenderer?
+            }
         }
     }
 
     var title: String {
         header?.musicCarouselShelfBasicHeaderRenderer?.title?.text ?? ""
     }
+
+    /// Tappable header buttons ("More", "Play all", …) carried beside the title.
+    var headerButtons: [ButtonRenderer] {
+        [header?.musicCarouselShelfBasicHeaderRenderer?.moreContentButton?.buttonRenderer]
+            .compactMap { $0 }
+    }
+}
+
+/// A tappable button renderer. We consume its label text and navigation target,
+/// used for shelf-header actions like "More" (navigate) and "Play all" (play).
+nonisolated struct ButtonRenderer: Decodable {
+    let text: InnerTubeText?
+    let navigationEndpoint: NavigationEndpoint?
 }
 
 struct CarouselItem: Decodable {
@@ -164,6 +184,10 @@ struct MusicTwoRowItemRenderer: Decodable {
 
     /// The delete entity id for an uploaded album/release card, if present.
     var deleteEntityId: String? { menu?.deleteEntityId }
+
+    /// The track's current like rating from its menu, if signed in and present
+    /// (song/video cards carry it; albums/playlists don't).
+    var likeStatus: LikeStatus? { menu?.likeStatus }
 }
 
 /// The compact list rows used in shelves like "Quick picks" and in album /
@@ -293,10 +317,38 @@ nonisolated struct RendererMenu: Decodable {
     struct Item: Decodable {
         let menuServiceItemRenderer: ServiceItem?
         let menuNavigationItemRenderer: NavigationItem?
+        /// A toggle action (e.g. "Add to liked songs" ⇄ "Remove"). The card-style
+        /// (two-row) renderers carry the like state here rather than in a
+        /// top-level like button.
+        let toggleMenuServiceItemRenderer: ToggleItem?
     }
 
     struct ServiceItem: Decodable {
         let serviceEndpoint: ServiceEndpoint?
+    }
+
+    /// A menu toggle. The state it moves to when tapped is the *default*
+    /// endpoint, so the current state is its inverse (tapping a not-liked song
+    /// likes it). Home cards carry the like here; the "Listen again" feed carries
+    /// a "Pin" toggle instead (no like), so this is simply absent there.
+    struct ToggleItem: Decodable {
+        let defaultServiceEndpoint: ToggleEndpoint?
+
+        struct ToggleEndpoint: Decodable {
+            let likeEndpoint: LikeEndpoint?
+        }
+
+        struct LikeEndpoint: Decodable {
+            /// The rating this action sets ("LIKE"/"INDIFFERENT"/"DISLIKE").
+            let status: String?
+            let target: Target?
+
+            struct Target: Decodable {
+                /// A like toggle targets a videoId; a "save playlist" toggle
+                /// targets a playlistId — only the former is a track rating.
+                let videoId: String?
+            }
+        }
     }
 
     struct NavigationItem: Decodable {
@@ -342,13 +394,26 @@ nonisolated struct RendererMenu: Decodable {
             .first
     }
 
-    /// The track's current like rating from the menu's like button, if present.
-    /// nil when the menu carries no like button (e.g. signed out, or a non-track
-    /// row) — the caller decides how to treat "unknown".
+    /// The track's current like rating from the menu, if present. Track-list rows
+    /// carry it in a top-level like button; card-style (two-row) rows instead
+    /// carry a like *toggle*, whose default action is the inverse of the current
+    /// state (tapping a not-liked song likes it). nil when neither is present
+    /// (signed out, or a non-track row) — the caller decides how to treat that.
     var likeStatus: LikeStatus? {
-        guard let raw = (menuRenderer?.topLevelButtons ?? [])
-            .compactMap(\.likeButtonRenderer?.likeStatus).first else { return nil }
-        return LikeStatus(innerTube: raw)
+        if let raw = (menuRenderer?.topLevelButtons ?? [])
+            .compactMap(\.likeButtonRenderer?.likeStatus).first {
+            return LikeStatus(innerTube: raw)
+        }
+        for item in menuRenderer?.items ?? [] {
+            guard let like = item.toggleMenuServiceItemRenderer?.defaultServiceEndpoint?.likeEndpoint,
+                  like.target?.videoId != nil else { continue }
+            switch like.status {
+            case "LIKE":        return .indifferent   // tapping would like it → not liked
+            case "INDIFFERENT": return .liked          // tapping would unlike it → liked
+            default:            return nil
+            }
+        }
+        return nil
     }
 
     /// The delete entity id for an uploaded item — either directly on a service
@@ -473,6 +538,10 @@ struct NavigationEndpoint: Decodable {
             case "MUSIC_PAGE_TYPE_ALBUM":    return .album
             case "MUSIC_PAGE_TYPE_PLAYLIST": return .playlist
             case "MUSIC_PAGE_TYPE_ARTIST":   return .artist
+            // A song/video byline often links to the uploader's channel rather
+            // than a music artist page; both browse to an artist-style page, so
+            // treat a channel as an artist (enables "Go to artist" on the row).
+            case "MUSIC_PAGE_TYPE_USER_CHANNEL": return .artist
             default:                         break
             }
             // Uploaded (privately owned) artists/albums report
