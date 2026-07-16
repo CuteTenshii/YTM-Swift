@@ -13,6 +13,7 @@ import SwiftUI
 enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
     case queue = "Queue"
     case lyrics = "Lyrics"
+    case related = "Related"
     case comments = "Comments"
 
     var id: Self { self }
@@ -20,6 +21,7 @@ enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
         switch self {
         case .queue:    "list.bullet"
         case .lyrics:   "quote.bubble"
+        case .related:  "square.stack"
         case .comments: "text.bubble"
         }
     }
@@ -65,6 +67,10 @@ struct NowPlayingPanelView: View {
                            artist: player.nowPlayingArtist,
                            album: player.nowPlaying?.album ?? "",
                            duration: player.duration > 0 ? player.duration : nil)
+            case .related:
+                RelatedView(videoId: player.nowPlaying?.videoId,
+                            player: player,
+                            navigate: navigate)
             case .comments:
                 CommentsView(videoId: player.nowPlaying?.videoId, model: comments)
             }
@@ -262,6 +268,139 @@ private struct LyricsView: View {
     /// Keyed on the track and provider only — not the duration — so a duration
     /// arriving mid-load doesn't retrigger the fetch.
     private var taskKey: String { "\(videoId ?? "")|\(settings.lyricsProvider.rawValue)" }
+}
+
+// MARK: - Related
+
+/// The current track's related music: shelves of similar songs, artists, and
+/// recommended playlists (YT Music's "Related" tab). Because the inspector lives
+/// outside the nav stack, cards navigate via the `navigate` closure rather than a
+/// `NavigationLink`, and play songs directly through the player.
+private struct RelatedView: View {
+    let videoId: String?
+    let player: PlayerState
+    /// Opens an artist/album/playlist page (the panel lives outside the nav stack).
+    let navigate: (EntityDestination) -> Void
+    @State private var model = RelatedViewModel()
+
+    var body: some View {
+        Group {
+            switch model.state {
+            case .idle, .loading:
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            case .loaded(let shelves):
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 24) {
+                        ForEach(shelves) { shelf in
+                            RelatedShelfView(shelf: shelf, onSelect: select)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+
+            case .unavailable:
+                ContentUnavailableView(
+                    "No related music",
+                    systemImage: "square.stack",
+                    description: Text(videoId == nil
+                        ? "Play a track to see related music."
+                        : "There's no related music for this track.")
+                )
+
+            case .failed(let message):
+                ContentUnavailableView {
+                    Label("Couldn't load related music", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Try Again") {
+                        Task { await model.load(videoId: videoId) }
+                    }
+                }
+            }
+        }
+        .task(id: videoId) { await model.load(videoId: videoId) }
+    }
+
+    /// A browsable item (album/playlist/artist) opens its page; a song/video
+    /// plays. Items that are neither do nothing.
+    private func select(_ item: HomeItem) {
+        if let destination = item.entityDestination {
+            navigate(destination)
+        } else if let videoId = item.videoId {
+            player.play(
+                title: item.title,
+                subtitle: item.subtitle,
+                thumbnailURL: item.thumbnailURL,
+                videoId: videoId
+            )
+        }
+    }
+}
+
+/// One related shelf: its title, then its items as a wrapping card grid (like
+/// YT Music's Related tab). The grid adapts its column count to the panel width.
+private struct RelatedShelfView: View {
+    let shelf: HomeShelf
+    let onSelect: (HomeItem) -> Void
+
+    private let columns = [GridItem(.adaptive(minimum: 132), spacing: 16, alignment: .top)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(shelf.title)
+                .font(.headline)
+                .padding(.horizontal, 16)
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                ForEach(shelf.items) { item in
+                    RelatedCard(item: item) { onSelect(item) }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+}
+
+/// A single related item card: artwork above its title and subtitle. Mirrors
+/// Home's `ItemCard` layout, but taps run the panel's select closure (play or
+/// navigate) instead of a `NavigationLink`, which is inert outside the nav stack.
+private struct RelatedCard: View {
+    let item: HomeItem
+    let onSelect: () -> Void
+
+    private let artworkSize: CGFloat = 132
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 6) {
+                ArtworkView(url: item.thumbnailURL,
+                            circular: item.prefersCircularArtwork,
+                            size: artworkSize)
+
+                Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                let subtitle = PlayerState.withoutTypeLabel(item.subtitle)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .frame(width: artworkSize, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Comments

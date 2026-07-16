@@ -58,10 +58,17 @@ struct LyricsParserTests {
         #expect(WatchNextParser.lyricsBrowseId(response) == "MPLYt_abc")
     }
 
+    @Test("Finds the related tab's browse id by title")
+    func findsRelatedBrowseId() throws {
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(tabsFixture.utf8))
+        #expect(WatchNextParser.relatedBrowseId(response) == "MPTRt_xyz")
+    }
+
     @Test("No lyrics tab → nil browse id")
     func noLyricsTab() throws {
         let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
         #expect(WatchNextParser.lyricsBrowseId(response) == nil)
+        #expect(WatchNextParser.relatedBrowseId(response) == nil)
     }
 }
 

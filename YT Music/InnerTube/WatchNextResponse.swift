@@ -163,11 +163,23 @@ nonisolated enum WatchNextParser {
     /// Fed to a follow-up `browse` call to fetch the lyric text. nil when the
     /// track exposes no lyrics tab.
     static func lyricsBrowseId(_ response: WatchNextResponse) -> String? {
+        browseId(of: "Lyrics", in: response)
+    }
+
+    /// The browse id of the watch-next "Related" tab. Fed to a follow-up `browse`
+    /// call to fetch the track's related-music shelves (similar songs, artists,
+    /// recommended playlists). nil when the track exposes no related tab.
+    static func relatedBrowseId(_ response: WatchNextResponse) -> String? {
+        browseId(of: "Related", in: response)
+    }
+
+    /// The browse id of the watch-next tab with the given title, if present.
+    private static func browseId(of title: String, in response: WatchNextResponse) -> String? {
         let tabs = response.contents?
             .singleColumnMusicWatchNextResultsRenderer?
             .tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs ?? []
         return tabs.compactMap(\.tabRenderer)
-            .first { $0.title == "Lyrics" }?
+            .first { $0.title == title }?
             .endpoint?.browseEndpoint?.browseId
     }
 }

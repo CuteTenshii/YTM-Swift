@@ -34,6 +34,10 @@ extension Notification.Name {
     /// with HTTP 401, so the app can prompt the user to sign in again. `AuthStore`
     /// observes it.
     static let ytmSessionExpired = Notification.Name("moe.tenshii.YT-Music.sessionExpired")
+
+    /// Posted (on any thread) when the signed-in session changes (sign-in or
+    /// sign-out), so caches keyed on account-relative data can be dropped.
+    static let ytmCredentialsChanged = Notification.Name("moe.tenshii.YT-Music.credentialsChanged")
 }
 
 /// Failures specific to uploading a local file to YT Music.
@@ -64,6 +68,44 @@ private nonisolated struct EmptyActionResponse: Decodable {}
 /// The id of a freshly created playlist (`playlist/create` response).
 private nonisolated struct CreatePlaylistResponse: Decodable {
     let playlistId: String?
+}
+
+/// The parts of a `next(videoId)` response the now-playing UI needs, extracted
+/// once and cached: the lyrics- and related-tab browse ids, plus the seed
+/// track's like status. Sharing this spares us three separate `next` fetches for
+/// the same track (lyrics, related, and like status each need one field of it).
+private nonisolated struct WatchNextInfo: Sendable {
+    let lyricsBrowseId: String?
+    let relatedBrowseId: String?
+    let likeStatus: LikeStatus
+}
+
+/// A small LRU cache of `WatchNextInfo` keyed by videoId. The browse ids are
+/// immutable, so entries live until evicted; the like status is account-relative,
+/// so a track's entry is invalidated when its rating changes, and the whole cache
+/// is cleared on sign-in/out (see `ytmCredentialsChanged`).
+private actor WatchNextStore {
+    private var entries: [String: WatchNextInfo] = [:]
+    private var order: [String] = []
+    private let limit = 16
+
+    func cached(_ videoId: String) -> WatchNextInfo? { entries[videoId] }
+
+    func store(_ info: WatchNextInfo, for videoId: String) {
+        if entries[videoId] == nil { order.append(videoId) }
+        entries[videoId] = info
+        while order.count > limit { entries[order.removeFirst()] = nil }
+    }
+
+    func invalidate(_ videoId: String) {
+        entries[videoId] = nil
+        order.removeAll { $0 == videoId }
+    }
+
+    func clear() {
+        entries.removeAll()
+        order.removeAll()
+    }
 }
 
 /// Visibility of a newly created playlist.
@@ -108,6 +150,14 @@ protocol LyricsProviding: Sendable {
 
 extension InnerTubeClient: LyricsProviding {}
 
+/// Fetches a track's related-music shelves (similar songs, artists, recommended
+/// playlists). Abstracted so the Related UI can be driven by a fake in tests.
+protocol RelatedProviding: Sendable {
+    func related(for videoId: String) async throws -> [HomeShelf]
+}
+
+extension InnerTubeClient: RelatedProviding {}
+
 /// Fetches a track's comments. Abstracted so the comments UI can be driven by a
 /// fake in tests (no network).
 protocol CommentsProviding: Sendable {
@@ -134,8 +184,19 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     private let session: URLSession
 
+    /// Shares one `next(videoId)` round-trip across the lyrics, related, and
+    /// like-status paths (see `watchNextInfo(for:)`).
+    private let watchNextCache = WatchNextStore()
+
     init(session: URLSession = .shared) {
         self.session = session
+        // The like status carried in cached watch-next info is account-relative,
+        // so drop the whole cache whenever the session changes.
+        NotificationCenter.default.addObserver(
+            forName: .ytmCredentialsChanged, object: nil, queue: nil
+        ) { [watchNextCache] _ in
+            Task { await watchNextCache.clear() }
+        }
     }
 
     /// Loads the YouTube Music home feed (`FEmusic_home`).
@@ -338,14 +399,43 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return WatchNextParser.parse(response)
     }
 
+    /// Fetches (and caches) the parts of a track's `next` response the
+    /// now-playing UI reads. The lyrics tab, related tab, and like-status paths
+    /// all call this, so a track costs a single `next` round-trip rather than one
+    /// each. Cached entries are dropped on rating changes and sign-in/out.
+    private func watchNextInfo(for videoId: String) async throws -> WatchNextInfo {
+        if let cached = await watchNextCache.cached(videoId) { return cached }
+        let response: WatchNextResponse = try await post("next", body: ["videoId": videoId])
+        let info = WatchNextInfo(
+            lyricsBrowseId: WatchNextParser.lyricsBrowseId(response),
+            relatedBrowseId: WatchNextParser.relatedBrowseId(response),
+            likeStatus: WatchNextParser.likeStatus(response, expecting: videoId)
+        )
+        await watchNextCache.store(info, for: videoId)
+        return info
+    }
+
     /// Fetches the lyrics for a track. Two steps, mirroring the web client: the
     /// `next` response carries a "Lyrics" tab whose browse id (an `MPLYt…`) is
     /// then browsed for the text. Returns nil when the track has no lyrics.
     func lyrics(for query: LyricsQuery) async throws -> Lyrics? {
-        let next: WatchNextResponse = try await post("next", body: ["videoId": query.videoId])
-        guard let browseId = WatchNextParser.lyricsBrowseId(next) else { return nil }
+        guard let browseId = try await watchNextInfo(for: query.videoId).lyricsBrowseId else {
+            return nil
+        }
         let response: LyricsResponse = try await post("browse", body: ["browseId": browseId])
         return LyricsParser.parse(response)
+    }
+
+    /// Fetches a track's related-music shelves. Two steps, mirroring the web
+    /// client: the `next` response carries a "Related" tab whose browse id (an
+    /// `MPTRt…`) is then browsed for the shelves. Empty when the track has no
+    /// related tab.
+    func related(for videoId: String) async throws -> [HomeShelf] {
+        guard let browseId = try await watchNextInfo(for: videoId).relatedBrowseId else {
+            return []
+        }
+        let response: BrowseResponse = try await post("browse", body: ["browseId": browseId])
+        return RelatedParser.parse(response)
     }
 
     /// Fetches the first page of top-level comments for a track. Comments are a
@@ -403,6 +493,8 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             endpoint,
             body: ["target": ["videoId": videoId]]
         )
+        // The cached watch-next info carries this track's now-stale rating.
+        await watchNextCache.invalidate(videoId)
     }
 
     /// Adds or removes a playlist from the signed-in user's library. YT Music's
@@ -529,11 +621,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     /// Reads the signed-in user's current like rating for a track from the
     /// watch-next overlay. Skips the network round-trip when signed out (the
-    /// rating is per-account, so it's always `.indifferent` anonymously).
+    /// rating is per-account, so it's always `.indifferent` anonymously). Shares
+    /// the cached `next` fetch with the lyrics and related paths.
     func likeStatus(for videoId: String) async throws -> LikeStatus {
         guard await CredentialStore.shared.isSignedIn else { return .indifferent }
-        let response: WatchNextResponse = try await post("next", body: ["videoId": videoId])
-        return WatchNextParser.likeStatus(response, expecting: videoId)
+        return try await watchNextInfo(for: videoId).likeStatus
     }
 
     /// Fires the `playback` beacon once at the start of a play. No-op when signed

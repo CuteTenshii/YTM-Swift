@@ -36,10 +36,12 @@ actor CredentialStore {
         if let data = try? JSONEncoder().encode(credentials) {
             Keychain.set(data, service: service, account: account)
         }
+        NotificationCenter.default.post(name: .ytmCredentialsChanged, object: nil)
     }
 
     func clear() {
         credentials = nil
         Keychain.delete(service: service, account: account)
+        NotificationCenter.default.post(name: .ytmCredentialsChanged, object: nil)
     }
 }

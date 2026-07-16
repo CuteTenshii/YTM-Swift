@@ -27,6 +27,9 @@ struct BrowseResponse: Decodable {
     struct Contents: Decodable {
         let singleColumnBrowseResultsRenderer: SingleColumn?
         let twoColumnBrowseResultsRenderer: TwoColumn?
+        /// Some pages (the watch-next "Related" browse) return their shelves as a
+        /// section list directly under `contents`, with no tab wrapper.
+        let sectionListRenderer: SectionList?
     }
 
     /// Newer auth-gated pages (and artist pages) return a two-column layout: the
