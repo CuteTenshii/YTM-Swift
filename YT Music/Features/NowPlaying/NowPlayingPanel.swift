@@ -69,6 +69,10 @@ struct NowPlayingPanelView: View {
                            duration: player.duration > 0 ? player.duration : nil)
             case .related:
                 RelatedView(videoId: player.nowPlaying?.videoId,
+                            title: player.nowPlaying?.title ?? "",
+                            artist: player.nowPlayingArtist,
+                            album: player.nowPlaying?.album ?? "",
+                            duration: player.duration > 0 ? player.duration : nil,
                             player: player,
                             navigate: navigate)
             case .comments:
@@ -273,56 +277,82 @@ private struct LyricsView: View {
 // MARK: - Related
 
 /// The current track's related music: shelves of similar songs, artists, and
-/// recommended playlists (YT Music's "Related" tab). Because the inspector lives
-/// outside the nav stack, cards navigate via the `navigate` closure rather than a
-/// `NavigationLink`, and play songs directly through the player.
+/// recommended playlists (YT Music's "Related" tab), preceded by an on-device
+/// "About this song" insight card when Apple Intelligence is available. Because
+/// the inspector lives outside the nav stack, cards navigate via the `navigate`
+/// closure rather than a `NavigationLink`, and play songs directly.
 private struct RelatedView: View {
     let videoId: String?
+    let title: String
+    let artist: String
+    let album: String
+    let duration: Double?
     let player: PlayerState
     /// Opens an artist/album/playlist page (the panel lives outside the nav stack).
     let navigate: (EntityDestination) -> Void
     @State private var model = RelatedViewModel()
+    @State private var insight = SongInsightViewModel()
 
     var body: some View {
-        Group {
-            switch model.state {
-            case .idle, .loading:
-                ProgressView()
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            case .loaded(let shelves):
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 24) {
-                        ForEach(shelves) { shelf in
-                            RelatedShelfView(shelf: shelf, onSelect: select)
-                        }
-                    }
-                    .padding(.vertical, 12)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                if insight.isSupported {
+                    SongInsightCard(model: insight)
                 }
-
-            case .unavailable:
-                ContentUnavailableView(
-                    "No related music",
-                    systemImage: "square.stack",
-                    description: Text(videoId == nil
-                        ? "Play a track to see related music."
-                        : "There's no related music for this track.")
-                )
-
-            case .failed(let message):
-                ContentUnavailableView {
-                    Label("Couldn't load related music", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button("Try Again") {
-                        Task { await model.load(videoId: videoId) }
-                    }
-                }
+                shelves
             }
+            .padding(.vertical, 12)
         }
         .task(id: videoId) { await model.load(videoId: videoId) }
+        .task(id: videoId) { await insight.load(query: insightQuery) }
+    }
+
+    /// The related shelves, or an inline status while they load / when absent.
+    @ViewBuilder
+    private var shelves: some View {
+        switch model.state {
+        case .idle, .loading:
+            ProgressView()
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+
+        case .loaded(let shelves):
+            ForEach(shelves) { shelf in
+                RelatedShelfView(shelf: shelf, onSelect: select)
+            }
+
+        case .unavailable:
+            ContentUnavailableView(
+                "No related music",
+                systemImage: "square.stack",
+                description: Text(videoId == nil
+                    ? "Play a track to see related music."
+                    : "There's no related music for this track.")
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+
+        case .failed(let message):
+            ContentUnavailableView {
+                Label("Couldn't load related music", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button("Try Again") {
+                    Task { await model.load(videoId: videoId) }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+        }
+    }
+
+    /// The lyrics query the insight is generated from (nil when nothing plays).
+    private var insightQuery: LyricsQuery? {
+        guard let videoId else { return nil }
+        return LyricsQuery(videoId: videoId, title: title, artist: artist,
+                           album: album, duration: duration)
     }
 
     /// A browsable item (album/playlist/artist) opens its page; a song/video
@@ -338,6 +368,84 @@ private struct RelatedView: View {
                 videoId: videoId
             )
         }
+    }
+}
+
+/// An on-device "About this song" card. Shows a spinner while generating, the
+/// insight when ready, and nothing at all when there are no lyrics to work from
+/// or generation fails — an auxiliary feature shouldn't clutter the tab.
+private struct SongInsightCard: View {
+    let model: SongInsightViewModel
+
+    var body: some View {
+        switch model.state {
+        case .idle, .unavailable, .failed:
+            EmptyView()
+
+        case .loading:
+            shell {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Reading the lyrics…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+        case .loaded(let insight):
+            shell {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(insight.summary)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !insight.mood.isEmpty {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("Mood")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(insight.mood)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+
+                    if !insight.themes.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(insight.themes, id: \.self) { theme in
+                                    Text(theme)
+                                        .font(.caption2.weight(.medium))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(.tint.opacity(0.18), in: Capsule())
+                                }
+                            }
+                        }
+                    }
+
+                    Text("Generated on your Mac from the lyrics — may be imperfect.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    /// The card chrome: a titled, softly-filled rounded box.
+    @ViewBuilder
+    private func shell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("About this song", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 16)
     }
 }
 
