@@ -14,6 +14,10 @@ struct PlaybackSnapshot: Sendable, Equatable {
     var artist: String
     var album: String
     var videoId: String
+    /// Navigable artist links, for building "open artist" URLs.
+    var artists: [EntityLink] = []
+    /// Navigable album link, for building an "open album" URL.
+    var albumLink: EntityLink? = nil
     var thumbnailURL: URL?
     var isPlaying: Bool
     var currentTime: Double

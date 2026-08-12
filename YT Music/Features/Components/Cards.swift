@@ -189,7 +189,9 @@ struct ItemCard<Extra: View>: View {
             title: item.title,
             subtitle: item.subtitle,
             thumbnailURL: item.thumbnailURL,
-            videoId: videoId
+            videoId: videoId,
+            artists: item.artists,
+            albumLink: item.albumLink
         )
     }
 }
@@ -293,7 +295,9 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         title: title,
                         subtitle: subtitle,
                         thumbnailURL: thumbnailURL,
-                        videoId: videoId
+                        videoId: videoId,
+                        artists: artists,
+                        albumLink: albumLink
                     )
                 } label: {
                     Label("Play", systemImage: "play.fill")
@@ -317,7 +321,9 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         title: title,
                         subtitle: subtitle,
                         thumbnailURL: thumbnailURL,
-                        videoId: videoId
+                        videoId: videoId,
+                        artists: artists,
+                        albumLink: albumLink
                     )
                 } label: {
                     Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")

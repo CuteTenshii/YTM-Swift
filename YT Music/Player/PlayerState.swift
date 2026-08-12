@@ -154,6 +154,8 @@ final class PlayerState {
         self.audio.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
         self.audio.onNext = { [weak self] in self?.next() }
         self.audio.onPrevious = { [weak self] in self?.previous() }
+        self.audio.onTogglePlayPause = { [weak self] in self?.togglePlayPause() }
+        self.audio.onPlaybackStart = { [weak self] in self?.emitPlaybackChange() }
         self.audio.onProgress = { [weak self] current, duration in
             self?.handleProgress(current: current, duration: duration)
         }
@@ -172,12 +174,17 @@ final class PlayerState {
     // MARK: - Playback intent
 
     /// Plays a single track with no surrounding queue (next/previous become no-ops).
-    func play(title: String, subtitle: String, album: String = "", thumbnailURL: URL?, videoId: String) {
+    /// Not part of any album, so a stale album context from a previous play is
+    /// dropped along with the old queue.
+    func play(title: String, subtitle: String, album: String = "", thumbnailURL: URL?, videoId: String,
+              artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         queue = []
         currentIndex = 0
+        albumContext = ""
         resetShuffle()
         startTrack(title: title, subtitle: subtitle, album: album,
-                   thumbnailURL: thumbnailURL, videoId: videoId)
+                   thumbnailURL: thumbnailURL, videoId: videoId,
+                   artists: artists, albumLink: albumLink)
     }
 
     func play(_ track: Track, album: String = "") {
@@ -187,7 +194,9 @@ final class PlayerState {
             subtitle: track.subtitle,
             album: album,
             thumbnailURL: track.thumbnailURL,
-            videoId: videoId
+            videoId: videoId,
+            artists: track.artists,
+            albumLink: track.albumLink
         )
     }
 
@@ -220,7 +229,8 @@ final class PlayerState {
     func playNext(title: String, subtitle: String, thumbnailURL: URL?, videoId: String,
                   artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         guard let nowPlaying else {
-            play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId)
+            play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId,
+                 artists: artists, albumLink: albumLink)
             return
         }
 
@@ -244,8 +254,10 @@ final class PlayerState {
     /// "Start radio": plays the seed track immediately, then fetches an endless
     /// radio queue from it and installs that as the queue (so next/previous walk
     /// the radio) without interrupting the already-playing seed.
-    func startRadio(title: String, subtitle: String, thumbnailURL: URL?, videoId: String) {
-        play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId)
+    func startRadio(title: String, subtitle: String, thumbnailURL: URL?, videoId: String,
+                    artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
+        play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId,
+             artists: artists, albumLink: albumLink)
         radioTask?.cancel()
         radioTask = Task { await installRadio(seed: videoId) }
     }
@@ -356,7 +368,10 @@ final class PlayerState {
         audio.togglePlayPause()
         emitPlaybackChange()
     }
-    func seek(to seconds: Double) { audio.seek(to: seconds) }
+    func seek(to seconds: Double) {
+        audio.seek(to: seconds)
+        emitPlaybackChange()   // keep plugin-presence timestamps in sync
+    }
 
     func next() {
         guard !queue.isEmpty else { return }
@@ -815,8 +830,10 @@ final class PlayerState {
             artist: Self.cleanedArtist(nowPlaying),
             album: nowPlaying.album,
             videoId: nowPlaying.videoId,
+            artists: nowPlaying.artists,
+            albumLink: nowPlaying.albumLink,
             thumbnailURL: nowPlaying.thumbnailURL,
-            isPlaying: isPlaying,
+            isPlaying: audio.isActuallyPlaying,
             currentTime: currentTime,
             duration: duration
         )

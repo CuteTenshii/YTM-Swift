@@ -19,10 +19,39 @@
 import Foundation
 import Darwin
 
+/// Controls which field feeds the user's status text ("Listening to …") in the
+/// member list — see the gateway activity `status_display_type` field.
+nonisolated enum DiscordStatusDisplay: String, CaseIterable, Sendable, Identifiable {
+    case name       // "Listening to YT Music"
+    case state      // "Listening to <state / artist>"
+    case details    // "Listening to <details / song>"
+
+    var id: Self { self }
+
+    /// The integer Discord expects in `activity.status_display_type`.
+    var discordValue: Int {
+        switch self {
+        case .name:    0
+        case .state:   1
+        case .details: 2
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .name:     "YT Music"
+        case .state:    "Artist"
+        case .details:  "Song"
+        }
+    }
+}
+
 final class DiscordRPC: @unchecked Sendable {
     /// A Discord application ("client") id — controls the app name and art shown
     /// in the presence. Replace with your own from the Discord Developer Portal.
-    static let defaultClientID = "1126349523890221107"
+    static let defaultClientID = "1177081335727267940"
+
+    private static let base = "https://music.youtube.com"
 
     private let queue = DispatchQueue(label: "moe.tenshii.YT-Music.discord-rpc")
     private let clientID: String
@@ -36,8 +65,8 @@ final class DiscordRPC: @unchecked Sendable {
     // MARK: - Public API (thread-safe; serialized onto `queue`)
 
     /// Mirrors `snapshot` as the user's Discord presence (connecting on demand).
-    func update(_ snapshot: PlaybackSnapshot) {
-        queue.async { [weak self] in self?.syncUpdate(snapshot) }
+    func update(_ snapshot: PlaybackSnapshot, style: DiscordStatusDisplay = .name) {
+        queue.async { [weak self] in self?.syncUpdate(snapshot, style: style) }
     }
 
     /// Clears the presence but keeps the connection open.
@@ -127,27 +156,73 @@ final class DiscordRPC: @unchecked Sendable {
 
     // MARK: - Frames
 
-    private func syncUpdate(_ s: PlaybackSnapshot) {
+    /// Canonical music.youtube.com URL for a browse id. Artists resolve to the
+    /// `/channel/<id>` page; `VL…` ids are playlists; everything else is a
+    /// `/browse/<id>` page (albums, playlists, …).
+    private static func musicURL(browseId: String, kind: HomeItem.Kind) -> String {
+        if kind == .artist {
+            return "\(base)/channel/\(browseId)"
+        }
+        if browseId.hasPrefix("VL") {
+            return "\(base)/playlist?list=\(browseId.dropFirst(2))"
+        }
+        return "\(base)/browse/\(browseId)"
+    }
+
+    private func syncUpdate(_ s: PlaybackSnapshot, style: DiscordStatusDisplay) {
         guard ensureConnected() else { return }
+
+        // Paused (or otherwise not actually playing) means no presence at all —
+        // clear it rather than show a frozen track.
+        guard s.isPlaying else {
+            syncClear()
+            return
+        }
 
         var activity: [String: Any] = [
             "type": 2,  // "Listening to …"
             "details": s.title.isEmpty ? "Unknown track" : s.title,
             "state": s.artist.isEmpty ? "Unknown artist" : s.artist,
+            // Which field feeds the "Listening to …" status text in the member
+            // list: the app name (default), the state line, or the details line.
+            "status_display_type": style.discordValue,
         ]
-        var assets: [String: Any] = [
-            "large_text": s.album.isEmpty ? s.title : s.album,
-        ]
+        // `details_url`/`state_url` make the lines clickable, each pointing at
+        // whatever that line shows.
+        if !s.videoId.isEmpty { activity["details_url"] = "\(Self.base)/watch?v=\(s.videoId)" }
+        if let artist = s.artists.first, !artist.browseId.isEmpty {
+            activity["state_url"] = Self.musicURL(browseId: artist.browseId, kind: artist.kind)
+        }
+
+        // Show the album (as art hover + click-through) only when the track
+        // genuinely has one — `s.albumLink` comes from the response's browse
+        // endpoint, unlike the album-context string which can leak a playlist
+        // title or stale context onto album-less videos.
+        var assets: [String: Any] = [:]
         if let thumb = s.thumbnailURL?.absoluteString { assets["large_image"] = thumb }
+        if let album = s.albumLink, !album.browseId.isEmpty {
+            assets["large_text"] = album.name
+            assets["large_url"] = Self.musicURL(browseId: album.browseId, kind: album.kind)
+        }
         activity["assets"] = assets
 
-        // Show a live progress bar only while actually playing.
-        if s.isPlaying, s.duration > 0 {
+        // Link out to the track. Button labels must be registered for this
+        // client id in the Discord Developer Portal to render.
+        if !s.videoId.isEmpty {
+            activity["buttons"] = [
+                ["label": "Listen on YouTube Music", "url": "\(Self.base)/watch?v=\(s.videoId)"],
+            ]
+        }
+
+        // Show a live progress bar only while actually playing. The local IPC
+        // protocol uses Unix timestamps in seconds (unlike the gateway's ms);
+        // Discord renders the elapsed/remaining time from these on its side.
+        if s.duration > 0 {
             let now = Date().timeIntervalSince1970
             let start = now - s.currentTime
             activity["timestamps"] = [
-                "start": Int(start * 1000),
-                "end": Int((start + s.duration) * 1000),
+                "start": Int(start),
+                "end": Int(start + s.duration),
             ]
         }
 

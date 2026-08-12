@@ -22,6 +22,9 @@ struct NowPlayingMetadata: Sendable, Equatable {
 @MainActor
 protocol AudioOutput: AnyObject {
     var isPlaying: Bool { get }
+    /// Whether audio is genuinely flowing (not paused, not still buffering).
+    /// The plugin-facing truth, so presences don't go live mid-load.
+    var isActuallyPlaying: Bool { get }
     var currentTime: Double { get }
     var duration: Double { get }
     /// How far into the track the stream has buffered ahead (seconds). Drives the
@@ -32,6 +35,12 @@ protocol AudioOutput: AnyObject {
 
     /// Called when the current item plays to its end.
     var onTrackFinished: (() -> Void)? { get set }
+    /// Called when the current item actually starts producing audio — the
+    /// buffering → playing transition, not the moment the stream is loaded.
+    var onPlaybackStart: (() -> Void)? { get set }
+    /// Called when a media-key / Control Center play-or-pause command fires, so
+    /// the owner (PlayerState) can emit playback changes to plugins.
+    var onTogglePlayPause: (() -> Void)? { get set }
     /// Called when the system "next track" remote command (media key / Control
     /// Center) fires.
     var onNext: (() -> Void)? { get set }
@@ -62,4 +71,7 @@ protocol AudioOutput: AnyObject {
 extension AudioOutput {
     func applyEqualizer(_ settings: EqualizerSettings) {}
     var spectrum: SpectrumAnalyzer? { nil }
+    var isActuallyPlaying: Bool { isPlaying }
+    var onPlaybackStart: (() -> Void)? { get { nil } set {} }
+    var onTogglePlayPause: (() -> Void)? { get { nil } set {} }
 }

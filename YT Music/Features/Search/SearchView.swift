@@ -349,7 +349,9 @@ private struct SearchResultRow: View {
             title: item.title,
             subtitle: item.subtitle,
             thumbnailURL: item.thumbnailURL,
-            videoId: videoId
+            videoId: videoId,
+            artists: item.artists,
+            albumLink: item.albumLink
         )
     }
 }

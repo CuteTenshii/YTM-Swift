@@ -126,7 +126,9 @@ private struct QueueListView: View {
                                         title: track.title,
                                         subtitle: track.subtitle,
                                         thumbnailURL: track.thumbnailURL,
-                                        videoId: videoId
+                                        videoId: videoId,
+                                        artists: track.artists,
+                                        albumLink: track.albumLink
                                     )
                                 } label: {
                                     Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
@@ -365,7 +367,9 @@ private struct RelatedView: View {
                 title: item.title,
                 subtitle: item.subtitle,
                 thumbnailURL: item.thumbnailURL,
-                videoId: videoId
+                videoId: videoId,
+                artists: item.artists,
+                albumLink: item.albumLink
             )
         }
     }

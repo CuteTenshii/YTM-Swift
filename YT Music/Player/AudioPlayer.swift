@@ -25,6 +25,7 @@ final class AudioPlayer: AudioOutput {
     /// The player currently driving the now-playing track. Crossfade swaps this.
     @ObservationIgnored private var active: AVPlayer
     @ObservationIgnored private var timeObservers: [(AVPlayer, Any)] = []
+    @ObservationIgnored private var timeControlObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
     /// Guards against firing "track finished" more than once for the same item
@@ -39,6 +40,11 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored let spectrum: SpectrumAnalyzer? = SpectrumAnalyzer()
 
     private(set) var isPlaying = false
+    /// The stored intent isn't enough: `load()` marks us playing before the
+    /// stream has started flowing. `isActuallyPlaying` is true only once AVPlayer
+    /// really advances (timeControlStatus == .playing), so consumers can wait
+    /// until audio is genuinely audible.
+    var isActuallyPlaying: Bool { isPlaying && active.timeControlStatus == .playing }
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
     private(set) var bufferedTime: Double = 0
@@ -59,7 +65,10 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored var onTrackFinished: (() -> Void)?
     @ObservationIgnored var onNext: (() -> Void)?
     @ObservationIgnored var onPrevious: (() -> Void)?
+    @ObservationIgnored var onTogglePlayPause: (() -> Void)?
     @ObservationIgnored var onProgress: ((Double, Double) -> Void)?
+    /// Fired when the current item transitions to genuinely playing (post-buffer).
+    @ObservationIgnored var onPlaybackStart: (() -> Void)?
 
     // Now Playing
     @ObservationIgnored private let infoCenter = MPNowPlayingInfoCenter.default()
@@ -77,6 +86,7 @@ final class AudioPlayer: AudioOutput {
             // don't wait on a full download). May stall more on poor networks.
             player.automaticallyWaitsToMinimizeStalling = false
             addPeriodicObserver(to: player)
+            observeTimeControl(of: player)
         }
         setupRemoteCommands()
     }
@@ -283,21 +293,21 @@ final class AudioPlayer: AudioOutput {
         commandCenter.playCommand.addTarget { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.active.currentItem != nil else { return .noSuchContent }
-                if !self.isPlaying { self.togglePlayPause() }
+                if !self.isPlaying { self.onTogglePlayPause?() }
                 return .success
             }
         }
         commandCenter.pauseCommand.addTarget { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.active.currentItem != nil else { return .noSuchContent }
-                if self.isPlaying { self.togglePlayPause() }
+                if self.isPlaying { self.onTogglePlayPause?() }
                 return .success
             }
         }
         commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.active.currentItem != nil else { return .noSuchContent }
-                self.togglePlayPause()
+                self.onTogglePlayPause?()
                 return .success
             }
         }
@@ -328,6 +338,21 @@ final class AudioPlayer: AudioOutput {
     }
 
     // MARK: - Observation
+
+    /// Fires `onPlaybackStart` when the active player actually starts producing
+    /// audio (timeControlStatus → .playing). AVPlayer reports `.playing` only once
+    /// it's really advancing, so this excludes the load/buffer phase — but not
+    /// brief mid-track stalls, which don't matter for presence.
+    private func observeTimeControl(of player: AVPlayer) {
+        let observation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+            guard player.timeControlStatus == .playing else { return }
+            Task { @MainActor in
+                guard let self, self.isPlaying, player === self.active else { return }
+                self.onPlaybackStart?()
+            }
+        }
+        timeControlObservers.append(observation)
+    }
 
     private func addPeriodicObserver(to player: AVPlayer) {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
