@@ -65,8 +65,11 @@ final class DiscordRPC: @unchecked Sendable {
     // MARK: - Public API (thread-safe; serialized onto `queue`)
 
     /// Mirrors `snapshot` as the user's Discord presence (connecting on demand).
-    func update(_ snapshot: PlaybackSnapshot, style: DiscordStatusDisplay = .name) {
-        queue.async { [weak self] in self?.syncUpdate(snapshot, style: style) }
+    func update(_ snapshot: PlaybackSnapshot, style: DiscordStatusDisplay = .name,
+                parseTitle: Bool = false) {
+        queue.async { [weak self] in
+            self?.syncUpdate(snapshot, style: style, parseTitle: parseTitle)
+        }
     }
 
     /// Clears the presence but keeps the connection open.
@@ -169,7 +172,20 @@ final class DiscordRPC: @unchecked Sendable {
         return "\(base)/browse/\(browseId)"
     }
 
-    private func syncUpdate(_ s: PlaybackSnapshot, style: DiscordStatusDisplay) {
+    /// Splits a video title of the form "Artist - Track" (or with an en dash)
+    /// into its parts. Video uploads often embed the artist this way while the
+    /// byline only names the uploader channel.
+    static func splitTitle(_ title: String) -> (artist: String, track: String)? {
+        for sep in [" - ", " – "] {
+            guard let range = title.range(of: sep) else { continue }
+            let artist = title[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+            let track = title[range.upperBound...].trimmingCharacters(in: .whitespaces)
+            if !artist.isEmpty, !track.isEmpty { return (artist, track) }
+        }
+        return nil
+    }
+
+    private func syncUpdate(_ s: PlaybackSnapshot, style: DiscordStatusDisplay, parseTitle: Bool) {
         guard ensureConnected() else { return }
 
         // Paused (or otherwise not actually playing) means no presence at all —
@@ -179,10 +195,24 @@ final class DiscordRPC: @unchecked Sendable {
             return
         }
 
+        // Optionally take the artist/track from the title: video uploads often
+        // read "Artist - Track" while the byline's artist is just the uploader
+        // channel. The byline link still applies to the state line either way.
+        var title = s.title
+        var artist = s.artist
+        if parseTitle, let split = Self.splitTitle(s.title) {
+            title = split.track
+            artist = split.artist
+        }
+        var artistURL: String?
+        if let link = s.artists.first, !link.browseId.isEmpty {
+            artistURL = Self.musicURL(browseId: link.browseId, kind: link.kind)
+        }
+
         var activity: [String: Any] = [
             "type": 2,  // "Listening to …"
-            "details": s.title.isEmpty ? "Unknown track" : s.title,
-            "state": s.artist.isEmpty ? "Unknown artist" : s.artist,
+            "details": title.isEmpty ? "Unknown track" : title,
+            "state": artist.isEmpty ? "Unknown artist" : artist,
             // Which field feeds the "Listening to …" status text in the member
             // list: the app name (default), the state line, or the details line.
             "status_display_type": style.discordValue,
@@ -190,9 +220,7 @@ final class DiscordRPC: @unchecked Sendable {
         // `details_url`/`state_url` make the lines clickable, each pointing at
         // whatever that line shows.
         if !s.videoId.isEmpty { activity["details_url"] = "\(Self.base)/watch?v=\(s.videoId)" }
-        if let artist = s.artists.first, !artist.browseId.isEmpty {
-            activity["state_url"] = Self.musicURL(browseId: artist.browseId, kind: artist.kind)
-        }
+        if let artistURL { activity["state_url"] = artistURL }
 
         // Show the album (as art hover + click-through) only when the track
         // genuinely has one — `s.albumLink` comes from the response's browse

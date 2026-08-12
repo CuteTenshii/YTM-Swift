@@ -30,16 +30,17 @@ struct YT_MusicApp: App {
         // crossfade preferences from it on every track.
         let settings = AppSettings()
         _settings = State(initialValue: settings)
-        _player = State(initialValue: PlayerState(
+        let player = PlayerState(
             store: UserDefaultsPlaybackStore(),
             settings: settings
-        ))
+        )
+        _player = State(initialValue: player)
 
         // The plugin registry. Adding a plugin = add one line here.
         let downloader = Downloader()
         _downloader = State(initialValue: downloader)
         let plugins: [any Plugin] = [
-            DiscordPlugin(),
+            DiscordPlugin(player: player),
             NotificationsPlugin(),
             LastfmPlugin(),
             DownloaderPlugin(downloader: downloader),
