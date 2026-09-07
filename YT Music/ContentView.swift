@@ -432,14 +432,6 @@ private struct NowPlayingBar: View {
             .disabled(player.queue.isEmpty)
             .help("Shuffle")
 
-            Button(action: player.cycleRepeatMode) {
-                Image(systemName: repeatIcon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.red)
-            }
-            .buttonStyle(.plain)
-            .help("Repeat")
-
             Button(action: player.previous) {
                 Image(systemName: "backward.fill")
                     .font(.system(size: 18))
@@ -457,6 +449,14 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .disabled(!player.canGoNext)
+
+            Button(action: player.cycleRepeatMode) {
+                Image(systemName: repeatIcon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.red)
+            }
+            .buttonStyle(.plain)
+            .help("Repeat")
         }
     }
 
