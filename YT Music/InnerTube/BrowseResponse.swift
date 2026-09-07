@@ -496,6 +496,13 @@ nonisolated struct ThumbnailRendererWrapper: Decodable {
 struct NavigationEndpoint: Decodable {
     let watchEndpoint: WatchEndpoint?
     let browseEndpoint: BrowseEndpoint?
+    /// Used by header-level "Shuffle"/"Start radio" buttons: a bare playlist id
+    /// with no video seed (e.g. `RDEM<channelId>` for an artist mix).
+    let watchPlaylistEndpoint: WatchPlaylistEndpoint?
+
+    struct WatchPlaylistEndpoint: Decodable {
+        let playlistId: String?
+    }
 
     struct WatchEndpoint: Decodable {
         let videoId: String?

@@ -64,6 +64,18 @@ struct EntityBrowseResponse: Decodable {
             let thumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let foregroundThumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let subscriptionButton: SubscriptionButton?
+            /// "Shuffle" — plays the artist's auto-generated mix in shuffled order.
+            let playButton: RadioButton?
+            /// "Start radio" — an endless radio/mix seeded from the artist.
+            let startRadioButton: RadioButton?
+
+            struct RadioButton: Decodable {
+                let buttonRenderer: ButtonRenderer?
+
+                struct ButtonRenderer: Decodable {
+                    let navigationEndpoint: NavigationEndpoint?
+                }
+            }
 
             struct SubscriptionButton: Decodable {
                 let subscribeButtonRenderer: SubscribeButtonRenderer?

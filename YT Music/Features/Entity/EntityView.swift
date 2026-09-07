@@ -373,7 +373,7 @@ private struct HeaderView: View {
     /// both header layouts.
     @ViewBuilder
     private var actions: some View {
-        if !tracks.isEmpty || showsSubscribe || showsSave {
+        if !tracks.isEmpty || showsSubscribe || showsSave || header.radioPlaylistId != nil {
             HStack(spacing: 12) {
                 if !tracks.isEmpty {
                     Button {
@@ -385,6 +385,17 @@ private struct HeaderView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                }
+
+                if let radioPlaylistId = header.radioPlaylistId {
+                    Button {
+                        player.playAll(videoId: nil, playlistId: radioPlaylistId)
+                    } label: {
+                        Label("Shuffle", systemImage: "shuffle")
+                            .font(.headline)
+                            .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(.bordered)
                 }
 
                 if showsSubscribe {

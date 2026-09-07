@@ -62,6 +62,9 @@ struct EntityHeader: Sendable {
     /// Subscribe-button state for artist pages (nil for albums/playlists, or when
     /// signed out and the header carries no subscribe button).
     var subscription: ArtistSubscription? = nil
+    /// The artist header's "Shuffle"/"Start radio" playlist id (e.g. `RDEM…`),
+    /// when present — lets an artist page start a mix with no video seed.
+    var radioPlaylistId: String? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist }
 }
