@@ -68,11 +68,7 @@ actor StreamResolver: StreamResolving {
         let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
         PlaybackLog.note("playabilityStatus=\(status) · adaptiveFormats=\(adaptiveCount) · lengthSeconds=\(response.videoDetails?.lengthSeconds ?? "nil")")
 
-        if let status = response.playabilityStatus?.status, status != "OK" {
-            let reason = response.playabilityStatus?.reason ?? status
-            PlaybackLog.problem("not playable: \(reason)")
-            throw StreamError.notPlayable(reason)
-        }
+        try checkPlayability(response)
 
         let format = try selectAudioFormat(response, preferences: preferences)
         PlaybackLog.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
@@ -90,6 +86,17 @@ actor StreamResolver: StreamResolving {
             .flatMap { URL(string: $0) }
         return ResolvedStream(url: url, duration: response.videoDetails?.duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn)
+    }
+
+    /// Throws when the player response reports the video can't be played
+    /// (e.g. `LOGIN_REQUIRED`, `UNPLAYABLE`, `ERROR`). A missing status, or
+    /// `"OK"`, is treated as playable. `nonisolated` so it can be unit-tested
+    /// without the actor hop.
+    nonisolated func checkPlayability(_ response: PlayerResponse) throws {
+        guard let status = response.playabilityStatus?.status, status != "OK" else { return }
+        let reason = response.playabilityStatus?.reason ?? status
+        PlaybackLog.problem("not playable: \(reason)")
+        throw StreamError.notPlayable(reason)
     }
 
     /// Picks a playable stream honouring the user's preferences:

@@ -147,4 +147,55 @@ struct StreamSelectionTests {
             response, preferences: .init(audioQuality: .auto, preferAudioOverVideo: false))
         #expect(format.itag == 22)
     }
+
+    // MARK: - Playability status
+
+    @Test("A missing playabilityStatus is treated as playable")
+    func missingStatusIsPlayable() throws {
+        let response = try response(from: """
+        { "streamingData": { "adaptiveFormats": [ { "itag": 140, "mimeType": "audio/mp4" } ] } }
+        """)
+        #expect(throws: Never.self) {
+            try StreamResolver.shared.checkPlayability(response)
+        }
+    }
+
+    @Test("An \"OK\" status is playable")
+    func okStatusIsPlayable() throws {
+        let response = try response(from: """
+        { "playabilityStatus": { "status": "OK" } }
+        """)
+        #expect(throws: Never.self) {
+            try StreamResolver.shared.checkPlayability(response)
+        }
+    }
+
+    @Test("A non-OK status throws notPlayable with the reason")
+    func nonOKStatusThrowsWithReason() throws {
+        let response = try response(from: """
+        { "playabilityStatus": { "status": "LOGIN_REQUIRED", "reason": "Sign in to confirm your age" } }
+        """)
+        #expect(throws: StreamError.self) {
+            try StreamResolver.shared.checkPlayability(response)
+        }
+        do {
+            try StreamResolver.shared.checkPlayability(response)
+            Issue.record("Expected checkPlayability to throw")
+        } catch StreamError.notPlayable(let reason) {
+            #expect(reason == "Sign in to confirm your age")
+        }
+    }
+
+    @Test("A non-OK status with no reason falls back to the status itself")
+    func nonOKStatusWithoutReasonFallsBackToStatus() throws {
+        let response = try response(from: """
+        { "playabilityStatus": { "status": "UNPLAYABLE" } }
+        """)
+        do {
+            try StreamResolver.shared.checkPlayability(response)
+            Issue.record("Expected checkPlayability to throw")
+        } catch StreamError.notPlayable(let reason) {
+            #expect(reason == "UNPLAYABLE")
+        }
+    }
 }
