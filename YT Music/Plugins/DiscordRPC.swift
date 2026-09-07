@@ -59,6 +59,17 @@ final class DiscordRPC: @unchecked Sendable {
 
     private var fd: Int32 = -1
     private var handshaken = false
+    /// Rate-limits `openSocket()` retries so a stream of playback updates while
+    /// Discord isn't running doesn't hammer `socket()`/`connect()` every call.
+    private var lastConnectAttempt: Date?
+    private static let reconnectCooldown: TimeInterval = 10
+    /// Fires periodically while disconnected so presence comes back on its own
+    /// if Discord launches (or relaunches) mid-session, without waiting for the
+    /// next playback event to trigger a retry.
+    private var reconnectTimer: DispatchSourceTimer?
+    /// The most recent presence request, replayed once a background reconnect
+    /// succeeds so the user doesn't see a stale/empty status.
+    private var pendingActivity: (snapshot: PlaybackSnapshot, style: DiscordStatusDisplay, parseTitle: Bool)?
 
     init(clientID: String = defaultClientID) { self.clientID = clientID }
 
@@ -68,30 +79,73 @@ final class DiscordRPC: @unchecked Sendable {
     func update(_ snapshot: PlaybackSnapshot, style: DiscordStatusDisplay = .name,
                 parseTitle: Bool = false) {
         queue.async { [weak self] in
+            self?.pendingActivity = (snapshot, style, parseTitle)
             self?.syncUpdate(snapshot, style: style, parseTitle: parseTitle)
         }
     }
 
     /// Clears the presence but keeps the connection open.
     func clearActivity() {
-        queue.async { [weak self] in self?.syncClear() }
+        queue.async { [weak self] in
+            self?.pendingActivity = nil
+            self?.syncClear()
+        }
     }
 
     /// Tears down the connection entirely (e.g. when the plugin is disabled).
     func disconnect() {
-        queue.async { [weak self] in self?.syncDisconnect() }
+        queue.async { [weak self] in
+            self?.pendingActivity = nil
+            self?.stopReconnectTimer()
+            self?.syncDisconnect()
+        }
     }
 
     // MARK: - Connection
 
     private func ensureConnected() -> Bool {
         if fd >= 0 && handshaken { return true }
-        if fd < 0 { openSocket() }
-        guard fd >= 0 else { return false }
+        if fd < 0 {
+            let now = Date()
+            if let last = lastConnectAttempt, now.timeIntervalSince(last) < Self.reconnectCooldown {
+                return false
+            }
+            lastConnectAttempt = now
+            openSocket()
+        }
+        guard fd >= 0 else {
+            scheduleReconnectTimer()
+            return false
+        }
         if !handshaken {
             handshaken = send(op: 0, payload: ["v": 1, "client_id": clientID])
         }
+        if handshaken { stopReconnectTimer() }
         return handshaken
+    }
+
+    /// Retries `ensureConnected()` every `reconnectCooldown` while disconnected;
+    /// on success, replays the last presence so it doesn't wait for the next
+    /// natural playback change to reappear.
+    private func scheduleReconnectTimer() {
+        guard reconnectTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + Self.reconnectCooldown, repeating: Self.reconnectCooldown)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            guard self.ensureConnected() else { return }
+            self.stopReconnectTimer()
+            if let pending = self.pendingActivity {
+                self.syncUpdate(pending.snapshot, style: pending.style, parseTitle: pending.parseTitle)
+            }
+        }
+        timer.resume()
+        reconnectTimer = timer
+    }
+
+    private func stopReconnectTimer() {
+        reconnectTimer?.cancel()
+        reconnectTimer = nil
     }
 
     private func openSocket() {
@@ -293,7 +347,13 @@ final class DiscordRPC: @unchecked Sendable {
                 total += n
             }
         }
-        if !ok { syncDisconnect() }
+        if !ok {
+            // A write failure means Discord dropped the socket (quit/crashed)
+            // mid-session — reconnect on our own rather than waiting for the
+            // next playback event, which may not come for a while if paused.
+            syncDisconnect()
+            scheduleReconnectTimer()
+        }
         return ok
     }
 }
