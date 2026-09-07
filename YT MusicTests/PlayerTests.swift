@@ -79,6 +79,7 @@ final class FakeAudioOutput: AudioOutput {
     var onProgress: ((Double, Double) -> Void)?
     private(set) var loadedURL: URL?
     private(set) var loadedMetadata: NowPlayingMetadata?
+    private(set) var loadCount = 0
     private(set) var toggleCount = 0
     private(set) var seekedTo: Double?
     private(set) var restartCount = 0
@@ -89,6 +90,7 @@ final class FakeAudioOutput: AudioOutput {
     func load(url: URL, metadata: NowPlayingMetadata) {
         loadedURL = url
         loadedMetadata = metadata
+        loadCount += 1
         isPlaying = true
     }
     func togglePlayPause() { toggleCount += 1; isPlaying.toggle() }
@@ -488,6 +490,24 @@ struct PlayerStateQueueTests {
         #expect(p.nowPlaying?.videoId == "seed")
     }
 
+    @Test("startRadio on the already-playing seed doesn't restart it")
+    func startRadioOnCurrentSeedDoesNotRestart() async {
+        let audio = FakeAudioOutput()
+        let radio = StubRadio(tracks: tracks(["seed", "n2"]))
+        let p = PlayerState(audio: audio, resolver: StubResolver(), radioProvider: radio)
+
+        p.play(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+        await eventually { audio.loadCount == 1 }
+        audio.currentTime = 42
+
+        p.startRadio(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+        await eventually { p.queue.map(\.videoId) == ["seed", "n2"] }
+
+        #expect(audio.loadCount == 1)
+        #expect(audio.currentTime == 42)
+        #expect(p.currentIndex == 0)
+    }
+
     @Test("installRadio installs the fetched queue, anchored on the seed")
     func installRadioBuildsQueue() async {
         // Seed first, then more tracks (mirrors the real radio response).
@@ -513,6 +533,21 @@ struct PlayerStateQueueTests {
         p.play(title: "Other", subtitle: "A", thumbnailURL: nil, videoId: "other")
         await p.installRadio(seed: "seed")   // seed isn't what's playing
         #expect(p.queue.isEmpty)
+    }
+
+    @Test("installRadio keeps the seed current even if the radio response omits it")
+    func installRadioKeepsSeedWhenOmitted() async {
+        // Some radio responses (premieres, live videos) don't echo the seed back.
+        let radioTracks = tracks(["n2", "n3"])
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(tracks: radioTracks))
+        p.play(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+
+        await p.installRadio(seed: "seed")
+
+        #expect(p.queue.map(\.videoId) == ["seed", "n2", "n3"])
+        #expect(p.currentIndex == 0)
+        #expect(p.nowPlaying?.videoId == "seed")
     }
 
     // MARK: - Play all

@@ -253,11 +253,15 @@ final class PlayerState {
 
     /// "Start radio": plays the seed track immediately, then fetches an endless
     /// radio queue from it and installs that as the queue (so next/previous walk
-    /// the radio) without interrupting the already-playing seed.
+    /// the radio) without interrupting the already-playing seed. If the seed is
+    /// already the track playing, playback is left untouched (no restart from
+    /// 0:00) — only the queue is rebuilt into a radio around it.
     func startRadio(title: String, subtitle: String, thumbnailURL: URL?, videoId: String,
                     artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
-        play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId,
-             artists: artists, albumLink: albumLink)
+        if nowPlaying?.videoId != videoId {
+            play(title: title, subtitle: subtitle, thumbnailURL: thumbnailURL, videoId: videoId,
+                 artists: artists, albumLink: albumLink)
+        }
         radioTask?.cancel()
         radioTask = Task { await installRadio(seed: videoId) }
     }
@@ -268,10 +272,22 @@ final class PlayerState {
         guard let tracks = try? await radioProvider.radio(for: videoId) else { return }
         let playable = tracks.filter { $0.videoId != nil }
         // Only install if the user is still on the seed track.
-        guard !playable.isEmpty, nowPlaying?.videoId == videoId else { return }
-        queue = playable
+        guard !playable.isEmpty, let nowPlaying, nowPlaying.videoId == videoId else { return }
+        if let index = playable.firstIndex(where: { $0.videoId == videoId }) {
+            queue = playable
+            currentIndex = index
+        } else {
+            // Some radio responses (premieres, live videos) omit the seed itself —
+            // keep it as the queue's head so the row marked "current" still
+            // matches what's actually playing, instead of defaulting to whatever
+            // track happens to come first.
+            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
+                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL, videoId: videoId,
+                                  artists: nowPlaying.artists, albumLink: nowPlaying.albumLink)
+            queue = [seedTrack] + playable
+            currentIndex = 0
+        }
         albumContext = ""
-        currentIndex = playable.firstIndex { $0.videoId == videoId } ?? 0
         resetShuffle()
         persist()
     }
