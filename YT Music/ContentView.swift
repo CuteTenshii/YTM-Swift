@@ -216,7 +216,7 @@ private struct AccountControl: View {
     }
 
     private var avatar: some View {
-        AsyncImage(url: auth.account?.avatarURL) { image in
+        CachedAsyncImage(url: auth.account?.avatarURL) { image in
             image.resizable().scaledToFill()
         } placeholder: {
             Image(systemName: "person.crop.circle.fill")
@@ -224,8 +224,9 @@ private struct AccountControl: View {
                 .scaledToFit()
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 20, height: 20)
+        .frame(width: 16, height: 16)
         .clipShape(.circle)
+        .fixedSize()
     }
 }
 

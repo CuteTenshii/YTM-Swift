@@ -323,7 +323,7 @@ private struct HeaderView: View {
     /// black at the bottom, with the title and actions overlaid.
     private func bannerHeader(_ url: URL) -> some View {
         ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: url) { phase in
+            CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().scaledToFill()

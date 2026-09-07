@@ -104,7 +104,7 @@ struct ImmersiveLyricsView: View {
     private var blurredArtwork: some View {
         Group {
             if let url = player.nowPlaying?.thumbnailURL {
-                AsyncImage(url: url) { image in
+                CachedAsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
                     Color.black
