@@ -374,11 +374,23 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return try await post("player", body: body)
     }
 
-    /// Fetches an endless radio queue seeded from a video (the "Start radio"
-    /// action). The queue's first entry is the seed track itself.
-    func radio(for videoId: String) async throws -> [Track] {
+    /// Fetches a radio's first batch (~50 tracks) seeded from a video (the
+    /// "Start radio" action). The queue's first entry is the seed track itself.
+    /// The batch comes with a continuation token (verified live against
+    /// WEB_REMIX): resend it through `continueRadio` to keep the same mix going
+    /// instead of starting a new, unrelated single-song radio.
+    func radio(for videoId: String) async throws -> RadioPage {
         // RDAMVM<id> = this song's radio.
-        try await watchQueue(videoId: videoId, playlistId: "RDAMVM\(videoId)")
+        let response = try await nextResponse(videoId: videoId, playlistId: "RDAMVM\(videoId)")
+        return RadioPage(tracks: WatchNextParser.parse(response), continuation: WatchNextParser.continuationToken(response))
+    }
+
+    /// Fetches the next batch of an already-started mix/radio via its
+    /// continuation token (same `next`-endpoint continuation shape as
+    /// `moreComments`, just a different panel).
+    func continueRadio(_ token: String) async throws -> RadioPage {
+        let response: RadioContinuationResponse = try await post("next", body: ["continuation": token])
+        return RadioPage(tracks: WatchNextParser.parse(response), continuation: WatchNextParser.continuationToken(response))
     }
 
     /// Fetches the ordered watch queue for a `next` endpoint (a "Play all" button
@@ -386,7 +398,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// same renderer a radio uses — so the caller can play them with real
     /// per-track metadata rather than a single seed.
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
-        let response: WatchNextResponse = try await post(
+        WatchNextParser.parse(try await nextResponse(videoId: videoId, playlistId: playlistId))
+    }
+
+    private func nextResponse(videoId: String, playlistId: String) async throws -> WatchNextResponse {
+        try await post(
             "next",
             body: [
                 "videoId": videoId,
@@ -396,7 +412,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
                 "tunerSettingValue": "AUTOMIX_SETTING_NORMAL",
             ]
         )
-        return WatchNextParser.parse(response)
     }
 
     /// Fetches (and caches) the parts of a track's `next` response the

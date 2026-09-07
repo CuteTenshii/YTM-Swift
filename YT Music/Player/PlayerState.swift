@@ -8,10 +8,20 @@
 
 import SwiftUI
 
+/// A single fetched batch of a mix/radio: its tracks, plus a continuation
+/// token to fetch the mix's next batch (nil once it's exhausted).
+struct RadioPage: Sendable {
+    let tracks: [Track]
+    let continuation: String?
+}
+
 /// Supplies an endless radio queue for a seed video. Abstracted so PlayerState
 /// can be driven by a fake in tests (no network).
 protocol RadioProviding: Sendable {
-    func radio(for videoId: String) async throws -> [Track]
+    func radio(for videoId: String) async throws -> RadioPage
+    /// Continues an already-fetched radio from its last batch, instead of
+    /// starting a new, unrelated single-song radio.
+    func continueRadio(_ token: String) async throws -> RadioPage
     /// The ordered watch queue for a `next` endpoint (a "Play all" button, or a
     /// playlist/album radio). Defaults to the plain radio for `videoId`.
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track]
@@ -19,7 +29,7 @@ protocol RadioProviding: Sendable {
 
 extension RadioProviding {
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
-        try await radio(for: videoId)
+        try await radio(for: videoId).tracks
     }
 }
 
@@ -100,6 +110,10 @@ final class PlayerState {
     private(set) var queue: [Track] = []
     private(set) var currentIndex = 0
     private var albumContext = ""
+    /// The continuation token to fetch the next batch of the radio currently
+    /// backing the queue, if any. Cleared whenever the queue is rebuilt from
+    /// something other than that radio.
+    private var radioContinuation: String?
 
     private let audio: AudioOutput
     private let resolver: StreamResolving
@@ -181,6 +195,7 @@ final class PlayerState {
         queue = []
         currentIndex = 0
         albumContext = ""
+        radioContinuation = nil
         resetShuffle()
         startTrack(title: title, subtitle: subtitle, album: album,
                    thumbnailURL: thumbnailURL, videoId: videoId,
@@ -218,6 +233,7 @@ final class PlayerState {
         queue = playable
         albumContext = album
         currentIndex = index
+        radioContinuation = nil
         resetShuffle()
         startCurrent()
     }
@@ -269,10 +285,11 @@ final class PlayerState {
     /// Fetches the radio queue for `videoId` and installs it (keeping the seed
     /// playing). Split out from `startRadio` so tests can await it directly.
     func installRadio(seed videoId: String) async {
-        guard let tracks = try? await radioProvider.radio(for: videoId) else { return }
-        let playable = tracks.filter { $0.videoId != nil }
+        guard let page = try? await radioProvider.radio(for: videoId) else { return }
+        let playable = page.tracks.filter { $0.videoId != nil }
         // Only install if the user is still on the seed track.
         guard !playable.isEmpty, let nowPlaying, nowPlaying.videoId == videoId else { return }
+        radioContinuation = page.continuation
         if let index = playable.firstIndex(where: { $0.videoId == videoId }) {
             queue = playable
             currentIndex = index
@@ -323,21 +340,32 @@ final class PlayerState {
     }
 
     /// Fetches a radio for `videoId` and appends its (new) tracks to the queue.
+    /// Continues the radio already backing the queue via its token (the real
+    /// "keep this mix going" path) when one is held; otherwise falls back to a
+    /// fresh single-song radio (e.g. autoplay off the end of an album, which
+    /// never held a radio continuation to begin with).
     /// Split out so tests can await it directly. Re-checks state after the fetch
     /// in case the user moved on meanwhile.
     func appendRadio(seed videoId: String) async {
-        guard let tracks = try? await radioProvider.radio(for: videoId) else { return }
+        let page: RadioPage?
+        if let token = radioContinuation {
+            page = try? await radioProvider.continueRadio(token)
+        } else {
+            page = try? await radioProvider.radio(for: videoId)
+        }
+        guard let page else { return }
         // Still on the seed, still nothing queued after it, still not repeating.
         guard nowPlaying?.videoId == videoId, repeatMode == .off,
               currentIndex >= queue.count - 1 else { return }
 
         let existing = Set(queue.compactMap(\.videoId))
-        let continuation = tracks.filter { track in
+        let continuation = page.tracks.filter { track in
             guard let id = track.videoId else { return false }
             return id != videoId && !existing.contains(id)
         }
         guard !continuation.isEmpty else { return }
 
+        radioContinuation = page.continuation
         // The appended tracks are radio, not part of any album.
         albumContext = ""
         if queue.isEmpty {

@@ -24,7 +24,7 @@ struct WatchNextParserTests {
     {"playlistPanelVideoRenderer":{"videoId":"n2","title":{"runs":[{"text":"Next Song"}]},
     "longBylineText":{"runs":[{"text":"Artist B"}]},"lengthText":{"runs":[{"text":"2:45"}]}}},
     {"automixPreviewVideoRenderer":{"content":{}}}
-    ]}}}}}}]}}}}}
+    ],"continuations":[{"nextRadioContinuationData":{"continuation":"tok1"}}]}}}}}}]}}}}}
     """
 
     @Test("Extracts playable tracks, best thumbnail, and skips non-video rows")
@@ -40,6 +40,38 @@ struct WatchNextParserTests {
         #expect(tracks[0].thumbnailURL?.absoluteString == "https://x/2.jpg")  // highest width
         #expect(tracks[1].videoId == "n2")
         #expect(tracks[1].subtitle == "Artist B")
+    }
+
+    @Test("Extracts the panel's continuation token, when present")
+    func parsesContinuationToken() throws {
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(fixture.utf8))
+        #expect(WatchNextParser.continuationToken(response) == "tok1")
+    }
+
+    @Test("No continuation token when the panel doesn't carry one")
+    func noContinuationTokenWhenAbsent() throws {
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
+        #expect(WatchNextParser.continuationToken(response) == nil)
+    }
+
+    // A follow-up `next` response fetched by resending a continuation token —
+    // same panel shape, nested under `continuationContents` instead.
+    private let continuationFixture = """
+    {"continuationContents":{"playlistPanelContinuation":{"contents":[
+    {"playlistPanelVideoRenderer":{"videoId":"n3","title":{"runs":[{"text":"Third Song"}]},
+    "longBylineText":{"runs":[{"text":"Artist C"}]}}}
+    ],"continuations":[{"nextRadioContinuationData":{"continuation":"tok2"}}]}}}
+    """
+
+    @Test("Parses a continuation batch's tracks and next token")
+    func parsesContinuationBatch() throws {
+        let response = try JSONDecoder().decode(RadioContinuationResponse.self, from: Data(continuationFixture.utf8))
+        let tracks = WatchNextParser.parse(response)
+
+        #expect(tracks.count == 1)
+        #expect(tracks[0].videoId == "n3")
+        #expect(tracks[0].title == "Third Song")
+        #expect(WatchNextParser.continuationToken(response) == "tok2")
     }
 
     @Test("An unrecognized response yields no tracks")

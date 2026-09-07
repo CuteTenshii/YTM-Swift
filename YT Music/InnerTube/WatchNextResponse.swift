@@ -3,15 +3,19 @@
 //  YT Music
 //
 //  Decodable models for the InnerTube `next` endpoint, which powers "Start
-//  radio": given a seed video it returns an endless queue of related tracks. We
-//  only model the keys we consume; all optional.
+//  radio": given a seed video it returns a batch (~50) of related tracks plus
+//  a continuation token to fetch the next batch of the same mix. We only
+//  model the keys we consume; all optional.
 //
 //  Response path:
 //    contents.singleColumnMusicWatchNextResultsRenderer
 //      .tabbedRenderer.watchNextTabbedResultsRenderer
 //      .tabs[0].tabRenderer.content
-//      .musicQueueRenderer.content.playlistPanelRenderer.contents[]
-//        .playlistPanelVideoRenderer { videoId, title, longBylineText, lengthText, thumbnail }
+//      .musicQueueRenderer.content.playlistPanelRenderer
+//        .contents[].playlistPanelVideoRenderer { videoId, title, longBylineText, lengthText, thumbnail }
+//        .continuations[0].nextRadioContinuationData.continuation
+//  A follow-up `next` call with `{"continuation": <token>}` in the body
+//  returns the same panel shape at `continuationContents.playlistPanelContinuation`.
 //
 
 import Foundation
@@ -87,6 +91,20 @@ struct WatchNextResponse: Decodable {
 
     struct PlaylistPanelRenderer: Decodable {
         let contents: [PanelItem]?
+        /// Present once the panel's ~50-track batch is exhausted; its token,
+        /// resent as `{"continuation": …}` to `next`, fetches the mix's next
+        /// batch (see `RadioContinuationResponse`). Verified against the live
+        /// endpoint: WEB_REMIX returns a full batch upfront, not the smaller
+        /// per-call pages yt-dlp's classic-YouTube mix pagination assumes.
+        let continuations: [Continuation]?
+    }
+
+    struct Continuation: Decodable {
+        let nextRadioContinuationData: ContinuationData?
+    }
+
+    struct ContinuationData: Decodable {
+        let continuation: String?
     }
 
     struct PanelItem: Decodable {
@@ -120,17 +138,51 @@ struct WatchNextResponse: Decodable {
     }
 }
 
+/// A follow-up `next` response fetched by resending a `playlistPanelRenderer`
+/// continuation token — shares the same panel-item shape as the initial
+/// `WatchNextResponse`, just nested under `continuationContents` instead of
+/// the full watch-next tab layout.
+struct RadioContinuationResponse: Decodable {
+    let continuationContents: ContinuationContents?
+
+    struct ContinuationContents: Decodable {
+        let playlistPanelContinuation: WatchNextResponse.PlaylistPanelRenderer?
+    }
+}
+
 nonisolated enum WatchNextParser {
     /// Flattens the queue's panel into playable Tracks (the seed is first).
     static func parse(_ response: WatchNextResponse) -> [Track] {
-        let items = response.contents?
+        parse(panel(of: response))
+    }
+
+    /// Flattens a continuation batch into playable Tracks.
+    static func parse(_ response: RadioContinuationResponse) -> [Track] {
+        parse(response.continuationContents?.playlistPanelContinuation)
+    }
+
+    /// The token to fetch the mix's next batch, if the current one isn't the
+    /// last (see `PlaylistPanelRenderer.continuations`).
+    static func continuationToken(_ response: WatchNextResponse) -> String? {
+        continuationToken(panel(of: response))
+    }
+
+    /// The token to fetch yet another batch beyond this continuation, if any.
+    static func continuationToken(_ response: RadioContinuationResponse) -> String? {
+        continuationToken(response.continuationContents?.playlistPanelContinuation)
+    }
+
+    private static func panel(of response: WatchNextResponse) -> WatchNextResponse.PlaylistPanelRenderer? {
+        response.contents?
             .singleColumnMusicWatchNextResultsRenderer?
             .tabbedRenderer?.watchNextTabbedResultsRenderer?
             .tabs?.first?.tabRenderer?.content?
-            .musicQueueRenderer?.content?.playlistPanelRenderer?.contents ?? []
+            .musicQueueRenderer?.content?.playlistPanelRenderer
+    }
 
+    private static func parse(_ panel: WatchNextResponse.PlaylistPanelRenderer?) -> [Track] {
         var index = 1
-        return items.compactMap { item -> Track? in
+        return (panel?.contents ?? []).compactMap { item -> Track? in
             guard let video = item.playlistPanelVideoRenderer,
                   let videoId = video.videoId else { return nil }
             defer { index += 1 }
@@ -146,6 +198,10 @@ nonisolated enum WatchNextParser {
                 albumLink: links.first { $0.kind == .album }
             )
         }
+    }
+
+    private static func continuationToken(_ panel: WatchNextResponse.PlaylistPanelRenderer?) -> String? {
+        panel?.continuations?.first?.nextRadioContinuationData?.continuation
     }
 
     /// The seed track's like rating from the watch-next overlay, scoped to the

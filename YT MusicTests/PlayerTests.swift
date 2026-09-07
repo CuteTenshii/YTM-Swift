@@ -53,7 +53,18 @@ nonisolated struct StubRadio: RadioProviding {
     var tracks: [Track] = []
     /// Tracks returned by `watchQueue` (a "Play all"); falls back to `tracks`.
     var watchQueueTracks: [Track]? = nil
-    func radio(for videoId: String) async throws -> [Track] { tracks }
+    /// The continuation token `radio(for:)` hands back, if any.
+    var continuationToken: String? = nil
+    /// Pages returned by `continueRadio`, keyed by the token, so a test can
+    /// chain multiple continuations.
+    var continuationPages: [String: RadioPage] = [:]
+
+    func radio(for videoId: String) async throws -> RadioPage {
+        RadioPage(tracks: tracks, continuation: continuationToken)
+    }
+    func continueRadio(_ token: String) async throws -> RadioPage {
+        continuationPages[token] ?? RadioPage(tracks: [], continuation: nil)
+    }
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
         watchQueueTracks ?? tracks
     }
@@ -716,6 +727,29 @@ struct PlayerStateQueueTests {
         p.cycleRepeatMode()   // .off → .all
         await p.appendRadio(seed: "b")
         #expect(p.queue.map(\.videoId) == ["a", "b"])
+    }
+
+    @Test("Autoplay: an ongoing radio continues via its cursor, not a fresh single-song radio")
+    func autoplayContinuesRadioCursor() async {
+        let radio = StubRadio(
+            tracks: tracks(["seed", "r1", "r2"]),
+            continuationToken: "tok1",
+            continuationPages: ["tok1": RadioPage(tracks: tracks(["r3", "r4"]), continuation: nil)]
+        )
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(), radioProvider: radio)
+        p.play(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+
+        // First backstop installs the radio and captures its continuation token.
+        await p.appendRadio(seed: "seed")
+        #expect(p.queue.map(\.videoId) == ["seed", "r1", "r2"])
+
+        // Advance to the last queued track, mirroring real playback reaching it.
+        p.playQueueItem(at: 2)
+
+        // Running out again continues the SAME radio via the token, not a brand
+        // new `radio(for: "r2")` request.
+        await p.appendRadio(seed: "r2")
+        #expect(p.queue.map(\.videoId) == ["seed", "r1", "r2", "r3", "r4"])
     }
 }
 
