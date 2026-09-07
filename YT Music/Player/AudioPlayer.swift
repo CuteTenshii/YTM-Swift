@@ -28,6 +28,9 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored private var timeControlObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
+    /// Bumped on every new crossfade so a just-superseded fade's cleanup can't
+    /// clear the newer `fadeTask` it races against.
+    @ObservationIgnored private var fadeGeneration = 0
     /// Guards against firing "track finished" more than once for the same item
     /// (the end notification and the tick backstop can both observe the end).
     @ObservationIgnored private var hasSignalledEnd = false
@@ -136,6 +139,7 @@ final class AudioPlayer: AudioOutput {
     func load(url: URL, metadata: NowPlayingMetadata) {
         // A hard cut: abandon any in-flight crossfade and silence the idle player.
         fadeTask?.cancel()
+        fadeTask = nil
         idle.pause()
         idle.replaceCurrentItem(with: nil)
         idle.volume = clampedVolume
@@ -163,6 +167,8 @@ final class AudioPlayer: AudioOutput {
             return
         }
         fadeTask?.cancel()
+        fadeGeneration += 1
+        let generation = fadeGeneration
 
         let outgoing = active
         let incoming = idle
@@ -188,6 +194,9 @@ final class AudioPlayer: AudioOutput {
 
         fadeTask = Task { [weak self] in
             await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: duration)
+            // Only this fade's own completion may clear `fadeTask` — if a newer
+            // crossfade has since started, its task owns the slot now.
+            if self?.fadeGeneration == generation { self?.fadeTask = nil }
         }
     }
 
@@ -216,8 +225,10 @@ final class AudioPlayer: AudioOutput {
         guard active.currentItem != nil else { return }
         if isPlaying {
             active.pause()
+            if fadeTask != nil { idle.pause() }
         } else {
             active.play()
+            if fadeTask != nil { idle.play() }
         }
         isPlaying.toggle()
         updateNowPlayingInfo()
