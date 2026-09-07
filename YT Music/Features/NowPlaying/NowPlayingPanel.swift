@@ -36,6 +36,11 @@ struct NowPlayingPanelView: View {
     /// Comments tab can be hidden when the track has no comments.
     let comments: CommentsViewModel
 
+    /// Tabs whose content view has been built at least once. Kept mounted (just
+    /// hidden) afterwards so switching away and back doesn't tear down and
+    /// reload each tab's state — it's only built lazily, on first visit.
+    @State private var visitedTabs: Set<NowPlayingPanelTab> = []
+
     /// The tabs offered right now — Comments is dropped when the current track
     /// has no comments.
     private var availableTabs: [NowPlayingPanelTab] {
@@ -57,30 +62,20 @@ struct NowPlayingPanelView: View {
 
             Divider()
 
-            switch tab {
-            case .queue:
-                QueueListView(player: player, navigate: navigate)
-            case .lyrics:
-                LyricsView(player: player,
-                           videoId: player.nowPlaying?.videoId,
-                           title: player.nowPlaying?.title ?? "",
-                           artist: player.nowPlayingArtist,
-                           album: player.nowPlaying?.album ?? "",
-                           duration: player.duration > 0 ? player.duration : nil)
-            case .related:
-                RelatedView(videoId: player.nowPlaying?.videoId,
-                            title: player.nowPlaying?.title ?? "",
-                            artist: player.nowPlayingArtist,
-                            album: player.nowPlaying?.album ?? "",
-                            duration: player.duration > 0 ? player.duration : nil,
-                            player: player,
-                            navigate: navigate)
-            case .comments:
-                CommentsView(videoId: player.nowPlaying?.videoId, model: comments)
+            ZStack {
+                ForEach(NowPlayingPanelTab.allCases) { candidate in
+                    if visitedTabs.contains(candidate) {
+                        content(for: candidate)
+                            .opacity(tab == candidate ? 1 : 0)
+                            .allowsHitTesting(tab == candidate)
+                    }
+                }
             }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
+        .task(id: tab) { visitedTabs.insert(tab) }
         // Probe comments whenever the track changes so the tab reflects whether
         // the new track has any (the panel is only built while the inspector is
         // open, so this doesn't fire for users who never open it).
@@ -93,13 +88,37 @@ struct NowPlayingPanelView: View {
             if unavailable, tab == .comments { tab = .queue }
         }
     }
+
+    @ViewBuilder
+    private func content(for tab: NowPlayingPanelTab) -> some View {
+        switch tab {
+        case .queue:
+            QueueListView(player: player)
+        case .lyrics:
+            LyricsView(player: player,
+                       videoId: player.nowPlaying?.videoId,
+                       title: player.nowPlaying?.title ?? "",
+                       artist: player.nowPlayingArtist,
+                       album: player.nowPlaying?.album ?? "",
+                       duration: player.duration > 0 ? player.duration : nil)
+        case .related:
+            RelatedView(videoId: player.nowPlaying?.videoId,
+                        title: player.nowPlaying?.title ?? "",
+                        artist: player.nowPlayingArtist,
+                        album: player.nowPlaying?.album ?? "",
+                        duration: player.duration > 0 ? player.duration : nil,
+                        player: player,
+                        navigate: navigate)
+        case .comments:
+            CommentsView(videoId: player.nowPlaying?.videoId, model: comments)
+        }
+    }
 }
 
 // MARK: - Queue
 
 private struct QueueListView: View {
     let player: PlayerState
-    let navigate: (EntityDestination) -> Void
 
     var body: some View {
         if player.queue.isEmpty {
@@ -114,40 +133,17 @@ private struct QueueListView: View {
                     QueueRow(track: track, isCurrent: index == player.currentIndex)
                         .contentShape(.rect)
                         .onTapGesture { player.playQueueItem(at: index) }
-                        .contextMenu {
-                            Button {
-                                player.playQueueItem(at: index)
-                            } label: {
-                                Label("Play", systemImage: "play.fill")
-                            }
-                            if let videoId = track.videoId {
-                                Button {
-                                    player.startRadio(
-                                        title: track.title,
-                                        subtitle: track.subtitle,
-                                        thumbnailURL: track.thumbnailURL,
-                                        videoId: videoId,
-                                        artists: track.artists,
-                                        albumLink: track.albumLink
-                                    )
-                                } label: {
-                                    Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
-                                }
-                            }
-                            if !track.artists.isEmpty, let artist = track.artists.first {
-                                Button {
-                                    navigate(artist.destination)
-                                } label: {
-                                    Label("Go to artist", systemImage: "music.mic")
-                                }
-                            }
-                            if let album = track.albumLink {
-                                Button {
-                                    navigate(album.destination)
-                                } label: {
-                                    Label("Go to album", systemImage: "square.stack")
-                                }
-                            }
+                        .musicContextMenu(
+                            title: track.title,
+                            subtitle: track.subtitle,
+                            thumbnailURL: track.thumbnailURL,
+                            videoId: track.videoId,
+                            playlistId: nil,
+                            browseId: nil,
+                            artists: track.artists,
+                            albumLink: track.albumLink,
+                            likeStatus: track.likeStatus
+                        ) {
                             Divider()
                             Button(role: .destructive) {
                                 player.removeFromQueue(at: index)
