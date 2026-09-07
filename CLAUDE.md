@@ -8,20 +8,17 @@ A native **macOS SwiftUI** YouTube Music client (bundle id `moe.tenshii.YT-Music
 
 ## Commands
 
-`xcode-select` points at CommandLineTools (no `xcodebuild`), so every build/test must point `DEVELOPER_DIR` at the installed Xcode-beta:
+`xcode-select -p` should point at a full Xcode install (not bare CommandLineTools) for `xcodebuild` to work. If it doesn't, point `DEVELOPER_DIR` at your installed Xcode.app for each command below.
 
 ```sh
 # Build
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-  xcodebuild -scheme "YT Music" -destination 'platform=macOS' build
+xcodebuild -scheme "YT Music" -destination 'platform=macOS' build
 
 # Run all tests
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-  xcodebuild -scheme "YT Music" -destination 'platform=macOS' test
+xcodebuild -scheme "YT Music" -destination 'platform=macOS' test
 
 # Run a single test (Swift Testing) — filter by suite/test name
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-  xcodebuild -scheme "YT Music" -destination 'platform=macOS' test \
+xcodebuild -scheme "YT Music" -destination 'platform=macOS' test \
   -only-testing:"YT MusicTests/StreamSelectionTests"
 ```
 
@@ -45,7 +42,9 @@ Layers under `YT Music/`:
 - **`Player/`** — `AudioPlayer` (`@MainActor @Observable` AVPlayer wrapper) publishes to Control Center / media keys via `MPNowPlayingInfoCenter` and routes `MPRemoteCommandCenter` commands back. It holds **two AVPlayers** (`active`/`idle`) for crossfade. `PlayerState` owns the queue + `repeatMode` + transport, and persists/restores a snapshot via `PlaybackStore` (`UserDefaultsPlaybackStore`; nil in tests). `PlayerState` init takes optional `AudioOutput`/`StreamResolving`/`AppSettings` for test injection (nil → real defaults). **Autoplay**: when a track starts with nothing after it (a one-off from home, or the last album/playlist track) and repeat is off, `maybeContinueWithRadio`/`appendRadio` fetch a radio for it and append the new tracks so playback continues (one-off → seed becomes the queue head; explicit `startRadio` still replaces the queue).
 - **`Settings/`** — `AppSettings` (`@MainActor @Observable`, UserDefaults-backed, env-injected, created before `PlayerState`) holds audio prefs only: `audioQuality`/`preferAudioOverVideo` (→ a Sendable `StreamPreferences` passed to the resolver), `crossfade` enable/seconds, a 10-band **equalizer** (`equalizerEnabled` + per-band dB `equalizerGains`, exposed as a Sendable `EqualizerSettings` via an `onEqualizerChange` callback wired by `PlayerState`), and the downloader's `downloadDirectory` (a security-scoped bookmark). `SettingsView` is a grouped `Form`; its Plugins section is registry-driven (see below).
 - **Equalizer** (`Player/Equalizer.swift` + `Player/EqualizerTap.swift`) — AVPlayer has no native EQ, so a graphic EQ is applied via an `MTAudioProcessingTap` installed per `AVPlayerItem`, running RBJ peaking biquads (`Biquad`/`BiquadState`) over the decoded PCM. The pure DSP/model (bands, presets, `EqualizerSettings`, processor) is `nonisolated` and unit-tested; the tap glue is the untested realtime layer. Gotcha: tap C-callbacks must be `nonisolated` to form `@convention(c)` pointers under the module's default `@MainActor` isolation.
-- **`Plugins/`** — a registry, not hardcoded wiring. `Plugin` (`@MainActor` protocol: `id`/`name`/`summary`, `setActive`, `playbackDidChange`, optional `configuration: AnyView?`). `PluginHost` (`@Observable`) owns `[any Plugin]`, persists enabled ids (`"plugins.enabled"`), and fans `PlayerState.onPlaybackChange` (a Sendable `PlaybackSnapshot`) out to enabled plugins via the generic `PluginBridge`. **Adding a plugin = write one type + add one line to the `plugins` array in `YT_MusicApp.init()`.** Concrete: `DiscordPlugin` (→ `DiscordRPC` unix-socket IPC; unreachable under the sandbox), `NotificationsPlugin` (→ `TrackChangeNotifier`), `LastfmPlugin` (→ `LastfmClient`/`ScrobbleTracker`; scrobbles to Last.fm — testable signature + eligibility + tracker, network/auth layer untested; the user enters their own API key + shared secret in the plugin config and approves access in the browser (Last.fm's desktop token flow: `auth.getToken` → approve on last.fm → `auth.getSession`), yielding a session key persisted with the account in the Keychain — no hardcoded credentials, password never touches the app), `DownloaderPlugin` (→ `Downloader` service; batch album/playlist downloads into per-collection subfolders; `ENABLE_USER_SELECTED_FILES = readwrite`).
+- **`Plugins/`** — a registry, not hardcoded wiring. `Plugin` (`@MainActor` protocol: `id`/`name`/`summary`, `setActive`, `playbackDidChange`, optional `configuration: AnyView?`). `PluginHost` (`@Observable`) owns `[any Plugin]`, persists enabled ids (`"plugins.enabled"`), and fans `PlayerState.onPlaybackChange` (a Sendable `PlaybackSnapshot`) out to enabled plugins via the generic `PluginBridge`. **Adding a plugin = write one type + add one line to the `plugins` array in `YT_MusicApp.init()`.** Concrete: `DiscordPlugin` (→ `DiscordRPC` unix-socket IPC), `NotificationsPlugin` (→ `TrackChangeNotifier`), `LastfmPlugin` (→ `LastfmClient`/`ScrobbleTracker`; scrobbles to Last.fm — testable signature + eligibility + tracker, network/auth layer untested; the user enters their own API key + shared secret in the plugin config and approves access in the browser (Last.fm's desktop token flow: `auth.getToken` → approve on last.fm → `auth.getSession`), yielding a session key persisted with the account in the Keychain — no hardcoded credentials, password never touches the app), `DownloaderPlugin` (→ `Downloader` service; batch album/playlist downloads into per-collection subfolders; `ENABLE_USER_SELECTED_FILES = readwrite`).
+
+App Sandbox is disabled for this app, so `DiscordPlugin` → `DiscordRPC` reaches Discord's local IPC socket (`discord-ipc-N` in the real host `$TMPDIR`) without issue.
 
 ### Playback / deciphering (the fragile, high-value part)
 
@@ -66,7 +65,7 @@ The signature + `n`-parameter solving is the most brittle code and breaks whenev
 
 Starting a track runs a multi-stage async pipeline (`StreamResolver.audioStream`): `signatureTimestamp()` → `player` POST → `selectAudioFormat` → `streamURL(for:)` decipher → AVPlayer buffers the googlevideo stream before audio starts. The base.js fetch + JSCore solver build is **cached** (`SignatureDecipher.cached`), so the *first* play of a session is slowest; later plays still pay one `player` round-trip + remote buffering (typically 1–3s).
 
-**Seeking** is slow because `AudioPlayer.seek` uses `toleranceBefore/After: .zero` (sample-accurate): AVPlayer must download and decode from the preceding keyframe to the exact frame over a remote stream. Relaxing the tolerance (e.g. ~0.5–1s) makes scrubbing near-instant at the cost of frame precision — fine for a music player.
+**Seeking**: `AudioPlayer.seek` uses a 0.75s `toleranceBefore/After` so AVPlayer snaps to the nearest keyframe instead of decoding to the exact frame over a remote stream — near-instant scrubbing at the cost of frame precision, which is fine for a music player.
 
 ## Test coverage
 
