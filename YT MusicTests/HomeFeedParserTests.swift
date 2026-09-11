@@ -86,4 +86,23 @@ struct HomeFeedParserTests {
         """)
         #expect(home.likeStatus == nil)   // no videoId-targeted like → unknown
     }
+
+    @Test("Reads Home chips from the section-list header")
+    func parsesHeaderChips() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{
+          "sectionListRenderer":{
+            "header":{"chipCloudRenderer":{"chips":[
+              {"chipCloudChipRenderer":{"text":{"runs":[{"text":"Energize"}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_home","params":"energize"}}}},
+              {"chipCloudChipRenderer":{"text":{"runs":[{"text":"Relax"}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_home","params":"relax"}}}}
+            ]}},
+            "contents":[]
+          }
+        }}}]}}}
+        """.utf8))
+
+        let feed = HomeFeedParser.parse(response)
+        #expect(feed.chips.map(\.title) == ["Energize", "Relax"])
+        #expect(feed.chips.map(\.params) == ["energize", "relax"])
+    }
 }

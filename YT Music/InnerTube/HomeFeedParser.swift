@@ -11,14 +11,46 @@ import Foundation
 nonisolated enum HomeFeedParser {
 
     static func parse(_ response: BrowseResponse) -> HomeFeed {
-        let sections = response.contents?
+        let tab = response.contents?
             .singleColumnBrowseResultsRenderer?
             .tabs?.first?
-            .tabRenderer?.content?
-            .sectionListRenderer?.contents ?? []
+            .tabRenderer
+        let content = tab?.content
+        let sections = content?.sectionListRenderer?.contents ?? []
 
         let shelves = sections.compactMap { shelf(from: $0) }
-        return HomeFeed(shelves: shelves)
+        let sectionChips = sections.flatMap { section in
+            (section.chipCloudRenderer?.chips ?? []).compactMap { chip -> HomeChip? in
+                guard let renderer = chip.chipCloudChipRenderer,
+                      let title = renderer.text?.text,
+                      let browse = renderer.navigationEndpoint?.browseEndpoint,
+                      let browseId = browse.browseId,
+                      !title.isEmpty else { return nil }
+                return HomeChip(
+                    id: "\(browseId)|\(browse.params ?? title)",
+                    title: title,
+                    browseId: browseId,
+                    params: browse.params
+                )
+            }
+        }
+        let topChips = (content?.sectionListRenderer?.header?.chipCloudRenderer?.chips ?? []).compactMap { chip -> HomeChip? in
+            guard let renderer = chip.chipCloudChipRenderer,
+                  let title = renderer.text?.text,
+                  let browse = renderer.navigationEndpoint?.browseEndpoint,
+                  let browseId = browse.browseId,
+                  !title.isEmpty else { return nil }
+            return HomeChip(
+                id: "\(browseId)|\(browse.params ?? title)",
+                title: title,
+                browseId: browseId,
+                params: browse.params
+            )
+        }
+        var chips = topChips + sectionChips
+        var seen = Set<String>()
+        chips.removeAll { !seen.insert($0.id).inserted }
+        return HomeFeed(shelves: shelves, chips: chips)
     }
 
     // MARK: - Shelves

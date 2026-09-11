@@ -61,11 +61,17 @@ struct BrowseResponse: Decodable {
 
     struct TabContent: Decodable {
         let sectionListRenderer: SectionList?
+        let chipCloudRenderer: ChipCloudRenderer?
     }
 
     struct SectionList: Decodable {
+        let header: Header?
         let contents: [SectionContent]?
         let continuations: [BrowseContinuation]?
+
+        struct Header: Decodable {
+            let chipCloudRenderer: ChipCloudRenderer?
+        }
 
         var continuationToken: String? {
             continuations?.first?.nextContinuationData?.continuation
@@ -87,6 +93,7 @@ struct BrowseResponse: Decodable {
         let gridRenderer: GridRenderer?
         let itemSectionRenderer: ItemSectionRenderer?
         let musicCardShelfRenderer: MusicCardShelfRenderer?
+        let chipCloudRenderer: ChipCloudRenderer?
         // Real (non-uploaded) albums/playlists put their header inside the body's
         // section list rather than the top-level `header` key.
         let musicResponsiveHeaderRenderer: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?
@@ -99,6 +106,19 @@ struct BrowseResponse: Decodable {
         var listShelf: MusicShelfRenderer? {
             musicShelfRenderer ?? musicPlaylistShelfRenderer
         }
+    }
+}
+
+nonisolated struct ChipCloudRenderer: Decodable {
+    let chips: [Chip]?
+
+    struct Chip: Decodable {
+        let chipCloudChipRenderer: Renderer?
+    }
+
+    struct Renderer: Decodable {
+        let text: InnerTubeText?
+        let navigationEndpoint: NavigationEndpoint?
     }
 }
 
@@ -562,6 +582,7 @@ struct NavigationEndpoint: Decodable {
 
     nonisolated struct BrowseEndpoint: Decodable {
         let browseId: String?
+        let params: String?
         let browseEndpointContextSupportedConfigs: Configs?
 
         struct Configs: Decodable {

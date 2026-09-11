@@ -201,9 +201,15 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     /// Loads the YouTube Music home feed (`FEmusic_home`).
     func homeFeed() async throws -> HomeFeed {
+        try await homeFeed(browseId: "FEmusic_home")
+    }
+
+    func homeFeed(browseId: String, params: String? = nil) async throws -> HomeFeed {
+        var body: [String: Any] = ["browseId": browseId]
+        if let params { body["params"] = params }
         let response: BrowseResponse = try await post(
             "browse",
-            body: ["browseId": "FEmusic_home"]
+            body: body
         )
         return HomeFeedParser.parse(response)
     }

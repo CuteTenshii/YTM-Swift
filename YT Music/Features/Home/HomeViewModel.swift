@@ -16,6 +16,7 @@ final class HomeViewModel {
     }
 
     private(set) var state: State = .idle
+    private(set) var isLoadingChip = false
 
     private let client: InnerTubeClient
 
@@ -28,15 +29,31 @@ final class HomeViewModel {
         await load()
     }
 
-    func load() async {
-        state = .loading
+    func load(chip: HomeChip? = nil) async {
+        let isChipLoad = chip != nil
+        if isChipLoad {
+            isLoadingChip = true
+        } else {
+            state = .loading
+        }
+        defer {
+            if isChipLoad { isLoadingChip = false }
+        }
+
         do {
-            let feed = try await client.homeFeed()
-            state = feed.shelves.isEmpty
-                ? .failed("No content was returned.")
-                : .loaded(feed)
+            let feed = try await client.homeFeed(
+                browseId: chip?.browseId ?? "FEmusic_home",
+                params: chip?.params
+            )
+            if feed.shelves.isEmpty {
+                if !isChipLoad { state = .failed("No content was returned.") }
+            } else {
+                state = .loaded(feed)
+            }
         } catch {
-            state = .failed(error.localizedDescription)
+            if !isChipLoad {
+                state = .failed(error.localizedDescription)
+            }
         }
     }
 }

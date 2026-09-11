@@ -11,6 +11,14 @@ import Foundation
 /// The whole home page: an ordered list of horizontal shelves.
 struct HomeFeed: Sendable {
     var shelves: [HomeShelf]
+    var chips: [HomeChip] = []
+}
+
+struct HomeChip: Identifiable, Sendable, Hashable {
+    let id: String
+    var title: String
+    var browseId: String
+    var params: String?
 }
 
 /// One horizontal carousel, e.g. "Listen again" or "Mixed for you".
