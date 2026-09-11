@@ -13,6 +13,9 @@ struct HomeView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
     @State private var model = HomeViewModel()
+    @State private var searchModel = SearchViewModel()
+    @State private var searchText = ""
+    @State private var showingSearch = false
 
     var body: some View {
         @Bindable var navigator = navigator
@@ -29,7 +32,11 @@ struct HomeView: View {
                         .foregroundStyle(.white)
 
                 case .loaded(let feed):
-                    feedContent(feed)
+                    if showingSearch {
+                        SearchContent(query: $searchText, isActive: $showingSearch)
+                    } else {
+                        feedContent(feed)
+                    }
 
                 case .failed(let message):
                     errorView(message)
@@ -39,8 +46,25 @@ struct HomeView: View {
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
+            .searchable(text: $searchText, placement: .toolbar, prompt: "Songs, albums, artists, playlists…")
+            .searchSuggestions {
+                ForEach(searchModel.suggestions, id: \.self) { suggestion in
+                    Text(suggestion)
+                        .searchCompletion(suggestion)
+                }
+            }
         }
         .task(id: auth.generation) { await model.load() }
+        .task(id: searchText) {
+            showingSearch = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard showingSearch else {
+                searchModel.clear()
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await searchModel.loadSuggestions(for: searchText)
+        }
     }
 
     // MARK: - Feed

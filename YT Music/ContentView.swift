@@ -12,7 +12,6 @@ struct ContentView: View {
     enum Section: String, CaseIterable, Identifiable {
         case home = "Home"
         case explore = "Explore"
-        case search = "Search"
         case library = "Library"
         case uploads = "Uploads"
         case history = "History"
@@ -24,7 +23,6 @@ struct ContentView: View {
             switch self {
             case .home:     "house.fill"
             case .explore:  "square.grid.2x2.fill"
-            case .search:   "magnifyingglass"
             case .library:  "books.vertical.fill"
             case .uploads:  "square.and.arrow.up.fill"
             case .history:  "clock.arrow.circlepath"
@@ -67,8 +65,6 @@ struct ContentView: View {
                         HomeView()
                     case .explore:
                         ExploreView()
-                    case .search:
-                        SearchView()
                     case .library:
                         LibraryView()
                     case .uploads:

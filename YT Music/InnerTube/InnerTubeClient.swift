@@ -231,6 +231,17 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return SearchParser.parse(response)
     }
 
+    /// Returns the server-ranked completions for the current search field text.
+    func searchSuggestions(_ input: String) async throws -> [String] {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let response: SearchSuggestionsResponse = try await post(
+            "music/get_search_suggestions",
+            body: ["input": trimmed]
+        )
+        return SearchSuggestionsParser.parse(response)
+    }
+
     /// Loads an album / playlist / artist page for the given browse id.
     func entity(_ destination: EntityDestination) async throws -> EntityPage {
         let response: EntityBrowseResponse = try await post(

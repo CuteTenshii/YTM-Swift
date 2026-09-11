@@ -203,3 +203,32 @@ struct SearchFilterTests {
         #expect(Set(scoped).count == scoped.count)
     }
 }
+
+@Suite("Search suggestions")
+struct SearchSuggestionsTests {
+    @Test("Extracts ranked queries and removes duplicates")
+    func parsesSuggestions() throws {
+        let fixture = """
+        {"contents":[
+          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}},
+          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead "},{"text":"in rainbows"}]},"navigationEndpoint":{"searchEndpoint":{"query":"radiohead in rainbows"}}}},
+          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":""}]}}}
+        ]}
+        """
+        let response = try JSONDecoder().decode(
+            SearchSuggestionsResponse.self, from: Data(fixture.utf8)
+        )
+
+        #expect(SearchSuggestionsParser.parse(response) == [
+            "radiohead", "radiohead in rainbows"
+        ])
+    }
+
+    @Test("Missing suggestions decode as empty")
+    func emptyResponse() throws {
+        let response = try JSONDecoder().decode(
+            SearchSuggestionsResponse.self, from: Data("{}".utf8)
+        )
+        #expect(SearchSuggestionsParser.parse(response).isEmpty)
+    }
+}

@@ -23,7 +23,6 @@ final class Navigator {
     /// whichever tab is currently on screen. Settings has no stack.
     var homePath: [EntityDestination] = []
     var explorePath: [EntityDestination] = []
-    var searchPath: [EntityDestination] = []
     var libraryPath: [EntityDestination] = []
     var uploadsPath: [EntityDestination] = []
     var historyPath: [EntityDestination] = []
@@ -53,7 +52,6 @@ final class Navigator {
         if section == .settings { section = .home }
         switch section {
         case .explore: append(destination, to: &explorePath)
-        case .search:  append(destination, to: &searchPath)
         case .library: append(destination, to: &libraryPath)
         case .uploads: append(destination, to: &uploadsPath)
         case .history: append(destination, to: &historyPath)
@@ -72,7 +70,6 @@ final class Navigator {
     var currentPath: [EntityDestination] {
         switch section {
         case .explore: explorePath
-        case .search:  searchPath
         case .library: libraryPath
         case .uploads: uploadsPath
         case .history: historyPath

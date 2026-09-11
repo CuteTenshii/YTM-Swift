@@ -17,6 +17,7 @@ final class SearchViewModel {
     }
 
     private(set) var state: State = .idle
+    private(set) var suggestions: [String] = []
     /// The active filter chip. Reset to `.all` whenever a fresh query is typed.
     private(set) var filter: SearchFilter = .all
 
@@ -31,8 +32,25 @@ final class SearchViewModel {
     /// Resets to the idle prompt (called when the field is cleared).
     func clear() {
         state = .idle
+        suggestions = []
         filter = .all
         query = ""
+    }
+
+    func loadSuggestions(for input: String) async {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            suggestions = []
+            return
+        }
+        do {
+            let values = try await client.searchSuggestions(trimmed)
+            guard !Task.isCancelled else { return }
+            suggestions = Array(values.prefix(8))
+        } catch {
+            guard !Task.isCancelled else { return }
+            suggestions = []
+        }
     }
 
     /// Runs a search for a newly typed query. Resets any active filter so the

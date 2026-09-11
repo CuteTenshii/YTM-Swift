@@ -22,19 +22,19 @@ struct NavigatorTests {
     @Test("open pushes onto the active section's stack, not Home")
     func opensOnActiveSection() {
         let nav = Navigator()
-        nav.section = .search
+        nav.section = .library
 
         nav.open(destination("MPRE_heathens"))
 
-        #expect(nav.section == .search)
-        #expect(nav.searchPath.map(\.browseId) == ["MPRE_heathens"])
+        #expect(nav.section == .library)
+        #expect(nav.libraryPath.map(\.browseId) == ["MPRE_heathens"])
         #expect(nav.homePath.isEmpty)
         #expect(nav.currentPath.last?.browseId == "MPRE_heathens")
     }
 
     @Test("open from each browsable section targets that section's path")
     func routesPerSection() {
-        for section in [ContentView.Section.home, .explore, .search, .library, .uploads, .history] {
+        for section in [ContentView.Section.home, .explore, .library, .uploads, .history] {
             let nav = Navigator()
             nav.section = section
             nav.open(destination("id"))

@@ -2,49 +2,42 @@
 //  SearchView.swift
 //  YT Music
 //
-//  The Search tab: a search field over YouTube Music's `search` endpoint, with
+//  The reusable search surface over YouTube Music's `search` endpoint, with
 //  results grouped into category shelves. Song/video shelves render as compact
 //  rows (tap to play); album/artist/playlist shelves render as artwork cards.
-//  Its navigation stack binds to the shared Navigator's `searchPath`.
+//  It is embedded by HomeView and uses the surrounding navigation stack.
 //
 
 import SwiftUI
 
-struct SearchView: View {
-    @Environment(Navigator.self) private var navigator
+struct SearchContent: View {
     @State private var model = SearchViewModel()
-    @State private var query = ""
-    @FocusState private var fieldFocused: Bool
+    @Binding private var query: String
+    @Binding private var isActive: Bool
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
+    init(query: Binding<String>, isActive: Binding<Bool> = .constant(false)) {
+        _query = query
+        _isActive = isActive
+    }
+
     var body: some View {
-        @Bindable var navigator = navigator
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-        NavigationStack(path: $navigator.searchPath) {
-            ZStack {
-                Color.black.ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    searchField
-                        .padding(.horizontal, 24)
+            VStack(spacing: 0) {
+                if showsFilters {
+                    filterChips
                         .padding(.top, 16)
-                        .padding(.bottom, showsFilters ? 12 : 16)
-
-                    if showsFilters {
-                        filterChips
-                            .padding(.bottom, 12)
-                    }
-
-                    results
+                        .padding(.bottom, 12)
                 }
-            }
-            .navigationTitle("Search")
-            .navigationDestination(for: EntityDestination.self) { destination in
-                EntityView(destination: destination)
+
+                results
             }
         }
         .task(id: query) {
+            isActive = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             // Debounce keystrokes: this task is cancelled and restarted on every
             // change to `query`, so a short sleep coalesces rapid typing.
             if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -55,38 +48,6 @@ struct SearchView: View {
             guard !Task.isCancelled else { return }
             await model.search(query)
         }
-        .onAppear { fieldFocused = true }
-    }
-
-    // MARK: - Search field
-
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-
-            TextField("Songs, albums, artists, playlists…", text: $query)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .foregroundStyle(.white)
-                .focused($fieldFocused)
-                .onSubmit { Task { await model.search(query) } }
-
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                    fieldFocused = true
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.1))
-        .clipShape(.rect(cornerRadius: 10))
     }
 
     // MARK: - Filter chips
@@ -378,7 +339,7 @@ private struct SearchLink: View {
 }
 
 #Preview {
-    SearchView()
+    SearchContent(query: .constant(""))
         .environment(PlayerState())
         .environment(AuthStore())
         .environment(Navigator())
