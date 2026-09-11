@@ -443,12 +443,18 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     /// Loads playback streams for a video. The `signatureTimestamp` (extracted
     /// from base.js) must match the player JS used to decipher the result.
-    func player(videoId: String, signatureTimestamp: String?) async throws -> PlayerResponse {
+    /// `playlistId`, when the play comes from a playlist/radio, is the context
+    /// the real client sends so the listen is attributed to that playlist — the
+    /// response's stats beacons then carry it as the `list` param.
+    func player(videoId: String, signatureTimestamp: String?, playlistId: String? = nil) async throws -> PlayerResponse {
         var body: [String: Any] = [
             "videoId": videoId,
             "contentCheckOk": true,
             "racyCheckOk": true,
         ]
+        if let playlistId {
+            body["playlistId"] = playlistId
+        }
         if let signatureTimestamp, let sts = Int(signatureTimestamp) {
             body["playbackContext"] = [
                 "contentPlaybackContext": ["signatureTimestamp": sts]
@@ -464,7 +470,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// instead of starting a new, unrelated single-song radio.
     func radio(for videoId: String) async throws -> RadioPage {
         // RDAMVM<id> = this song's radio.
-        let response = try await nextResponse(videoId: videoId, playlistId: "RDAMVM\(videoId)")
+        let response = try await nextResponse(videoId: videoId, playlistId: MixIds.songRadio(for: videoId))
         return RadioPage(tracks: WatchNextParser.parse(response), continuation: WatchNextParser.continuationToken(response))
     }
 
@@ -730,13 +736,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// out — history is per-account, so an anonymous ping does nothing.
     func reportPlaybackStart(playbackURL: URL, cpn: String, position: Double, length: Double?) async {
         let headers = await CredentialStore.shared.requestHeaders()
-        guard !headers.isEmpty else {
-            PlaybackLog.note("history: skipped (signed out)")
-            return
-        }
+        guard !headers.isEmpty else { return }
         if let url = WatchHistory.playbackURL(base: playbackURL, cpn: cpn, position: position,
                                               length: length, client: statsClientParams) {
-            await ping(url, credentialHeaders: headers, label: "playback")
+            await ping(url, credentialHeaders: headers)
         }
     }
 
@@ -747,7 +750,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         guard !headers.isEmpty else { return }
         if let url = WatchHistory.watchtimeURL(base: watchtimeURL, cpn: cpn, position: position,
                                                length: length, client: statsClientParams) {
-            await ping(url, credentialHeaders: headers, label: "watchtime")
+            await ping(url, credentialHeaders: headers)
         }
     }
 
@@ -771,21 +774,14 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     }
 
     /// Fires a single stats beacon (GET) with the client + session headers.
-    private func ping(_ url: URL, credentialHeaders: [String: String], label: String) async {
+    private func ping(_ url: URL, credentialHeaders: [String: String]) async {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         applyClientHeaders(to: &request)
         for (header, value) in credentialHeaders {
             request.setValue(value, forHTTPHeaderField: header)
         }
-
-        do {
-            let (_, response) = try await session.data(for: request)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            PlaybackLog.note("history: \(label) → HTTP \(code) · \(url.absoluteString)")
-        } catch {
-            PlaybackLog.problem("history \(label) failed: \(error.localizedDescription)")
-        }
+        _ = try? await session.data(for: request)
     }
 
     // MARK: - Request plumbing

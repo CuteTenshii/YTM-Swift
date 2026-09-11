@@ -40,13 +40,21 @@ struct ResolvedStream: Sendable {
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
 /// tested with a stub.
 protocol StreamResolving: Sendable {
-    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream
+    /// `playlistId` is the playlist the play comes from (attribution context),
+    /// when known — sent with the player request so the listen is attributed
+    /// to that playlist/radio.
+    func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream
 }
 
 extension StreamResolving {
     /// Convenience for callers (and tests) that don't care about preferences.
     func audioStream(videoId: String) async throws -> ResolvedStream {
-        try await audioStream(videoId: videoId, preferences: StreamPreferences())
+        try await audioStream(videoId: videoId, playlistId: nil, preferences: StreamPreferences())
+    }
+
+    /// Convenience for callers that resolve without playlist context (downloads).
+    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream {
+        try await audioStream(videoId: videoId, playlistId: nil, preferences: preferences)
     }
 }
 
@@ -56,12 +64,13 @@ actor StreamResolver: StreamResolving {
     private let client = InnerTubeClient.shared
     private let decipher = SignatureDecipher.shared
 
-    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream {
-        PlaybackLog.note("resolving videoId=\(videoId)")
+    func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
+        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—")")
         let signatureTimestamp = try await decipher.signatureTimestamp()
         let response = try await client.player(
             videoId: videoId,
-            signatureTimestamp: signatureTimestamp
+            signatureTimestamp: signatureTimestamp,
+            playlistId: playlistId
         )
 
         let status = response.playabilityStatus?.status ?? "nil"

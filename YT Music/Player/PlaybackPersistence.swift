@@ -18,15 +18,19 @@ struct PersistedPlayback: Codable {
     var repeatMode: PlayerState.RepeatMode
     var album: String
     var isShuffled: Bool = false
+    /// The playlist the queue was started from (attribution context), if any.
+    var playlistId: String? = nil
 
     init(nowPlaying: PlayerState.NowPlaying, tracks: [StoredTrack], currentIndex: Int,
-         repeatMode: PlayerState.RepeatMode, album: String, isShuffled: Bool = false) {
+         repeatMode: PlayerState.RepeatMode, album: String, isShuffled: Bool = false,
+         playlistId: String? = nil) {
         self.nowPlaying = nowPlaying
         self.tracks = tracks
         self.currentIndex = currentIndex
         self.repeatMode = repeatMode
         self.album = album
         self.isShuffled = isShuffled
+        self.playlistId = playlistId
     }
 
     // Tolerant decode so snapshots saved before shuffle existed still restore
@@ -39,6 +43,7 @@ struct PersistedPlayback: Codable {
         repeatMode = try c.decode(PlayerState.RepeatMode.self, forKey: .repeatMode)
         album = try c.decode(String.self, forKey: .album)
         isShuffled = try c.decodeIfPresent(Bool.self, forKey: .isShuffled) ?? false
+        playlistId = try c.decodeIfPresent(String.self, forKey: .playlistId)
     }
 
     /// Codable mirror of `Track` (which carries a non-persisted UUID id).

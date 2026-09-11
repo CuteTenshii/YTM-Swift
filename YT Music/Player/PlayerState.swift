@@ -35,6 +35,13 @@ extension RadioProviding {
 
 extension InnerTubeClient: RadioProviding {}
 
+/// Playlist-id builders shared by the playback paths (the queue context the
+/// player request reports so listens attribute to their source).
+enum MixIds {
+    /// A song's auto-generated radio: `RDAMVM<videoId>`.
+    static func songRadio(for videoId: String) -> String { "RDAMVM\(videoId)" }
+}
+
 @MainActor
 @Observable
 final class PlayerState {
@@ -110,6 +117,11 @@ final class PlayerState {
     private(set) var queue: [Track] = []
     private(set) var currentIndex = 0
     private var albumContext = ""
+    /// The playlist the current queue was started from (a "Play all" playlist
+    /// or a radio's mix id), when known — sent with the player request so the
+    /// listen is attributed to it. nil for one-off plays and track listings
+    /// with no known playlist id.
+    private var playlistContext: String?
     /// The continuation token to fetch the next batch of the radio currently
     /// backing the queue, if any. Cleared whenever the queue is rebuilt from
     /// something other than that radio.
@@ -191,10 +203,11 @@ final class PlayerState {
     /// Not part of any album, so a stale album context from a previous play is
     /// dropped along with the old queue.
     func play(title: String, subtitle: String, album: String = "", thumbnailURL: URL?, videoId: String,
-              artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
+               artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         queue = []
         currentIndex = 0
         albumContext = ""
+        playlistContext = nil
         radioContinuation = nil
         resetShuffle()
         startTrack(title: title, subtitle: subtitle, album: album,
@@ -218,7 +231,9 @@ final class PlayerState {
     /// Plays `tracks` as a queue, starting at the track at `startAt` (an index
     /// into `tracks`). Unplayable tracks (no videoId) are filtered out; if the
     /// requested track isn't playable, the next playable one is used.
-    func play(_ tracks: [Track], startAt: Int, album: String = "") {
+    /// `playlistId` is the playlist the listing belongs to, when the caller
+    /// knows it — plays are then attributed to that playlist.
+    func play(_ tracks: [Track], startAt: Int, album: String = "", playlistId: String? = nil) {
         let playable = tracks.filter { $0.videoId != nil }
         guard !playable.isEmpty else { return }
 
@@ -232,6 +247,7 @@ final class PlayerState {
 
         queue = playable
         albumContext = album
+        playlistContext = playlistId
         currentIndex = index
         radioContinuation = nil
         resetShuffle()
@@ -290,6 +306,8 @@ final class PlayerState {
         // Only install if the user is still on the seed track.
         guard !playable.isEmpty, let nowPlaying, nowPlaying.videoId == videoId else { return }
         radioContinuation = page.continuation
+        // The queue is now the seed's radio — attribute plays to the mix.
+        playlistContext = MixIds.songRadio(for: videoId)
         if let index = playable.firstIndex(where: { $0.videoId == videoId }) {
             queue = playable
             currentIndex = index
@@ -325,7 +343,7 @@ final class PlayerState {
         guard let tracks = try? await radioProvider.watchQueue(videoId: videoId ?? "", playlistId: playlistId),
               !tracks.isEmpty else { return }
         let start = videoId.flatMap { id in tracks.firstIndex { $0.videoId == id } } ?? 0
-        play(tracks, startAt: start)
+        play(tracks, startAt: start, playlistId: playlistId)
     }
 
     /// Autoplay: when the current track has nothing after it (a one-off play, or
@@ -348,6 +366,9 @@ final class PlayerState {
     /// in case the user moved on meanwhile.
     func appendRadio(seed videoId: String) async {
         let page: RadioPage?
+        // A fresh radio (autoplay off a one-off/album) re-attributes the queue
+        // to the new mix; continuing an existing one keeps its attribution.
+        let isFreshRadio = radioContinuation == nil
         if let token = radioContinuation {
             page = try? await radioProvider.continueRadio(token)
         } else {
@@ -368,6 +389,7 @@ final class PlayerState {
         radioContinuation = page.continuation
         // The appended tracks are radio, not part of any album.
         albumContext = ""
+        if isFreshRadio { playlistContext = MixIds.songRadio(for: videoId) }
         if queue.isEmpty {
             // One-off play: the seed becomes the head of a fresh queue, radio
             // follows it (so `previous` still returns to the seed).
@@ -631,6 +653,7 @@ final class PlayerState {
         currentIndex = queue.isEmpty ? 0 : min(max(0, snapshot.currentIndex), queue.count - 1)
         repeatMode = snapshot.repeatMode
         albumContext = snapshot.album
+        playlistContext = snapshot.playlistId
         isShuffled = snapshot.isShuffled
         awaitingResume = true
     }
@@ -644,7 +667,8 @@ final class PlayerState {
             currentIndex: currentIndex,
             repeatMode: repeatMode,
             album: albumContext,
-            isShuffled: isShuffled
+            isShuffled: isShuffled,
+            playlistId: playlistContext
         ))
     }
 
@@ -708,7 +732,8 @@ final class PlayerState {
     func loadStream(videoId: String) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved = try await resolver.audioStream(videoId: videoId, preferences: preferences)
+            let resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
+                                                          preferences: preferences)
             if Task.isCancelled { return }
             let metadata = NowPlayingMetadata(
                 title: nowPlaying?.title ?? "",
@@ -737,7 +762,6 @@ final class PlayerState {
     /// carried no stats URL.
     private func armHistory(_ resolved: ResolvedStream) {
         guard resolved.historyURL != nil || resolved.watchtimeURL != nil, resolved.cpn != nil else {
-            PlaybackLog.note("history: no videostats URL in player response")
             return
         }
         pendingHistory = resolved
@@ -843,7 +867,8 @@ final class PlayerState {
     private func loadCrossfade(videoId: String, seconds: Double) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved = try await resolver.audioStream(videoId: videoId, preferences: preferences)
+            let resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
+                                                           preferences: preferences)
             if Task.isCancelled { return }
             let metadata = NowPlayingMetadata(
                 title: nowPlaying?.title ?? "",

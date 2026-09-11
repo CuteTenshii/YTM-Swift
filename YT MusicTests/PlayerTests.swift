@@ -15,6 +15,19 @@ import Foundation
 
 enum StubError: Error { case boom }
 
+/// Thread-safe record of resolver calls — PlayerState drives resolves from
+/// fire-and-forget tasks, so the stub (a struct) records through this box.
+nonisolated final class ResolverCalls: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _calls: [(videoId: String, playlistId: String?)] = []
+
+    func record(videoId: String, playlistId: String?) {
+        lock.withLock { _calls.append((videoId, playlistId)) }
+    }
+
+    var calls: [(videoId: String, playlistId: String?)] { lock.withLock { _calls } }
+}
+
 nonisolated struct StubResolver: StreamResolving {
     var url = URL(string: "https://stream.example.com/audio.m4a")!
     var duration: Double? = nil
@@ -22,8 +35,10 @@ nonisolated struct StubResolver: StreamResolving {
     var watchtimeURL: URL? = nil
     var cpn: String? = nil
     var shouldThrow = false
+    let calls = ResolverCalls()
 
-    func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream {
+    func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
+        calls.record(videoId: videoId, playlistId: playlistId)
         if shouldThrow { throw StubError.boom }
         return ResolvedStream(url: url, duration: duration, historyURL: historyURL,
                               watchtimeURL: watchtimeURL, cpn: cpn)
@@ -599,6 +614,56 @@ struct PlayerStateQueueTests {
         await p.loadAndPlayAll(videoId: nil, playlistId: "PL42")
         #expect(p.queue.isEmpty)
         #expect(p.nowPlaying == nil)
+    }
+
+    // MARK: - Playlist attribution
+
+    @Test("A one-off play carries no playlist context")
+    func oneOffPlayHasNoPlaylistContext() async {
+        let resolver = StubResolver()
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: resolver)
+        p.play(title: "S", subtitle: "A", thumbnailURL: nil, videoId: "v")
+
+        await eventually { resolver.calls.calls.count == 1 }
+
+        #expect(resolver.calls.calls.first?.playlistId == nil)
+    }
+
+    @Test("Radio plays attribute to the seed's mix")
+    func radioPlaysAttributeToMix() async {
+        let resolver = StubResolver()
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: resolver,
+                            radioProvider: StubRadio(tracks: tracks(["seed", "n2"])))
+        p.startRadio(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+        await eventually { p.queue.count == 2 }   // radio installed
+
+        p.next()
+
+        await eventually { resolver.calls.calls.count == 2 }
+        #expect(resolver.calls.calls.last?.playlistId == MixIds.songRadio(for: "seed"))
+    }
+
+    @Test("Play-all plays attribute to their playlist")
+    func playAllAttributesToPlaylist() async {
+        let resolver = StubResolver()
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: resolver,
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["a", "b"])))
+
+        await p.loadAndPlayAll(videoId: nil, playlistId: "PL42")
+
+        await eventually { resolver.calls.calls.count == 1 }
+        #expect(resolver.calls.calls.first?.playlistId == "PL42")
+    }
+
+    @Test("The queue's playlist context survives persistence")
+    func playlistContextPersists() async {
+        let store = InMemoryStore()
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["a"])), store: store)
+
+        await p.loadAndPlayAll(videoId: nil, playlistId: "PL42")
+
+        #expect(store.snapshot?.playlistId == "PL42")
     }
 
     // MARK: - Crossfade
