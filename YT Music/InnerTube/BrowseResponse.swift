@@ -65,6 +65,11 @@ struct BrowseResponse: Decodable {
 
     struct SectionList: Decodable {
         let contents: [SectionContent]?
+        let continuations: [BrowseContinuation]?
+
+        var continuationToken: String? {
+            continuations?.first?.nextContinuationData?.continuation
+        }
     }
 
     /// A single entry in a section list. Home shelves arrive as carousels;
@@ -133,6 +138,7 @@ struct MusicShelfRenderer: Decodable {
 
     var continuationToken: String? {
         continuations?.first?.nextContinuationData?.continuation
+            ?? contents?.reversed().compactMap(\.continuationItemRenderer?.token).first
     }
 }
 
@@ -186,6 +192,23 @@ nonisolated struct ButtonRenderer: Decodable {
 struct CarouselItem: Decodable {
     let musicTwoRowItemRenderer: MusicTwoRowItemRenderer?
     let musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?
+    let continuationItemRenderer: ContinuationItemRenderer?
+}
+
+nonisolated struct ContinuationItemRenderer: Decodable {
+    let continuationEndpoint: ContinuationEndpoint?
+
+    struct ContinuationEndpoint: Decodable {
+        let continuationCommand: ContinuationCommand?
+    }
+
+    struct ContinuationCommand: Decodable {
+        let token: String?
+    }
+
+    var token: String? {
+        continuationEndpoint?.continuationCommand?.token
+    }
 }
 
 // MARK: - Card renderers

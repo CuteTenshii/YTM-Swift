@@ -241,22 +241,69 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     }
 
     /// Loads the next batch of tracks from an album or playlist browse page.
-    func entityContinuation(_ token: String, page: EntityPage) async throws -> EntityPage {
+    func entityContinuation(
+        _ token: String,
+        startIndex: Int,
+        header: EntityHeader
+    ) async throws -> EntityPage {
         let response: EntityBrowseResponse = try await post(
             "browse",
             body: ["continuation": token]
         )
         let next = EntityPageParser.parseContinuation(
             response,
-            startIndex: page.tracks.count + 1,
-            header: page.header
+            startIndex: startIndex,
+            header: header
         )
         return EntityPage(
-            header: page.header,
+            header: header,
             tracks: next.tracks,
             shelves: [],
             continuationToken: next.continuationToken
         )
+    }
+
+    /// Loads the complete lightweight playlist index used by playlist search.
+    /// This contains names and IDs, not full browse rows, so it does not create
+    /// thousands of SwiftUI views or eagerly load artwork.
+    func playlistFilterMetadata(playlistId: String) async throws -> [Track] {
+        let response: PlaylistFilterMetadataResponse = try await post(
+            "get_playlist_filter_search_metadata",
+            body: ["playlistId": playlistId]
+        )
+        var seenVideoIds = Set<String>()
+        return (response.tracks ?? []).compactMap(\.track).filter { track in
+            guard let videoId = track.videoId else { return false }
+            return seenVideoIds.insert(videoId).inserted
+        }
+    }
+
+    /// Hydrates playlist-index matches with the full browse row renderers.
+    func playlistFilterSearch(playlistId: String, tracks: [Track]) async throws -> [Track] {
+        let identifiers = tracks.compactMap { track -> [String: String]? in
+            guard let videoId = track.videoId,
+                  let setVideoId = track.playlistSetVideoId else { return nil }
+            return ["videoId": videoId, "encryptedSetVideoId": setVideoId]
+        }
+        guard !identifiers.isEmpty else { return [] }
+
+        let response: EntityBrowseResponse = try await post(
+            "browse",
+            body: [
+                "browseId": "FEplaylist_filter_search",
+                "formData": [
+                    "playlistFilterSearchFormData": [
+                        "playlistId": playlistId,
+                        "playlistVideoItemIdentifiers": identifiers,
+                    ]
+                ],
+            ]
+        )
+        let fallback = EntityDestination(
+            browseId: "VL\(playlistId)", kind: .playlist,
+            title: "", subtitle: "", thumbnailURL: nil
+        )
+        return EntityPageParser.parse(response, fallback: fallback).tracks
     }
 
     /// Loads the signed-in user's library landing page (requires auth).

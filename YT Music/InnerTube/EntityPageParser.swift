@@ -20,12 +20,12 @@ nonisolated enum EntityPageParser {
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
-        var continuationToken: String?
+        var continuationToken = continuationToken(from: response.contents)
 
         for section in sections {
             if let shelf = section.listShelf {
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
-                continuationToken = shelf.continuationToken
+                continuationToken = shelf.continuationToken ?? continuationToken
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
             } else if let grid = section.gridRenderer {
@@ -48,13 +48,12 @@ nonisolated enum EntityPageParser {
         startIndex: Int,
         header: EntityHeader
     ) -> (tracks: [Track], continuationToken: String?) {
-        guard let shelf = response.continuationContents?.shelf else {
-            return ([], nil)
-        }
+        let items = response.continuationContents?.shelf?.contents
+            ?? response.continuationItems
         return (
+            parseItems(items ?? [], startIndex: startIndex, header: header),
+            response.continuationToken
         )
-            parseTracks(shelf, startIndex: startIndex, header: header),
-            shelf.continuationToken
     }
 
     // MARK: - Sections
@@ -74,6 +73,18 @@ nonisolated enum EntityPageParser {
         }
 
         return sections
+    }
+
+    private static func continuationToken(
+        from contents: EntityBrowseResponse.EntityContents?
+    ) -> String? {
+        guard let contents else { return nil }
+        let single = contents.singleColumnBrowseResultsRenderer?.tabs?.first?.tabRenderer?
+            .content?.sectionListRenderer?.continuationToken
+        let twoColumn = contents.twoColumnBrowseResultsRenderer
+        return single
+            ?? twoColumn?.tabs?.first?.tabRenderer?.content?.sectionListRenderer?.continuationToken
+            ?? twoColumn?.secondaryContents?.sectionListRenderer?.continuationToken
     }
 
     private static func sectionList(
@@ -187,8 +198,16 @@ nonisolated enum EntityPageParser {
         startIndex: Int,
         header: EntityHeader
     ) -> [Track] {
+        parseItems(shelf.contents ?? [], startIndex: startIndex, header: header)
+    }
+
+    private static func parseItems(
+        _ items: [CarouselItem],
+        startIndex: Int,
+        header: EntityHeader
+    ) -> [Track] {
         var index = startIndex
-        return (shelf.contents ?? []).compactMap { item in
+        return items.compactMap { item in
             guard let row = item.musicResponsiveListItemRenderer else { return nil }
             let columns = row.textColumns
             guard let title = columns.first else { return nil }
@@ -226,6 +245,7 @@ nonisolated enum EntityPageParser {
                 videoId: row.trackVideoId,
                 artists: artists,
                 albumLink: albumLink,
+                playlistSetVideoId: row.playlistSetVideoId,
                 likeStatus: row.likeStatus ?? .indifferent
             )
         }

@@ -46,6 +46,15 @@ struct EntityPage: Sendable {
     var isFeed: Bool {
         header.kind == .unknown && tracks.isEmpty
     }
+
+    func appending(_ next: EntityPage) -> EntityPage {
+        EntityPage(
+            header: header,
+            tracks: tracks + next.tracks,
+            shelves: shelves,
+            continuationToken: next.continuationToken
+        )
+    }
 }
 
 struct EntityHeader: Sendable {
@@ -97,6 +106,8 @@ struct Track: Identifiable, Sendable {
     var feedbackToken: String? = nil
     /// Playlist-scoped id for removing this row from an owned playlist, if known.
     var playlistSetVideoId: String? = nil
+    /// Additional text fields used by lightweight playlist search results.
+    var searchTerms: [String] = []
     /// The account's current like rating for this track, parsed from the row's
     /// menu when available (signed in). `.indifferent` when unknown — enough for
     /// a context menu to show the right "Like" / "Remove from Likes" label.

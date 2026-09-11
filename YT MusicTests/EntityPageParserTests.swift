@@ -303,6 +303,27 @@ struct EntityPageParserTests {
         #expect(next.tracks.first?.index == 2)
         #expect(next.continuationToken == nil)
     }
+
+    @Test("Playlist section continuations are preserved")
+    func parsesSectionContinuation() throws {
+        let fixture = """
+        {
+          "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{
+            "contents":[{"musicPlaylistShelfRenderer":{"contents":[]}}],
+            "continuations":[{"nextContinuationData":{"continuation":"SECTION_PAGE_2"}}]
+          }}}}]}}
+        }
+        """
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(fixture.utf8)
+        )
+        let destination = EntityDestination(
+            browseId: "VLPL123", kind: .playlist, title: "Playlist", subtitle: "", thumbnailURL: nil
+        )
+        let page = EntityPageParser.parse(response, fallback: destination)
+
+        #expect(page.continuationToken == "SECTION_PAGE_2")
+    }
 }
 
 @Suite("Playlist save target")

@@ -14,6 +14,39 @@ struct EntityBrowseResponse: Decodable {
     let header: HeaderContainer?
     let contents: EntityContents?
     let continuationContents: ContinuationContents?
+    let onResponseReceivedActions: [ResponseAction]?
+    let onResponseReceivedCommands: [ResponseAction]?
+
+    struct ResponseAction: Decodable {
+        let appendContinuationItemsAction: ContinuationItemsAction?
+        let reloadContinuationItemsCommand: ContinuationItemsAction?
+    }
+
+    struct ContinuationItemsAction: Decodable {
+        let continuationItems: [CarouselItem]?
+
+        var continuationToken: String? {
+            continuationItems?.reversed()
+                .compactMap(\.continuationItemRenderer?.token).first
+        }
+    }
+
+    var continuationItems: [CarouselItem] {
+        (onResponseReceivedActions ?? [])
+            .flatMap { $0.appendContinuationItemsAction?.continuationItems ?? [] }
+            + (onResponseReceivedCommands ?? [])
+            .flatMap { $0.reloadContinuationItemsCommand?.continuationItems ?? [] }
+    }
+
+    var continuationToken: String? {
+        continuationContents?.shelf?.continuationToken
+            ?? (onResponseReceivedActions ?? [])
+                .compactMap { $0.appendContinuationItemsAction?.continuationToken }
+                .first
+            ?? (onResponseReceivedCommands ?? [])
+                .compactMap { $0.reloadContinuationItemsCommand?.continuationToken }
+                .first
+    }
 
     struct ContinuationContents: Decodable {
         let musicShelfContinuation: MusicShelfRenderer?

@@ -29,6 +29,7 @@ final class EntityViewModel {
     /// True while a save/unsave request is in flight (disables the button).
     private(set) var isUpdatingSaved = false
     private(set) var isLoadingMore = false
+    private var playlistSearchIndex: [Track]?
 
     /// The playlist id this page can save, derived from the browse id
     /// (`VL<playlistId>`). Only playlists are savable this way — nil for
@@ -65,23 +66,55 @@ final class EntityViewModel {
 
     func loadMore() async {
         guard !isLoadingMore, case .loaded(let page) = state,
-              page.continuationToken != nil else { return }
+              let token = page.continuationToken else { return }
 
         isLoadingMore = true
         defer { isLoadingMore = false }
 
         do {
-            let next = try await client.entityContinuation(page.continuationToken!, page: page)
-            state = .loaded(EntityPage(
-                header: page.header,
-                tracks: page.tracks + next.tracks,
-                shelves: page.shelves,
-                continuationToken: next.continuationToken
-            ))
+            let next = try await client.entityContinuation(
+                token,
+                startIndex: page.tracks.count + 1,
+                header: page.header
+            )
+            state = .loaded(page.appending(next))
         } catch {
             // Keep the current page and allow a later scroll attempt to retry.
         }
     }
+
+    func searchPlaylist(_ query: String) async -> [Track]? {
+        guard destination.kind == .playlist,
+              let playlistId = savablePlaylistId else { return nil }
+
+        do {
+            if playlistSearchIndex == nil {
+                playlistSearchIndex = try await client.playlistFilterMetadata(playlistId: playlistId)
+            }
+            let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let matches = playlistSearchIndex?.filter { track in
+                ([track.title, track.subtitle, track.albumLink?.name ?? ""] + track.searchTerms)
+                    .contains { $0.localizedCaseInsensitiveContains(needle) }
+            } ?? []
+            let hydrated = try? await client.playlistFilterSearch(
+                playlistId: playlistId, tracks: matches
+            )
+            let hydratedByVideoId = Dictionary(
+                (hydrated ?? []).compactMap { track in
+                    track.videoId.map { ($0, track) }
+                }, uniquingKeysWith: { first, _ in first }
+            )
+            return matches.enumerated().map { offset, track in
+                let enriched = track.videoId.flatMap { hydratedByVideoId[$0] } ?? track
+                var track = enriched
+                track.index = offset + 1
+                return track
+            }
+        } catch {
+            return nil
+        }
+    }
+
 
     /// Toggles the artist subscription, updating local state only once the request
     /// succeeds (so a failed call leaves the button as it was), then reconciles

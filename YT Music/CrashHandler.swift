@@ -23,18 +23,7 @@ nonisolated enum CrashHandler {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         reportDescriptor = open(reportURL.path, O_WRONLY | O_CREAT | O_APPEND, 0o600)
 
-        NSSetUncaughtExceptionHandler { exception in
-            let details = """
-
-            === Uncaught Objective-C exception ===
-            date: \(ISO8601DateFormatter().string(from: Date()))
-            name: \(exception.name.rawValue)
-            reason: \(exception.reason ?? "unknown")
-            call stack:
-            \(exception.callStackSymbols.joined(separator: "\n"))
-            """
-            append(details)
-        }
+        NSSetUncaughtExceptionHandler(ytmUncaughtExceptionHandler)
 
         for signalNumber in fatalSignals {
             signal(signalNumber, ytmCrashSignalHandler)
@@ -43,7 +32,7 @@ nonisolated enum CrashHandler {
 
     static var latestReportURL: URL { reportURL }
 
-    private static func append(_ message: String) {
+    fileprivate static func appendException(_ message: String) {
         guard let data = message.data(using: .utf8), reportDescriptor != -1 else { return }
         data.withUnsafeBytes { bytes in
             _ = write(reportDescriptor, bytes.baseAddress, data.count)
@@ -59,7 +48,20 @@ nonisolated enum CrashHandler {
     }
 }
 
-private func ytmCrashSignalHandler(_ signalNumber: Int32) {
+nonisolated private func ytmUncaughtExceptionHandler(_ exception: NSException) {
+    let details = """
+
+    === Uncaught Objective-C exception ===
+    date: \(ISO8601DateFormatter().string(from: Date()))
+    name: \(exception.name.rawValue)
+    reason: \(exception.reason ?? "unknown")
+    call stack:
+    \(exception.callStackSymbols.joined(separator: "\n"))
+    """
+    CrashHandler.appendException(details)
+}
+
+nonisolated private func ytmCrashSignalHandler(_ signalNumber: Int32) {
     CrashHandler.appendSignal(signalNumber)
     signal(signalNumber, SIG_DFL)
     kill(getpid(), signalNumber)

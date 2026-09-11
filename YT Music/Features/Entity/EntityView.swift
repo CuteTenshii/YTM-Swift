@@ -14,6 +14,9 @@ struct EntityView: View {
     /// True once the header has scrolled up under the titlebar — flips the
     /// window toolbar from transparent (immersive) to its blurred background.
     @State private var scrolledUnderBar = false
+    @State private var searchText = ""
+    @State private var searchResults: [Track]?
+    @State private var searchCompleted = false
 
     init(destination: EntityDestination) {
         _model = State(initialValue: EntityViewModel(destination: destination))
@@ -28,7 +31,7 @@ struct EntityView: View {
                 EntitySkeleton(circular: model.destination.kind == .artist)
 
             case .loaded(let page):
-                content(page)
+                loadedContent(page)
 
             case .failed(let message):
                 errorView(message)
@@ -42,6 +45,16 @@ struct EntityView: View {
         .toolbarBackground(scrolledUnderBar ? .visible : .hidden, for: .windowToolbar)
         .toolbarColorScheme(.dark, for: .windowToolbar)
         .task { await model.loadIfNeeded() }
+        .task(id: searchText) {
+            searchResults = nil
+            searchCompleted = false
+            guard model.destination.kind == .playlist,
+                  !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            searchResults = await model.searchPlaylist(searchText)
+            searchCompleted = !Task.isCancelled
+        }
         // Re-check subscription state when auth changes (sign-in/out) or the page
         // is revisited, so the subscribe button reflects the server, not a stale
         // optimistic value.
@@ -50,9 +63,26 @@ struct EntityView: View {
 
     // MARK: - Loaded content
 
+    @ViewBuilder
+    private func loadedContent(_ page: EntityPage) -> some View {
+        if model.destination.kind == .playlist {
+            content(page)
+                .searchable(text: $searchText, placement: .toolbar, prompt: "Find in playlist")
+        } else {
+            content(page)
+        }
+    }
+
     private func content(_ page: EntityPage) -> some View {
         // Tracks played from an album page carry the album name into Now Playing.
         let album = page.header.kind == .album ? page.header.title : ""
+        let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let visibleTracks: [Track]
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            visibleTracks = page.tracks
+        } else {
+            visibleTracks = searchResults ?? []
+        }
 
         // Read the titlebar inset, then let the scroll content ignore it so the
         // header gradient bleeds under the (transparent) window toolbar. The
@@ -79,12 +109,21 @@ struct EntityView: View {
                         HeaderView(header: page.header, tracks: page.tracks,
                                    album: album, model: model, topInset: topInset)
 
-                        if !page.tracks.isEmpty {
+                        if !visibleTracks.isEmpty {
                             TrackListView(
-                                tracks: page.tracks,
+                                tracks: visibleTracks,
                                 album: album,
+                                hasMore: !isSearching && page.continuationToken != nil,
                                 onReachedEnd: { Task { await model.loadMore() } }
                             )
+                                .padding(.horizontal, 24)
+                        } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !searchCompleted {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.horizontal, 24)
+                        } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("No tracks found for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                                .foregroundStyle(.secondary)
                                 .padding(.horizontal, 24)
                         }
 
@@ -499,21 +538,29 @@ private struct HeaderView: View {
 private struct TrackListView: View {
     let tracks: [Track]
     let album: String
+    let hasMore: Bool
     let onReachedEnd: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+        LazyVStack(spacing: 0) {
+            ForEach(tracks.indices, id: \.self) { index in
+                let track = tracks[index]
                 TrackRow(
                     track: track,
                     index: index,
                     tracks: tracks,
-                    album: album,
-                    onReachedEnd: onReachedEnd
+                    album: album
                 )
-                if track.id != tracks.last?.id {
+                if index < tracks.count - 1 {
                     Divider().overlay(.white.opacity(0.08))
                 }
+            }
+
+            if hasMore {
+                Color.clear
+                    .frame(height: 1)
+                    .id(tracks.count)
+                    .onAppear(perform: onReachedEnd)
             }
         }
     }
@@ -525,7 +572,6 @@ private struct TrackRow: View {
     let index: Int
     let tracks: [Track]
     let album: String
-    let onReachedEnd: () -> Void
 
     @State private var hovering = false
 
@@ -579,9 +625,6 @@ private struct TrackRow: View {
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
-        .onAppear {
-            if index == tracks.count - 1 { onReachedEnd() }
-        }
         .onTapGesture(count: 2) { player.play(tracks, startAt: index, album: album) }
         .musicContextMenu(
             title: track.title,
