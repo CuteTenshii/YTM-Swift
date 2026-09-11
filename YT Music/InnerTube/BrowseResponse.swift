@@ -129,6 +129,19 @@ nonisolated struct GridRenderer: Decodable {
 struct MusicShelfRenderer: Decodable {
     let title: InnerTubeText?
     let contents: [CarouselItem]?
+    let continuations: [BrowseContinuation]?
+
+    var continuationToken: String? {
+        continuations?.first?.nextContinuationData?.continuation
+    }
+}
+
+nonisolated struct BrowseContinuation: Decodable {
+    let nextContinuationData: ContinuationData?
+}
+
+nonisolated struct ContinuationData: Decodable {
+    let continuation: String?
 }
 
 // MARK: - Carousel shelf

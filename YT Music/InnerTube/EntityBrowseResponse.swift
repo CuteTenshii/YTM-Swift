@@ -13,6 +13,16 @@ import Foundation
 struct EntityBrowseResponse: Decodable {
     let header: HeaderContainer?
     let contents: EntityContents?
+    let continuationContents: ContinuationContents?
+
+    struct ContinuationContents: Decodable {
+        let musicShelfContinuation: MusicShelfRenderer?
+        let musicPlaylistShelfContinuation: MusicShelfRenderer?
+
+        var shelf: MusicShelfRenderer? {
+            musicShelfContinuation ?? musicPlaylistShelfContinuation
+        }
+    }
 
     // MARK: Header
 

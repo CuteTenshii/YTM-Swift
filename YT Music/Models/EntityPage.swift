@@ -38,6 +38,7 @@ struct EntityPage: Sendable {
     var header: EntityHeader
     var tracks: [Track]
     var shelves: [HomeShelf]   // artist albums/singles/related, etc.
+    var continuationToken: String? = nil
 
     /// A bare feed page (e.g. a shelf's "More" → "Listen again"): only carousels
     /// of cards, no entity of its own. Rendered as a titled list of shelves

@@ -262,6 +262,47 @@ struct EntityPageParserTests {
         // The current like rating is read straight from the row's menu.
         #expect(track.likeStatus == .liked)
     }
+
+    @Test("Playlist shelves preserve and parse continuation pages")
+    func parsesPlaylistContinuations() throws {
+        let initialFixture = """
+        {
+          "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+            {"musicPlaylistShelfRenderer":{
+              "contents":[{"musicResponsiveListItemRenderer":{"playlistItemData":{"videoId":"vid1"},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"First song"}]}}}]}}],
+              "continuations":[{"nextContinuationData":{"continuation":"PAGE_2"}}]
+            }}
+          ]}}}}]}}
+        }
+        """
+        let destination = EntityDestination(
+            browseId: "VLPL123", kind: .playlist, title: "Playlist", subtitle: "", thumbnailURL: nil
+        )
+        let initial = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(initialFixture.utf8)
+        )
+        let page = EntityPageParser.parse(initial, fallback: destination)
+
+        #expect(page.tracks.count == 1)
+        #expect(page.continuationToken == "PAGE_2")
+
+        let continuationFixture = """
+        {"continuationContents":{"musicPlaylistShelfContinuation":{
+          "contents":[{"musicResponsiveListItemRenderer":{"playlistItemData":{"videoId":"vid2"},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Second song"}]}}}]}}],
+          "continuations":[]
+        }}}
+        """
+        let continuation = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(continuationFixture.utf8)
+        )
+        let next = EntityPageParser.parseContinuation(
+            continuation, startIndex: page.tracks.count + 1, header: page.header
+        )
+
+        #expect(next.tracks.first?.title == "Second song")
+        #expect(next.tracks.first?.index == 2)
+        #expect(next.continuationToken == nil)
+    }
 }
 
 @Suite("Playlist save target")

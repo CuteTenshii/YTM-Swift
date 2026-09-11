@@ -240,6 +240,25 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityPageParser.parse(response, fallback: destination)
     }
 
+    /// Loads the next batch of tracks from an album or playlist browse page.
+    func entityContinuation(_ token: String, page: EntityPage) async throws -> EntityPage {
+        let response: EntityBrowseResponse = try await post(
+            "browse",
+            body: ["continuation": token]
+        )
+        let next = EntityPageParser.parseContinuation(
+            response,
+            startIndex: page.tracks.count + 1,
+            header: page.header
+        )
+        return EntityPage(
+            header: page.header,
+            tracks: next.tracks,
+            shelves: [],
+            continuationToken: next.continuationToken
+        )
+    }
+
     /// Loads the signed-in user's library landing page (requires auth).
     func library() async throws -> [HomeShelf] {
         let response: BrowseResponse = try await post(

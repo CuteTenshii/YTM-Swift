@@ -80,7 +80,11 @@ struct EntityView: View {
                                    album: album, model: model, topInset: topInset)
 
                         if !page.tracks.isEmpty {
-                            TrackListView(tracks: page.tracks, album: album)
+                            TrackListView(
+                                tracks: page.tracks,
+                                album: album,
+                                onReachedEnd: { Task { await model.loadMore() } }
+                            )
                                 .padding(.horizontal, 24)
                         }
 
@@ -495,11 +499,18 @@ private struct HeaderView: View {
 private struct TrackListView: View {
     let tracks: [Track]
     let album: String
+    let onReachedEnd: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                TrackRow(track: track, index: index, tracks: tracks, album: album)
+                TrackRow(
+                    track: track,
+                    index: index,
+                    tracks: tracks,
+                    album: album,
+                    onReachedEnd: onReachedEnd
+                )
                 if track.id != tracks.last?.id {
                     Divider().overlay(.white.opacity(0.08))
                 }
@@ -514,6 +525,7 @@ private struct TrackRow: View {
     let index: Int
     let tracks: [Track]
     let album: String
+    let onReachedEnd: () -> Void
 
     @State private var hovering = false
 
@@ -567,6 +579,9 @@ private struct TrackRow: View {
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
+        .onAppear {
+            if index == tracks.count - 1 { onReachedEnd() }
+        }
         .onTapGesture(count: 2) { player.play(tracks, startAt: index, album: album) }
         .musicContextMenu(
             title: track.title,

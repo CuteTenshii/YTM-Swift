@@ -20,10 +20,12 @@ nonisolated enum EntityPageParser {
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
+        var continuationToken: String?
 
         for section in sections {
             if let shelf = section.listShelf {
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
+                continuationToken = shelf.continuationToken
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
             } else if let grid = section.gridRenderer {
@@ -33,7 +35,26 @@ nonisolated enum EntityPageParser {
             }
         }
 
-        return EntityPage(header: header, tracks: tracks, shelves: shelves)
+        return EntityPage(
+            header: header,
+            tracks: tracks,
+            shelves: shelves,
+            continuationToken: continuationToken
+        )
+    }
+
+    static func parseContinuation(
+        _ response: EntityBrowseResponse,
+        startIndex: Int,
+        header: EntityHeader
+    ) -> (tracks: [Track], continuationToken: String?) {
+        guard let shelf = response.continuationContents?.shelf else {
+            return ([], nil)
+        }
+        return (
+        )
+            parseTracks(shelf, startIndex: startIndex, header: header),
+            shelf.continuationToken
     }
 
     // MARK: - Sections

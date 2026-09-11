@@ -28,6 +28,7 @@ final class EntityViewModel {
     private(set) var isSaved = false
     /// True while a save/unsave request is in flight (disables the button).
     private(set) var isUpdatingSaved = false
+    private(set) var isLoadingMore = false
 
     /// The playlist id this page can save, derived from the browse id
     /// (`VL<playlistId>`). Only playlists are savable this way — nil for
@@ -59,6 +60,26 @@ final class EntityViewModel {
             state = .loaded(page)
         } catch {
             state = .failed(error.localizedDescription)
+        }
+    }
+
+    func loadMore() async {
+        guard !isLoadingMore, case .loaded(let page) = state,
+              page.continuationToken != nil else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let next = try await client.entityContinuation(page.continuationToken!, page: page)
+            state = .loaded(EntityPage(
+                header: page.header,
+                tracks: page.tracks + next.tracks,
+                shelves: page.shelves,
+                continuationToken: next.continuationToken
+            ))
+        } catch {
+            // Keep the current page and allow a later scroll attempt to retry.
         }
     }
 
