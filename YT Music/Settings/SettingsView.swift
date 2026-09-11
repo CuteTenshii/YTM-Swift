@@ -2,17 +2,33 @@
 //  SettingsView.swift
 //  YT Music
 //
-//  The Settings screen: audio quality, prefer-audio-over-video, crossfade, and
-//  a registry-driven Plugins section. Audio/crossfade live in AppSettings;
-//  plugins render themselves from the PluginHost, so new plugins appear here
-//  automatically without editing this file.
+//  The native macOS settings window (Settings scene, ⌘,): a toolbar tab bar
+//  with Playback, Equalizer, and Plugins tabs. Plugins render themselves from
+//  the PluginHost, so new plugins appear here automatically without editing
+//  this file.
 //
 
 import SwiftUI
 
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            Tab("Playback", systemImage: "speaker.wave.2") {
+                PlaybackSettingsTab()
+            }
+            Tab("Equalizer", systemImage: "slider.horizontal.3") {
+                EqualizerSettingsTab()
+            }
+            Tab("Plugins", systemImage: "puzzlepiece.extension") {
+                PluginsSettingsTab()
+            }
+        }
+    }
+}
+
+/// Audio quality, crossfade, and lyrics-source preferences.
+private struct PlaybackSettingsTab: View {
     @Environment(AppSettings.self) private var settings
-    @Environment(PluginHost.self) private var pluginHost
 
     var body: some View {
         @Bindable var settings = settings
@@ -26,17 +42,6 @@ struct SettingsView: View {
                 }
                 Toggle("Prefer audio over video", isOn: $settings.preferAudioOverVideo)
                 Text("Play music videos as audio-only streams. Turn off to allow combined video+audio streams when they're higher quality.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Lyrics") {
-                Picker("Lyrics source", selection: $settings.lyricsProvider) {
-                    ForEach(LyricsProvider.allCases) { provider in
-                        Text(provider.label).tag(provider)
-                    }
-                }
-                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database matched by title and artist, with wider coverage and synced (karaoke) lyrics. Musixmatch adds word-by-word timing where available, via an unofficial endpoint that can be less reliable.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -57,23 +62,25 @@ struct SettingsView: View {
                 }
             }
 
-            EqualizerSection(settings: settings)
-
-            Section("Plugins") {
-                ForEach(pluginHost.plugins, id: \.id) { plugin in
-                    PluginRow(plugin: plugin, host: pluginHost)
+            Section("Lyrics") {
+                Picker("Lyrics source", selection: $settings.lyricsProvider) {
+                    ForEach(LyricsProvider.allCases) { provider in
+                        Text(provider.label).tag(provider)
+                    }
                 }
+                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database matched by title and artist, with wider coverage and synced (karaoke) lyrics. Musixmatch adds word-by-word timing where available, via an unofficial endpoint that can be less reliable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Settings")
     }
 }
 
-/// The equalizer controls: enable toggle, a preset picker, and a row of
-/// vertical gain sliders (one per band) shown while it's enabled.
-private struct EqualizerSection: View {
-    @Bindable var settings: AppSettings
+/// The equalizer: enable toggle, preset picker, and a row of vertical gain
+/// sliders (one per band).
+private struct EqualizerSettingsTab: View {
+    @Environment(AppSettings.self) private var settings
 
     /// The preset matching the current gains, or nil → "Custom".
     private var selectedPreset: EqualizerPreset? {
@@ -81,39 +88,46 @@ private struct EqualizerSection: View {
     }
 
     var body: some View {
-        Section("Equalizer") {
-            Toggle("Enable equalizer", isOn: $settings.equalizerEnabled)
+        @Bindable var settings = settings
+
+        Form {
+            Section {
+                Toggle("Enable equalizer", isOn: $settings.equalizerEnabled)
+            }
 
             if settings.equalizerEnabled {
-                Picker("Preset", selection: Binding(
-                    get: { selectedPreset },
-                    set: { if let preset = $0 { settings.applyEqualizerPreset(preset) } }
-                )) {
-                    if selectedPreset == nil {
-                        Text("Custom").tag(EqualizerPreset?.none)
+                Section {
+                    Picker("Preset", selection: Binding(
+                        get: { selectedPreset },
+                        set: { if let preset = $0 { settings.applyEqualizerPreset(preset) } }
+                    )) {
+                        if selectedPreset == nil {
+                            Text("Custom").tag(EqualizerPreset?.none)
+                        }
+                        ForEach(EqualizerPreset.allCases) { preset in
+                            Text(preset.label).tag(EqualizerPreset?.some(preset))
+                        }
                     }
-                    ForEach(EqualizerPreset.allCases) { preset in
-                        Text(preset.label).tag(EqualizerPreset?.some(preset))
-                    }
-                }
 
-                HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(Array(EqualizerBands.frequencies.indices), id: \.self) { index in
-                        BandSlider(
-                            gain: Binding(
-                                get: { settings.equalizerGains[index] },
-                                set: { setGain($0, at: index) }
-                            ),
-                            label: EqualizerBands.label(forIndex: index)
-                        )
+                    HStack(alignment: .bottom, spacing: 10) {
+                        ForEach(Array(EqualizerBands.frequencies.indices), id: \.self) { index in
+                            BandSlider(
+                                gain: Binding(
+                                    get: { settings.equalizerGains[index] },
+                                    set: { setGain($0, at: index) }
+                                ),
+                                label: EqualizerBands.label(forIndex: index)
+                            )
+                        }
                     }
-                }
-                .padding(.vertical, 4)
+                    .padding(.vertical, 4)
 
-                Button("Reset to flat") { settings.applyEqualizerPreset(.flat) }
-                    .disabled(selectedPreset == .flat)
+                    Button("Reset to flat") { settings.applyEqualizerPreset(.flat) }
+                        .disabled(selectedPreset == .flat)
+                }
             }
         }
+        .formStyle(.grouped)
     }
 
     /// Writes a single band's gain without replacing the whole array binding
@@ -123,6 +137,23 @@ private struct EqualizerSection: View {
         guard index < gains.count else { return }
         gains[index] = value
         settings.equalizerGains = gains
+    }
+}
+
+/// The registry-driven plugins list: one toggle, description, and (when
+/// enabled) configuration UI per plugin.
+private struct PluginsSettingsTab: View {
+    @Environment(PluginHost.self) private var pluginHost
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(pluginHost.plugins, id: \.id) { plugin in
+                    PluginRow(plugin: plugin, host: pluginHost)
+                }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -170,5 +201,4 @@ private struct PluginRow: View {
     SettingsView()
         .environment(AppSettings())
         .environment(PluginHost(plugins: [DiscordPlugin(), NotificationsPlugin()]))
-        .frame(width: 600, height: 700)
 }

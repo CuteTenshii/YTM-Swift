@@ -43,17 +43,6 @@ struct NavigatorTests {
         }
     }
 
-    @Test("open from Settings (no stack) falls back to Home")
-    func settingsFallsBackToHome() {
-        let nav = Navigator()
-        nav.section = .settings
-
-        nav.open(destination("MPRE_album"))
-
-        #expect(nav.section == .home)
-        #expect(nav.homePath.map(\.browseId) == ["MPRE_album"])
-    }
-
     @Test("open appends (grows the back stack) rather than replacing")
     func appendsToBackStack() {
         let nav = Navigator()

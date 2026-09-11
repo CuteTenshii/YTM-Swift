@@ -20,7 +20,7 @@ final class Navigator {
     /// One navigation path per browsable section. Each section's `NavigationStack`
     /// binds to its own path here (rather than owning a private `@State` path), so
     /// that (a) navigation survives tab switches, and (b) `open(_:)` can push onto
-    /// whichever tab is currently on screen. Settings has no stack.
+    /// whichever tab is currently on screen.
     var homePath: [EntityDestination] = []
     var explorePath: [EntityDestination] = []
     var libraryPath: [EntityDestination] = []
@@ -39,7 +39,7 @@ final class Navigator {
     /// so navigation triggered from outside/below the stacks — the now-playing
     /// bar, a right-click "Go to album/artist", the queue list — stays in the
     /// user's current tab instead of silently pushing onto an off-screen Home
-    /// stack. Settings has no stack, so fall back to Home.
+    /// stack.
     ///
     /// We *append* rather than replace the path. Replacing a non-empty path with
     /// another non-empty path of the same length (e.g. `[A]` → `[B]`, clicking a
@@ -49,13 +49,12 @@ final class Navigator {
     /// reliably and leaves a working back stack. Guard against re-pushing the page
     /// already on top.
     func open(_ destination: EntityDestination) {
-        if section == .settings { section = .home }
         switch section {
         case .explore: append(destination, to: &explorePath)
         case .library: append(destination, to: &libraryPath)
         case .uploads: append(destination, to: &uploadsPath)
         case .history: append(destination, to: &historyPath)
-        case .home, .settings: append(destination, to: &homePath)
+        case .home: append(destination, to: &homePath)
         }
     }
 
@@ -73,7 +72,7 @@ final class Navigator {
         case .library: libraryPath
         case .uploads: uploadsPath
         case .history: historyPath
-        case .home, .settings: homePath
+        case .home: homePath
         }
     }
 

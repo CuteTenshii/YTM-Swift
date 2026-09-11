@@ -15,7 +15,6 @@ struct ContentView: View {
         case library = "Library"
         case uploads = "Uploads"
         case history = "History"
-        case settings = "Settings"
 
         var id: Self { self }
 
@@ -26,7 +25,6 @@ struct ContentView: View {
             case .library:  "books.vertical.fill"
             case .uploads:  "square.and.arrow.up.fill"
             case .history:  "clock.arrow.circlepath"
-            case .settings: "gearshape.fill"
             }
         }
     }
@@ -71,8 +69,6 @@ struct ContentView: View {
                         UploadsView()
                     case .history:
                         HistoryView()
-                    case .settings:
-                        SettingsView()
                     }
                 }
                 .inspector(isPresented: $navigator.showingPanel) {
