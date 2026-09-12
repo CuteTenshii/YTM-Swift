@@ -162,6 +162,12 @@ private struct SessionExpiredBanner: View {
 private struct AccountControl: View {
     let auth: AuthStore
 
+    /// The account avatar pre-rendered as a small circular badge. Menu labels
+    /// are NSPopUpButton-backed and ignore SwiftUI frame/clip modifiers — a
+    /// resizable image there renders at its natural size, blowing up the row —
+    /// so the size and circle mask are baked into the image itself.
+    @State private var avatar: NSImage?
+
     var body: some View {
         Group {
             switch auth.state {
@@ -183,6 +189,7 @@ private struct AccountControl: View {
                     signedInLabel
                 }
                 .menuStyle(.borderlessButton)
+                .task(id: auth.account?.avatarURL) { await loadAvatar() }
             }
         }
         .padding(.horizontal, 12)
@@ -191,7 +198,7 @@ private struct AccountControl: View {
 
     private var signedInLabel: some View {
         HStack(spacing: 8) {
-            avatar
+            avatarView
             VStack(alignment: .leading, spacing: 1) {
                 Text(auth.account?.name ?? "Signed in")
                     .font(.callout.weight(.semibold))
@@ -207,18 +214,60 @@ private struct AccountControl: View {
         }
     }
 
-    private var avatar: some View {
-        CachedAsyncImage(url: auth.account?.avatarURL) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
+    @ViewBuilder
+    private var avatarView: some View {
+        if let avatar {
+            Image(nsImage: avatar)
+        } else {
+            // No resizable/frame here: those don't stick inside menu labels.
             Image(systemName: "person.crop.circle.fill")
-                .resizable()
-                .scaledToFit()
+                .font(.system(size: 24))
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 16, height: 16)
-        .clipShape(.circle)
-        .fixedSize()
+    }
+
+    private func loadAvatar() async {
+        guard let url = auth.account?.avatarURL else {
+            avatar = nil
+            return
+        }
+        if let cached = ImageCache.shared.image(for: url) {
+            avatar = AvatarBadge.circular(cached, side: 28)
+            return
+        }
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = NSImage(data: data) else { return }
+        ImageCache.shared.insert(image, for: url)
+        avatar = AvatarBadge.circular(image, side: 28)
+    }
+}
+
+/// Renders an image as a small circular avatar badge with the mask baked into
+/// the bitmap (2x-pixel rep shown at `side` points, crisp on Retina). Needed
+/// wherever an avatar lives inside a menu label; elsewhere use `ArtworkView`.
+private enum AvatarBadge {
+    static func circular(_ image: NSImage, side: CGFloat) -> NSImage {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(side * 2), pixelsHigh: Int(side * 2),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = NSSize(width: side, height: side)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let rect = NSRect(x: 0, y: 0, width: side, height: side)
+        NSBezierPath(ovalIn: rect).addClip()
+        // Aspect-fill the source into the badge square.
+        let src = image.size
+        if src.width > 0, src.height > 0 {
+            let scale = max(rect.width / src.width, rect.height / src.height)
+            let w = src.width * scale, h = src.height * scale
+            image.draw(in: NSRect(x: (rect.width - w) / 2, y: (rect.height - h) / 2, width: w, height: h))
+        }
+        NSGraphicsContext.current = nil
+        NSGraphicsContext.restoreGraphicsState()
+        let badge = NSImage(size: rep.size)
+        badge.addRepresentation(rep)
+        return badge
     }
 }
 
