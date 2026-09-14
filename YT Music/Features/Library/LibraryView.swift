@@ -13,6 +13,11 @@ struct LibraryView: View {
     @Environment(Navigator.self) private var navigator
     @State private var model = LibraryViewModel()
     @State private var filter: LibraryFilter = .all
+    /// The card being renamed (drives the rename alert), and its draft name.
+    @State private var renaming: HomeItem?
+    @State private var renameText = ""
+    /// The card pending delete confirmation.
+    @State private var deleting: HomeItem?
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
@@ -46,6 +51,29 @@ struct LibraryView: View {
             }
         }
         .task(id: auth.generation) { await model.load(isSignedIn: auth.isSignedIn) }
+        .alert("Rename Playlist", isPresented: renamingBinding) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { renaming = nil }
+            Button("Rename") {
+                if let item = renaming, let id = item.editablePlaylistId {
+                    Task { await model.renamePlaylist(id, to: renameText, isSignedIn: auth.isSignedIn) }
+                }
+                renaming = nil
+            }
+        }
+        .alert("Delete Playlist", isPresented: deletingBinding) {
+            Button("Cancel", role: .cancel) { deleting = nil }
+            Button("Delete", role: .destructive) {
+                if let item = deleting, let id = item.editablePlaylistId {
+                    Task { await model.deletePlaylist(id, isSignedIn: auth.isSignedIn) }
+                }
+                deleting = nil
+            }
+        } message: {
+            if let item = deleting {
+                Text("“\(item.title)” will be permanently deleted.")
+            }
+        }
     }
 
     private func content(_ shelves: [HomeShelf]) -> some View {
@@ -79,11 +107,34 @@ struct LibraryView: View {
                 .foregroundStyle(.white)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(shelf.items) { item in
-                    ItemCard(item: item)
+                    ItemCard(item: item) {
+                        if item.editablePlaylistId != nil {
+                            Button {
+                                renameText = item.title
+                                renaming = item
+                            } label: {
+                                Label("Rename…", systemImage: "pencil")
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                deleting = item
+                            } label: {
+                                Label("Delete Playlist…", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
             }
         }
         .padding(.horizontal, 24)
+    }
+
+    private var renamingBinding: Binding<Bool> {
+        Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })
+    }
+
+    private var deletingBinding: Binding<Bool> {
+        Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })
     }
 
     private var emptyFilterView: some View {

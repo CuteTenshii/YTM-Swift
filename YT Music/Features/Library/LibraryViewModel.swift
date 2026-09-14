@@ -38,4 +38,19 @@ final class LibraryViewModel {
             state = .failed(error.localizedDescription)
         }
     }
+
+    /// Renames one of the user's own playlists (from a card's context menu),
+    /// then reloads the library so the grid reflects it.
+    func renamePlaylist(_ playlistId: String, to title: String, isSignedIn: Bool) async {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try? await client.renamePlaylist(playlistId: playlistId, title: trimmed)
+        await load(isSignedIn: isSignedIn)
+    }
+
+    /// Deletes one of the user's own playlists, then reloads the library.
+    func deletePlaylist(_ playlistId: String, isSignedIn: Bool) async {
+        try? await client.deletePlaylist(playlistId: playlistId)
+        await load(isSignedIn: isSignedIn)
+    }
 }

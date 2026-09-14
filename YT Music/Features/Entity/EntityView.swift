@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct EntityView: View {
     @Environment(AuthStore.self) private var auth
@@ -37,7 +38,7 @@ struct EntityView: View {
                 errorView(message)
             }
         }
-        .navigationTitle(model.destination.title)
+        .navigationTitle(model.title)
         // Let the artwork gradient bleed up under the window titlebar while the
         // header is in view; once scrolled past it, restore the blurred bar so
         // the back button + title stay legible over the track list. Dark scheme
@@ -114,6 +115,8 @@ struct EntityView: View {
                                 tracks: visibleTracks,
                                 album: album,
                                 hasMore: !isSearching && page.continuationToken != nil,
+                                model: model,
+                                onRemove: removeTrack,
                                 onReachedEnd: { Task { await model.loadMore() } }
                             )
                                 .padding(.horizontal, 24)
@@ -146,6 +149,16 @@ struct EntityView: View {
     }
 
     // MARK: - States
+
+    /// Removes a playlist row via the model, then drops it from any live search
+    /// results so both listings stay in sync.
+    private func removeTrack(_ track: Track) {
+        Task {
+            if await model.removeFromPlaylist(track) {
+                searchResults = searchResults?.filter { $0.id != track.id }
+            }
+        }
+    }
 
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
@@ -253,6 +266,7 @@ private struct HeaderView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(Downloader.self) private var downloader
     @Environment(AuthStore.self) private var auth
+    @Environment(Navigator.self) private var navigator
     let header: EntityHeader
     let tracks: [Track]
     let album: String
@@ -263,6 +277,9 @@ private struct HeaderView: View {
 
     /// Prominent colours pulled from the cover art, driving the header gradient.
     @State private var palette: [PaletteColor] = []
+    /// Edit-sheet / delete-confirmation state for the edit menu.
+    @State private var editingPlaylist = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         Group {
@@ -273,6 +290,43 @@ private struct HeaderView: View {
             }
         }
         .task(id: header.thumbnailURL) { await loadPalette() }
+        .contextMenu {
+            if showsEditMenu {
+                editActions
+                Divider()
+            }
+            if let link {
+                ShareLink(item: link)
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(link.absoluteString, forType: .string)
+                } label: {
+                    Label("Copy Link", systemImage: "link")
+                }
+            }
+        }
+        .sheet(isPresented: $editingPlaylist) {
+            EditPlaylistSheet(
+                name: header.title,
+                description: header.description,
+                privacy: header.privacy,
+                save: { name, description, privacy in
+                    await model.editPlaylist(name: name, description: description, privacy: privacy)
+                },
+                onFinish: { editingPlaylist = false }
+            )
+        }
+        .alert("Delete Playlist", isPresented: $confirmingDelete) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    if await model.deletePlaylist() { navigator.goBack() }
+                }
+            }
+        } message: {
+            Text("“\(model.title)” will be permanently deleted.")
+        }
     }
 
     /// The default header: circular/square artwork beside title, subtitle,
@@ -449,6 +503,10 @@ private struct HeaderView: View {
                     saveButton
                 }
 
+                if showsEditMenu {
+                    editMenu
+                }
+
                 if downloader.isEnabled && !tracks.isEmpty {
                     downloadButton
                 }
@@ -466,6 +524,50 @@ private struct HeaderView: View {
     /// Whether to offer the "Save to library" toggle: playlist pages, signed in.
     private var showsSave: Bool {
         auth.isSignedIn && model.savablePlaylistId != nil
+    }
+
+    /// Whether to offer playlist editing (rename / delete): one of the signed-in
+    /// user's own playlists, per the row `setVideoId` signal.
+    private var showsEditMenu: Bool {
+        auth.isSignedIn && model.isEditablePlaylist
+    }
+
+    /// The entity's canonical share URL — a `playlist?list=` link for playlist
+    /// pages, a `/browse/` link for artists/albums/podcasts.
+    private var link: URL? {
+        MusicLinks.url(
+            videoId: nil,
+            playlistId: model.savablePlaylistId,
+            browseId: model.destination.browseId
+        )
+    }
+
+    /// Overflow menu for an owned playlist: metadata editing and deletion.
+    private var editMenu: some View {
+        Menu {
+            editActions
+        } label: {
+            Label("More", systemImage: "ellipsis")
+                .font(.headline)
+                .padding(.horizontal, 8)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    /// The owned-playlist edit affordances, shared by the "More" menu and the
+    /// header's right-click menu.
+    @ViewBuilder
+    private var editActions: some View {
+        Button {
+            editingPlaylist = true
+        } label: {
+            Label("Edit Playlist…", systemImage: "square.and.pencil")
+        }
+        Button(role: .destructive) {
+            confirmingDelete = true
+        } label: {
+            Label("Delete Playlist…", systemImage: "trash")
+        }
     }
 
     /// Subscribe / Subscribed toggle for artist pages.
@@ -539,6 +641,8 @@ private struct TrackListView: View {
     let tracks: [Track]
     let album: String
     let hasMore: Bool
+    let model: EntityViewModel
+    let onRemove: (Track) -> Void
     let onReachedEnd: () -> Void
 
     var body: some View {
@@ -549,7 +653,9 @@ private struct TrackListView: View {
                     track: track,
                     index: index,
                     tracks: tracks,
-                    album: album
+                    album: album,
+                    model: model,
+                    onRemove: onRemove
                 )
                 if index < tracks.count - 1 {
                     Divider().overlay(.white.opacity(0.08))
@@ -568,16 +674,31 @@ private struct TrackListView: View {
 
 private struct TrackRow: View {
     @Environment(PlayerState.self) private var player
+    @Environment(AuthStore.self) private var auth
     let track: Track
     let index: Int
     let tracks: [Track]
     let album: String
+    let model: EntityViewModel
+    let onRemove: (Track) -> Void
 
     @State private var hovering = false
 
     /// Whether this row is the track currently loaded in the player.
     private var isCurrent: Bool {
         track.videoId != nil && track.videoId == player.nowPlaying?.videoId
+    }
+
+    /// "Remove from Playlist" shows when the server said this row can be
+    /// removed — its menu carried the remove action (only rows of playlists
+    /// the signed-in user can edit get one) — and the row carries the
+    /// playlist-scoped `setVideoId` the remove request needs.
+    private var showsRemoveFromPlaylist: Bool {
+        auth.isSignedIn
+            && model.editablePlaylistId != nil
+            && track.videoId != nil
+            && track.playlistSetVideoId != nil
+            && track.canRemoveFromPlaylist
     }
 
     var body: some View {
@@ -636,6 +757,14 @@ private struct TrackRow: View {
             artists: track.artists,
             albumLink: track.albumLink,
             likeStatus: track.likeStatus
-        )
+        ) {
+            if showsRemoveFromPlaylist {
+                Button(role: .destructive) {
+                    onRemove(track)
+                } label: {
+                    Label("Remove from Playlist", systemImage: "minus.circle")
+                }
+            }
+        }
     }
 }

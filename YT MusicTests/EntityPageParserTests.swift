@@ -304,6 +304,44 @@ struct EntityPageParserTests {
         #expect(next.continuationToken == nil)
     }
 
+    @Test("A remove-from-playlist menu action — not a bare setVideoId — marks a row removable")
+    func playlistRemovalPermissionComesFromTheRowMenu() throws {
+        let fixture = """
+        {
+          "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+            {"musicPlaylistShelfRenderer":{"contents":[
+              {"musicResponsiveListItemRenderer":{
+                "playlistItemData":{"videoId":"vid1","playlistSetVideoId":"set1"},
+                "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Owned row"}]}}}],
+                "menu":{"menuRenderer":{"items":[
+                  {"menuServiceItemRenderer":{"serviceEndpoint":{
+                    "playlistEditEndpoint":{"playlistId":"PL123","actions":[{"action":"ACTION_REMOVE_VIDEO","removedVideoId":"vid1"}]}
+                  }}}
+                ]}}
+              }},
+              {"musicResponsiveListItemRenderer":{
+                "playlistItemData":{"videoId":"vid2","playlistSetVideoId":"set2"},
+                "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Saved-playlist row"}]}}}]
+              }}
+            ]}}
+          ]}}}}]}}
+        }
+        """
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(fixture.utf8)
+        )
+        let destination = EntityDestination(
+            browseId: "VLPL123", kind: .playlist, title: "Playlist", subtitle: "", thumbnailURL: nil
+        )
+        let page = EntityPageParser.parse(response, fallback: destination)
+
+        // Both rows carry the removal plumbing (setVideoId)…
+        #expect(page.tracks.allSatisfy { $0.playlistSetVideoId != nil })
+        // …but only the one whose menu offers the remove action is removable:
+        #expect(page.tracks[0].canRemoveFromPlaylist == true)
+        #expect(page.tracks[1].canRemoveFromPlaylist == false)
+    }
+
     @Test("Playlist section continuations are preserved")
     func parsesSectionContinuation() throws {
         let fixture = """

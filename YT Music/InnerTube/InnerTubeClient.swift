@@ -108,11 +108,23 @@ private actor WatchNextStore {
     }
 }
 
-/// Visibility of a newly created playlist.
-nonisolated enum PlaylistPrivacy: String, Sendable {
+/// Visibility of one of the user's playlists, as sent by `playlist/create` and
+/// the `edit_playlist` set-privacy action.
+nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
     case `public` = "PUBLIC"
+
+    /// The visibility as labelled on an owned playlist's header/byline ("Private
+    /// playlist" / "Unlisted playlist" / "Public playlist"), or nil when the
+    /// text doesn't say — saved playlists and albums never do.
+    init?(subtitleText: String) {
+        let lowered = subtitleText.lowercased()
+        if lowered.contains("private playlist") { self = .private }
+        else if lowered.contains("unlisted playlist") { self = .unlisted }
+        else if lowered.contains("public playlist") { self = .public }
+        else { return nil }
+    }
 }
 
 /// The signed-in user's rating of a track, mirroring YT Music's like/dislike UI.
@@ -638,12 +650,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// Creates a new playlist and returns its id. `videoIds` seeds it with tracks
-    /// (the "Save to a new playlist" flow). Requires auth.
+    /// Creates a new private playlist and returns its id. `videoIds` seeds it
+    /// with tracks (the "Save to a new playlist" flow). Requires auth.
     @discardableResult
-    func createPlaylist(title: String, videoIds: [String] = [],
-                        privacy: PlaylistPrivacy = .private) async throws -> String {
-        var body: [String: Any] = ["title": title, "privacyStatus": privacy.rawValue]
+    func createPlaylist(title: String, videoIds: [String] = []) async throws -> String {
+        var body: [String: Any] = ["title": title, "privacyStatus": "PRIVATE"]
         if !videoIds.isEmpty { body["videoIds"] = videoIds }
         let response: CreatePlaylistResponse = try await post("playlist/create", body: body)
         guard let id = response.playlistId else { throw InnerTubeError.emptyResponse }
@@ -664,6 +675,28 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         try await editPlaylist(playlistId: playlistId, actions: [
             ["action": "ACTION_SET_PLAYLIST_NAME", "playlistName": title]
         ])
+    }
+
+    /// Applies metadata edits (name / description / visibility) to one of the
+    /// user's playlists as one `edit_playlist` batch. Nil fields produce no
+    /// action, so callers send just what changed. Requires auth.
+    func updatePlaylist(playlistId: String,
+                       title: String? = nil,
+                       description: String? = nil,
+                       privacy: PlaylistPrivacy? = nil) async throws {
+        var actions: [[String: Any]] = []
+        if let title {
+            actions.append(["action": "ACTION_SET_PLAYLIST_NAME", "playlistName": title])
+        }
+        if let description {
+            actions.append(["action": "ACTION_SET_PLAYLIST_DESCRIPTION",
+                            "playlistDescription": description])
+        }
+        if let privacy {
+            actions.append(["action": "ACTION_SET_PLAYLIST_PRIVACY",
+                            "playlistPrivacy": privacy.rawValue])
+        }
+        try await editPlaylist(playlistId: playlistId, actions: actions)
     }
 
     /// Adds tracks to one of the user's playlists. Requires auth. Duplicate adds

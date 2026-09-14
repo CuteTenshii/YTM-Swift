@@ -22,12 +22,6 @@ final class PlaylistCoordinator {
         var title: String
     }
 
-    /// Binding-friendly presentation flag for `.sheet(isPresented:)`.
-    var isPresenting: Bool {
-        get { pending != nil }
-        set { if !newValue { pending = nil } }
-    }
-
     /// Requests adding a track to a playlist (opens the picker sheet).
     func requestAdd(videoId: String, title: String) {
         pending = PendingAdd(videoId: videoId, title: title)

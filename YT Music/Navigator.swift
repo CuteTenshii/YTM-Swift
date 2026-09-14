@@ -63,6 +63,18 @@ final class Navigator {
         path.append(destination)
     }
 
+    /// Pops the page currently on screen (e.g. after deleting the playlist whose
+    /// page is showing).
+    func goBack() {
+        switch section {
+        case .explore: if !explorePath.isEmpty { explorePath.removeLast() }
+        case .library: if !libraryPath.isEmpty { libraryPath.removeLast() }
+        case .uploads: if !uploadsPath.isEmpty { uploadsPath.removeLast() }
+        case .history: if !historyPath.isEmpty { historyPath.removeLast() }
+        case .home: if !homePath.isEmpty { homePath.removeLast() }
+        }
+    }
+
     /// The navigation path of the section currently on screen (its last entry is
     /// the page being displayed). Lets "go to" actions disable themselves when
     /// they'd re-open the page already showing.

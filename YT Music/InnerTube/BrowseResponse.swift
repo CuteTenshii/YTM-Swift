@@ -338,6 +338,12 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     /// playlist (nil for rows that aren't playlist items).
     var playlistSetVideoId: String? { playlistItemData?.playlistSetVideoId }
 
+    /// Whether the row's menu carries a remove-from-playlist action — the
+    /// server's own edit-permission signal, present only on rows of playlists
+    /// the signed-in user can edit (including the system playlists, which
+    /// allow item removal but no metadata edits).
+    var offersPlaylistRemoval: Bool { menu?.offersPlaylistRemoval ?? false }
+
     /// History-removal feedback token carried by the row's overflow menu.
     var feedbackToken: String? { menu?.feedbackToken }
 
@@ -351,9 +357,10 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 // MARK: - Shared primitives
 
 /// A renderer's overflow ("⋯") menu. We mine two service tokens from it: the
-/// `feedbackToken` that removes a listening-history row, and the `entityId` that
-/// deletes an uploaded item (which sits behind a confirm-delete dialog). Only the
-/// keys we consume are modeled; the menu carries many more actions.
+/// `feedbackToken` that removes a listening-history row, the `entityId` that
+/// deletes an uploaded item (which sits behind a confirm-delete dialog), and
+/// the `playlistEditEndpoint` that marks a row removable from its playlist.
+/// Only the keys we consume are modeled; the menu carries many more actions.
 nonisolated struct RendererMenu: Decodable {
     let menuRenderer: MenuRenderer?
 
@@ -441,9 +448,14 @@ nonisolated struct RendererMenu: Decodable {
     struct ServiceEndpoint: Decodable {
         let feedbackEndpoint: FeedbackEndpoint?
         let deletePrivatelyOwnedEntityCommand: DeleteEntity?
+        let playlistEditEndpoint: PlaylistEditEndpoint?
 
         struct FeedbackEndpoint: Decodable { let feedbackToken: String? }
         struct DeleteEntity: Decodable { let entityId: String? }
+        /// The remove-from-playlist action ("Remove from <name>"). Only its
+        /// presence matters here — the remove request is rebuilt from the
+        /// row's `videoId` + `setVideoId`.
+        struct PlaylistEditEndpoint: Decodable {}
     }
 
     /// The history-removal feedback token, if this menu carries one.
@@ -451,6 +463,16 @@ nonisolated struct RendererMenu: Decodable {
         (menuRenderer?.items ?? [])
             .compactMap { $0.menuServiceItemRenderer?.serviceEndpoint?.feedbackEndpoint?.feedbackToken }
             .first
+    }
+
+    /// Whether this menu carries a remove-from-playlist action — present only
+    /// on rows of playlists the signed-in user can edit, so it doubles as the
+    /// playlist-ownership signal (unlike `playlistSetVideoId`, which any
+    /// playlist's rows may carry).
+    var offersPlaylistRemoval: Bool {
+        (menuRenderer?.items ?? []).contains {
+            $0.menuServiceItemRenderer?.serviceEndpoint?.playlistEditEndpoint != nil
+        }
     }
 
     /// The track's current like rating from the menu, if present. Track-list rows

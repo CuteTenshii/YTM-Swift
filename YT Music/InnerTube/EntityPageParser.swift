@@ -101,14 +101,16 @@ nonisolated enum EntityPageParser {
         fallback: EntityDestination
     ) -> EntityHeader {
         if let detail = container?.musicDetailHeaderRenderer {
+            let subtitle = joinNonEmpty(detail.subtitle?.text, detail.secondSubtitle?.text)
             return EntityHeader(
                 title: detail.title?.text ?? fallback.title,
-                subtitle: joinNonEmpty(detail.subtitle?.text, detail.secondSubtitle?.text),
+                subtitle: subtitle,
                 description: detail.description?.text ?? "",
                 thumbnailURL: detail.thumbnail?.croppedSquareThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
-                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist }
+                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist },
+                privacy: PlaylistPrivacy(subtitleText: subtitle)
             )
         }
 
@@ -130,7 +132,8 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: responsive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
-                artists: artists
+                artists: artists,
+                privacy: PlaylistPrivacy(subtitleText: subtitle)
             )
         }
 
@@ -246,6 +249,7 @@ nonisolated enum EntityPageParser {
                 artists: artists,
                 albumLink: albumLink,
                 playlistSetVideoId: row.playlistSetVideoId,
+                canRemoveFromPlaylist: row.offersPlaylistRemoval,
                 likeStatus: row.likeStatus ?? .indifferent
             )
         }

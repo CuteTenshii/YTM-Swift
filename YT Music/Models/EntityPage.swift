@@ -75,6 +75,11 @@ struct EntityHeader: Sendable {
     /// The artist header's "Shuffle"/"Start radio" playlist id (e.g. `RDEM…`),
     /// when present — lets an artist page start a mix with no video seed.
     var radioPlaylistId: String? = nil
+    /// The playlist's visibility, when the header labels it (owned playlists
+    /// say "Private playlist" / "Unlisted playlist" / "Public playlist" in
+    /// their strapline). Nil when the page didn't say — playlists you don't
+    /// own never do.
+    var privacy: PlaylistPrivacy? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist }
 }
@@ -105,7 +110,14 @@ struct Track: Identifiable, Sendable {
     /// History-removal feedback token, when this track came from the history page.
     var feedbackToken: String? = nil
     /// Playlist-scoped id for removing this row from an owned playlist, if known.
+    /// Note: this is plumbing, not permission — rows of *any* playlist may carry
+    /// one. `canRemoveFromPlaylist` is the permission signal.
     var playlistSetVideoId: String? = nil
+    /// The server's permission signal: this row's menu carried a
+    /// remove-from-playlist action, which only rows of playlists the signed-in
+    /// user can edit get. Gates both the row's "Remove from Playlist" entry
+    /// and the page's edit affordances.
+    var canRemoveFromPlaylist: Bool = false
     /// Additional text fields used by lightweight playlist search results.
     var searchTerms: [String] = []
     /// The account's current like rating for this track, parsed from the row's

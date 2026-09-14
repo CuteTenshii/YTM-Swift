@@ -17,3 +17,11 @@ struct EditablePlaylist: Identifiable, Sendable, Equatable {
     var subtitle: String
     var thumbnailURL: URL?
 }
+
+extension String {
+    /// Whether this raw playlist id names a system playlist — "Liked Music"
+    /// (`LM`) and saved podcast episodes (`SE`) — which carry playlist-shaped
+    /// data (even row `setVideoId`s) but reject edits: likes are managed
+    /// per-track, and podcast saves aren't playlist membership.
+    var isSystemPlaylistId: Bool { self == "LM" || self == "SE" }
+}
