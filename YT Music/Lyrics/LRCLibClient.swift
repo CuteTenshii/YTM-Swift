@@ -23,8 +23,6 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
     }
 
     private struct LRCLibTrack: Decodable {
-        let trackName: String?
-        let artistName: String?
         let plainLyrics: String?
         let syncedLyrics: String?
         let instrumental: Bool?

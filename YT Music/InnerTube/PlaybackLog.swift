@@ -25,15 +25,6 @@ nonisolated enum PlaybackLog {
         logger.error("🎵 ⚠️ \(message, privacy: .public)")
     }
 
-    /// ~`radius` characters of `js` around the first occurrence of `marker`,
-    /// for pasting back to diagnose extraction.
-    static func excerpt(_ js: String, around marker: String, radius: Int = 160) -> String {
-        guard let range = js.range(of: marker) else { return "«\(marker)» not present" }
-        let start = js.index(range.lowerBound, offsetBy: -radius, limitedBy: js.startIndex) ?? js.startIndex
-        let end = js.index(range.upperBound, offsetBy: radius, limitedBy: js.endIndex) ?? js.endIndex
-        return String(js[start..<end])
-    }
-
     /// Writes the player JS to Caches and returns the path so it can be shared.
     @discardableResult
     static func dumpBaseJS(_ js: String) -> String? {

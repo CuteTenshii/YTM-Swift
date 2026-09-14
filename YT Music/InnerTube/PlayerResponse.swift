@@ -43,7 +43,6 @@ struct PlayerResponse: Decodable, Sendable {
     }
 
     struct StreamingData: Decodable, Sendable {
-        let expiresInSeconds: String?
         let adaptiveFormats: [Format]?
         let formats: [Format]?
     }
@@ -58,7 +57,6 @@ struct PlayerResponse: Decodable, Sendable {
         let signatureCipher: String?
         let cipher: String?         // older key name
         let audioQuality: String?
-        let contentLength: String?
 
         var cipherString: String? { signatureCipher ?? cipher }
 

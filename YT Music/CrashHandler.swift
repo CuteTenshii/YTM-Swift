@@ -30,8 +30,6 @@ nonisolated enum CrashHandler {
         }
     }
 
-    static var latestReportURL: URL { reportURL }
-
     fileprivate static func appendException(_ message: String) {
         guard let data = message.data(using: .utf8), reportDescriptor != -1 else { return }
         data.withUnsafeBytes { bytes in

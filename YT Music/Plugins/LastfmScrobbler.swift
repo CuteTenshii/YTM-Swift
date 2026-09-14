@@ -181,8 +181,6 @@ actor LastfmClient {
         self.account = Self.loadAccount()
     }
 
-    var currentSession: LastfmSession? { account?.session }
-
     // MARK: Auth
 
     /// Step 1: fetch an unauthorized request token to send the user to the browser.

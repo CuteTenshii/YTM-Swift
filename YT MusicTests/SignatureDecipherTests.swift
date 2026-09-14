@@ -14,17 +14,6 @@ import Testing
 import Foundation
 @testable import YT_Music
 
-/// Minimal text fixture for the JS-text extraction helpers (see JSExtractionTests):
-/// not a real player, just the literal shapes those helpers parse.
-let sampleBaseJS = """
-var ZZ={ZA:function(a,b){a.reverse()}};
-var decodeSig=function(a){a=a.split("");ZZ.ZA(a,7);return a.join("")};
-function nTransform(a){return a.toUpperCase()}
-var nArr=[nTransform];
-var hook=function(b){var c;(c=b.get("n"))&&(c=nArr[0](c))&&b.set("n",c)};
-var cfg={signatureTimestamp:20123};
-"""
-
 /// Synthetic player whose URL descramble reverses `s` and uppercases `n`.
 let samplePlayerJS = """
 var _yt_player={};(function(g){
