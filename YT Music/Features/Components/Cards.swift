@@ -153,6 +153,7 @@ struct ItemCard<Extra: View>: View {
             browseId: item.browseId,
             artists: item.artists,
             albumLink: item.albumLink,
+            entityDestination: item.entityDestination,
             likeStatus: item.likeStatus,
             extraActions: { extraMenu }
         )
@@ -274,6 +275,10 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
     let browseId: String?
     let artists: [EntityLink]
     let albumLink: EntityLink?
+    /// The browsable page this item opens when it's an entity card (album /
+    /// playlist / artist / podcast) rather than a playable track. Drives the
+    /// menu's Play / Open entries.
+    let entityDestination: EntityDestination?
     /// This track's current like rating, parsed from the row's response so the
     /// "Like" / "Remove from Likes" entry is labelled correctly. `nil` when the
     /// row carried no like info (e.g. a feed-page card), in which case it's
@@ -338,6 +343,8 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         Label("Add to Playlist…", systemImage: "text.badge.plus")
                     }
                 }
+            } else if let entityDestination {
+                entityActions(entityDestination)
             }
 
             goToArtist
@@ -356,6 +363,26 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
 
             extraActions
         }
+    }
+
+    /// Entity cards (album / playlist / artist / podcast) have no video of
+    /// their own: offer to play the collection when it's queuable, and to open
+    /// its page (what a left-click does).
+    @ViewBuilder
+    private func entityActions(_ destination: EntityDestination) -> some View {
+        if let playlistId {
+            Button {
+                player.playAll(videoId: nil, playlistId: playlistId)
+            } label: {
+                Label("Play", systemImage: "play.fill")
+            }
+        }
+        Button {
+            navigator.open(destination)
+        } label: {
+            Label("Open", systemImage: "arrow.right")
+        }
+        .disabled(isCurrentPage(destination.browseId))
     }
 
     /// "Go to artist" for a single artist, or a submenu listing each when a track
@@ -397,14 +424,21 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
     /// Whether `link` points at the entity page currently on screen (in whichever
     /// tab's stack), so navigating there would be a no-op.
     private func isCurrentPage(_ link: EntityLink) -> Bool {
-        navigator.currentPath.last?.browseId == link.browseId
+        isCurrentPage(link.browseId)
+    }
+
+    private func isCurrentPage(_ browseId: String) -> Bool {
+        navigator.currentPath.last?.browseId == browseId
     }
 }
 
 extension View {
-    /// Adds the standard right-click menu (Play / Add to Playlist / Share / Copy
-    /// link) for a music item, plus "Go to artist"/"Go to album" when those links
-    /// are known, and any screen-specific `extraActions` appended at the bottom.
+    /// Adds the standard right-click menu for a music item. Playable tracks
+    /// (with a `videoId`) get Play / Play Next / Start radio / Like / Add to
+    /// Playlist; entity cards (albums, playlists, artists, podcasts — pass
+    /// their `entityDestination`) get Play / Open instead. Both kinds get
+    /// "Go to artist"/"Go to album" when those links are known, Share / Copy
+    /// Link, and any screen-specific `extraActions` appended at the bottom.
     func musicContextMenu<Extra: View>(
         title: String,
         subtitle: String,
@@ -414,6 +448,7 @@ extension View {
         browseId: String?,
         artists: [EntityLink] = [],
         albumLink: EntityLink? = nil,
+        entityDestination: EntityDestination? = nil,
         likeStatus: LikeStatus? = nil,
         @ViewBuilder extraActions: () -> Extra = { EmptyView() }
     ) -> some View {
@@ -426,6 +461,7 @@ extension View {
             browseId: browseId,
             artists: artists,
             albumLink: albumLink,
+            entityDestination: entityDestination,
             likeStatus: likeStatus,
             extraActions: extraActions()
         ))
