@@ -4,11 +4,6 @@ import AppKit
 /// Keeps the process alive when the only window is closed, so playback continues
 /// in the background and the window can be reopened from the Dock.
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    override init() {
-        super.init()
-        CrashHandler.install()
-    }
-
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -31,6 +26,8 @@ struct YT_MusicApp: App {
     @State private var playlists = PlaylistCoordinator()
 
     init() {
+        CrashHandler.install()
+
         // Settings must exist before the player, which reads audio-quality /
         // crossfade preferences from it on every track.
         let settings = AppSettings()
