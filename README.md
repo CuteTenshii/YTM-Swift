@@ -1,63 +1,91 @@
 # YT Music
 
-A native **macOS** YouTube Music client, built entirely in **SwiftUI**.
+YT Music is a native macOS client for YouTube Music, built with SwiftUI. It
+uses YouTube's private InnerTube API directly from Swift. Playback, stream
+resolution, and signature decoding stay inside the app, with JavaScriptCore
+used for the player code that signs stream URLs.
 
-There's no official YouTube Music API, so this app reverse-implements YouTube's
-private **InnerTube** API directly in Swift — no Python, no sidecar, no yt-dlp.
-Browsing, playback, and even signature/`n`-parameter deciphering all run natively
-in Swift + JavaScriptCore.
+## Screenshots
+
+![Home view](.forgejo/screenshots/home.png)
+
+The app combines browse shelves, search, a docked playback bar, and a
+now-playing inspector with Queue, Lyrics, Related, and Comments tabs.
+
+![Playlist view](.forgejo/screenshots/playlist.png)
+
+Playlist pages show artwork, playlist actions, search within the playlist, and
+the track list with playback controls.
+
+![Plugins settings](.forgejo/screenshots/plugins.png)
+
+The native settings window includes a Plugins tab for enabling and configuring
+integrations.
 
 ## Features
 
-- 🎵 **Playback** — gapless streaming with crossfade and a 10-band graphic equalizer
-- 🏠 **Browse** — home feed, explore, search, albums, artists, and playlists
-- 📚 **Library** — your playlists, likes, listening history, and uploads
-- ✏️ **Playlist editing** — create, rename, delete, and add/remove tracks
-- ⬆️ **Uploads** — browse, upload, and delete your own music files
-- 🎤 **Lyrics** — timed & synced lyrics from three providers (YouTube Music, LRCLIB, Musixmatch)
-- 💬 **Now Playing panel** — queue, lyrics, and comments inspector
-- 📻 **Radio & autoplay** — start a radio from any track; queue keeps going on its own
-- ⌨️ **Menu-bar commands** with keyboard shortcuts and Control Center / media-key support
-- 🔌 **Plugins** — Discord Rich Presence, notifications, Last.fm scrobbling, and a downloader
+- Playback with crossfade, queue controls, media-key support, and a 10-band equalizer
+- Home, Explore, Search, album, artist, playlist, and entity pages
+- Personal library, likes, listening history, and uploads
+- Playlist creation and editing, including adding and removing tracks
+- Upload, browse, and delete support for your own music files
+- Timed lyrics from YouTube Music, LRCLIB, and Musixmatch
+- Queue, lyrics, related tracks, and comments in the now-playing inspector
+- Radio and autoplay that continue the queue after a track ends
+- Menu-bar commands and keyboard shortcuts
+- Plugins for Discord Rich Presence, track notifications, Last.fm scrobbling, and downloads
 
 ## Requirements
 
-- macOS (Apple Silicon or Intel)
-- A recent Xcode to build
-- A Google account to sign in (sign-in happens in an embedded web view; cookies are stored in the Keychain)
+- macOS 27.0 or later
+- Xcode 27.0 or later
+- A Google account for signed-in features. Sign-in happens in an embedded web view, and credentials are stored in the Keychain.
 
-## Building
+## Build
 
-Open `YT Music.xcodeproj` in Xcode and hit **Run**.
+Open `YT Music.xcodeproj` in Xcode and run the `YT Music` scheme.
+
+From the command line:
+
+```sh
+xcodebuild -scheme "YT Music" -destination 'platform=macOS' build
+```
 
 ## Architecture
 
-State is `@Observable` and injected through the environment; the networking layer
-is a set of `nonisolated` actors. The module defaults to `@MainActor` isolation,
-so anything that runs off-main is explicitly marked.
+The app uses `@Observable` state injected through SwiftUI's environment. The
+project defaults to `@MainActor` isolation, while networking, parsing, and
+stream resolution types that run off the main actor are explicitly marked
+`nonisolated` or implemented as actors.
 
-| Layer | Responsibility |
+| Directory | Responsibility |
 | --- | --- |
-| `Auth/` | Web-view sign-in, cookie → header credentials, Keychain persistence |
-| `InnerTube/` | The InnerTube API client, DTOs, and parsers |
-| `Models/` | Domain types (feeds, tracks, playlists, lyrics, comments…) |
-| `Features/` | Screens — Home, Search, Library, Entity pages, Now Playing, Uploads… |
-| `Player/` | `AudioPlayer` (dual-AVPlayer crossfade), queue, equalizer tap |
-| `Settings/` | Audio prefs, equalizer, download directory |
-| `Plugins/` | Registry-driven integrations (Discord, notifications, Last.fm, downloader) |
+| `Auth/` | Web-view sign-in, cookie-derived request headers, and Keychain persistence |
+| `InnerTube/` | InnerTube client, response types, parsers, stream resolution, and playback reporting |
+| `Models/` | Domain types for feeds, tracks, playlists, lyrics, comments, history, and uploads |
+| `Features/` | Home, search, library, uploads, entity pages, and now-playing screens |
+| `Player/` | AVPlayer playback, queue state, crossfade, persistence, equalizer, and spectrum analysis |
+| `Settings/` | Playback preferences, equalizer settings, plugin configuration, and download location |
+| `Plugins/` | Registry-driven Discord, notification, Last.fm, and downloader integrations |
 
-The fragile, high-value part is **stream resolution**: `StreamResolver` picks the
-best AAC/MP4 format and `SignatureDecipher` solves the signature and `n` parameter
-by running YouTube's own `base.js` player code inside JavaScriptCore. This is what
-breaks when YouTube ships a new player build.
+## Stream resolution
+
+`StreamResolver` selects an AAC or MP4 stream that AVPlayer can decode.
+`SignatureDecipher` fetches YouTube's current `base.js` player code and runs
+the signature and `n` parameter solver in JavaScriptCore. This part depends on
+YouTube's current player build and may need updating when that code changes.
 
 ## Testing
 
-Unit tests use **Swift Testing** and cover the playback pipeline network-free:
-signature/`n` deciphering against a synthetic `base.js`, stream format selection,
-credential header building, lyrics parsing, and queue/resolve logic.
+Tests use Swift Testing and run without network access. They cover signature
+and `n` decoding, stream format selection, credential headers, parsing, lyrics,
+playlist behavior, and queue and playback state.
+
+```sh
+xcodebuild -scheme "YT Music" -destination 'platform=macOS' test
+```
 
 ## Disclaimer
 
-An unofficial client for personal use. Not affiliated with, endorsed by, or
-sponsored by Google or YouTube.
+YT Music is an unofficial client for personal use. It is not affiliated with,
+endorsed by, or sponsored by Google or YouTube.
