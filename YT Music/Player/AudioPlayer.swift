@@ -34,6 +34,7 @@ final class AudioPlayer: AudioOutput {
     /// Guards against firing "track finished" more than once for the same item
     /// (the end notification and the tick backstop can both observe the end).
     @ObservationIgnored private var hasSignalledEnd = false
+    @ObservationIgnored private var preloadedURL: URL?
 
     /// Live equalizer settings shared with every item's audio tap. Mutating its
     /// `settings` re-equalizes the playing track on the next audio block.
@@ -142,6 +143,7 @@ final class AudioPlayer: AudioOutput {
         fadeTask = nil
         idle.pause()
         idle.replaceCurrentItem(with: nil)
+        preloadedURL = nil
         idle.volume = clampedVolume
 
         self.metadata = metadata
@@ -161,6 +163,40 @@ final class AudioPlayer: AudioOutput {
         updateNowPlayingInfo()
     }
 
+    func preload(url: URL, metadata: NowPlayingMetadata) {
+        guard url != preloadedURL else { return }
+        let item = makeItem(url: url)
+        idle.pause()
+        idle.replaceCurrentItem(with: item)
+        idle.volume = 0
+        preloadedURL = url
+    }
+
+    func loadPreloaded(url: URL, metadata: NowPlayingMetadata) {
+        guard url == preloadedURL, idle.currentItem != nil else {
+            load(url: url, metadata: metadata)
+            return
+        }
+        fadeTask?.cancel()
+        fadeTask = nil
+        active.pause()
+        active.replaceCurrentItem(with: nil)
+        active = idle
+        preloadedURL = nil
+        self.metadata = metadata
+        observeEnd(of: active.currentItem!)
+        hasSignalledEnd = false
+        active.volume = clampedVolume
+        currentTime = 0
+        bufferedTime = 0
+        duration = metadata.knownDuration ?? 0
+        active.play()
+        isPlaying = true
+        artwork = nil
+        loadArtwork(metadata.artworkURL)
+        updateNowPlayingInfo()
+    }
+
     func crossfade(to url: URL, metadata: NowPlayingMetadata, duration: Double) {
         guard duration > 0 else {
             load(url: url, metadata: metadata)
@@ -173,6 +209,7 @@ final class AudioPlayer: AudioOutput {
         let outgoing = active
         let incoming = idle
         let item = makeItem(url: url)
+        preloadedURL = nil
         incoming.volume = 0
         incoming.replaceCurrentItem(with: item)
         incoming.play()
@@ -196,6 +233,36 @@ final class AudioPlayer: AudioOutput {
             await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: duration)
             // Only this fade's own completion may clear `fadeTask` — if a newer
             // crossfade has since started, its task owns the slot now.
+            if self?.fadeGeneration == generation { self?.fadeTask = nil }
+        }
+    }
+
+    func crossfadePreloaded(url: URL, metadata: NowPlayingMetadata, duration: Double) {
+        guard url == preloadedURL, idle.currentItem != nil else {
+            crossfade(to: url, metadata: metadata, duration: duration)
+            return
+        }
+        preloadedURL = nil
+        fadeTask?.cancel()
+        fadeGeneration += 1
+        let generation = fadeGeneration
+        let outgoing = active
+        let incoming = idle
+        incoming.volume = 0
+        incoming.play()
+        active = incoming
+        observeEnd(of: incoming.currentItem!)
+        hasSignalledEnd = false
+        self.metadata = metadata
+        currentTime = 0
+        bufferedTime = 0
+        self.duration = metadata.knownDuration ?? 0
+        isPlaying = true
+        artwork = nil
+        loadArtwork(metadata.artworkURL)
+        updateNowPlayingInfo()
+        fadeTask = Task { [weak self] in
+            await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: duration)
             if self?.fadeGeneration == generation { self?.fadeTask = nil }
         }
     }

@@ -76,6 +76,11 @@ final class AppSettings {
         didSet { store(crossfadeSeconds, for: .crossfadeSeconds) }
     }
 
+    /// How early to resolve and buffer the next queued track. Zero disables it.
+    var nextTrackPreloadSeconds: Double {
+        didSet { store(nextTrackPreloadSeconds, for: .nextTrackPreloadSeconds) }
+    }
+
     // MARK: Equalizer
 
     var equalizerEnabled: Bool {
@@ -145,6 +150,7 @@ final class AppSettings {
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
         self.crossfadeEnabled = defaults.bool(forKey: Key.crossfadeEnabled.rawValue)
         self.crossfadeSeconds = defaults.object(forKey: Key.crossfadeSeconds.rawValue) as? Double ?? 6
+        self.nextTrackPreloadSeconds = defaults.object(forKey: Key.nextTrackPreloadSeconds.rawValue) as? Double ?? 0
         self.equalizerEnabled = defaults.bool(forKey: Key.equalizerEnabled.rawValue)
         self.equalizerGains = Self.decodeGains(defaults.data(forKey: Key.equalizerGains.rawValue))
         self.downloadDirectory = Self.resolveBookmark(defaults.data(forKey: Key.downloadDirectory.rawValue))
@@ -201,6 +207,7 @@ final class AppSettings {
         case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
         case crossfadeSeconds    = "settings.crossfadeSeconds"
+        case nextTrackPreloadSeconds = "settings.nextTrackPreloadSeconds"
         case equalizerEnabled    = "settings.equalizerEnabled"
         case equalizerGains      = "settings.equalizerGains"
         case downloadDirectory   = "settings.downloadDirectory"

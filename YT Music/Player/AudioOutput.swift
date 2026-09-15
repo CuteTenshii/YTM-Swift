@@ -51,6 +51,10 @@ protocol AudioOutput: AnyObject {
     var onProgress: ((Double, Double) -> Void)? { get set }
 
     func load(url: URL, metadata: NowPlayingMetadata)
+    /// Attaches a stream to the idle player without starting audible playback.
+    func preload(url: URL, metadata: NowPlayingMetadata)
+    /// Starts a stream previously attached with `preload`.
+    func loadPreloaded(url: URL, metadata: NowPlayingMetadata)
     func togglePlayPause()
     func seek(to seconds: Double)
     /// Restarts the current item from the beginning (used for repeat-one, so the
@@ -59,6 +63,8 @@ protocol AudioOutput: AnyObject {
     /// Overlaps the current track with `url` over `duration` seconds, fading the
     /// outgoing track out and the incoming one in. Used for gapless crossfade.
     func crossfade(to url: URL, metadata: NowPlayingMetadata, duration: Double)
+    /// Crossfades using a stream previously attached with `preload`.
+    func crossfadePreloaded(url: URL, metadata: NowPlayingMetadata, duration: Double)
     /// Applies equalizer settings to current and future playback. Takes effect
     /// immediately on the playing track.
     func applyEqualizer(_ settings: EqualizerSettings)
@@ -69,6 +75,11 @@ protocol AudioOutput: AnyObject {
 }
 
 extension AudioOutput {
+    func preload(url: URL, metadata: NowPlayingMetadata) {}
+    func loadPreloaded(url: URL, metadata: NowPlayingMetadata) { load(url: url, metadata: metadata) }
+    func crossfadePreloaded(url: URL, metadata: NowPlayingMetadata, duration: Double) {
+        crossfade(to: url, metadata: metadata, duration: duration)
+    }
     func applyEqualizer(_ settings: EqualizerSettings) {}
     var spectrum: SpectrumAnalyzer? { nil }
     var isActuallyPlaying: Bool { isPlaying }

@@ -62,6 +62,33 @@ private struct PlaybackSettingsTab: View {
                 }
             }
 
+            Section("Next track") {
+                Toggle("Preload next track", isOn: Binding(
+                    get: { settings.nextTrackPreloadSeconds > 0 },
+                    set: { settings.nextTrackPreloadSeconds = $0 ? 5 : 0 }
+                ))
+                HStack {
+                    Slider(
+                        value: Binding(
+                            get: { max(5, settings.nextTrackPreloadSeconds) },
+                            set: { settings.nextTrackPreloadSeconds = $0 }
+                        ),
+                        in: 5...60,
+                        step: 5
+                    )
+                    Text(settings.nextTrackPreloadSeconds > 0
+                         ? "\(Int(settings.nextTrackPreloadSeconds))s"
+                         : "Off")
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .disabled(settings.nextTrackPreloadSeconds == 0)
+                Text("Start buffering the next track before the current one ends. This can reduce gaps on a slow connection.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Lyrics") {
                 Picker("Lyrics source", selection: $settings.lyricsProvider) {
                     ForEach(LyricsProvider.allCases) { provider in

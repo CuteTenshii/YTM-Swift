@@ -148,6 +148,9 @@ final class PlayerState {
     /// True between arming a crossfade and the incoming track actually taking
     /// over, so the outgoing track's natural end doesn't double-advance.
     private var crossfadeLoading = false
+    private var preparedVideoId: String?
+    private var preparedStream: ResolvedStream?
+    private var preloadTask: Task<Void, Never>?
 
     /// The current track's resolved stream, kept so its history beacons can be
     /// fired from real playback progress (not at load). nil until resolved.
@@ -717,6 +720,12 @@ final class PlayerState {
         )
         loadError = nil
         isLoading = true
+        if preparedVideoId != videoId {
+            preloadTask?.cancel()
+            preloadTask = nil
+            preparedVideoId = nil
+            preparedStream = nil
+        }
         persist()
         emitPlaybackChange()
         fetchLikeStatus(for: videoId)
@@ -732,8 +741,16 @@ final class PlayerState {
     func loadStream(videoId: String) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
+            let resolved: ResolvedStream
+            let usedPreloadedStream = preparedVideoId == videoId
+            if usedPreloadedStream, let preparedStream {
+                resolved = preparedStream
+                self.preparedVideoId = nil
+                self.preparedStream = nil
+            } else {
+                resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
                                                           preferences: preferences)
+            }
             if Task.isCancelled { return }
             let metadata = NowPlayingMetadata(
                 title: nowPlaying?.title ?? "",
@@ -742,7 +759,11 @@ final class PlayerState {
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration
             )
-            audio.load(url: resolved.url, metadata: metadata)
+            if usedPreloadedStream {
+                audio.loadPreloaded(url: resolved.url, metadata: metadata)
+            } else {
+                audio.load(url: resolved.url, metadata: metadata)
+            }
             isLoading = false
             emitPlaybackChange()
             // Don't ping history yet — the real client reports a live position once
@@ -809,6 +830,11 @@ final class PlayerState {
         // History beacons fire from real progress regardless of crossfade settings.
         reportHistoryProgress(current: current, duration: duration)
 
+        if let seconds = settings?.nextTrackPreloadSeconds,
+           seconds > 0, duration > 0, duration - current <= seconds {
+            beginPreloadingNext()
+        }
+
         guard let settings, settings.crossfadeEnabled else { return }
         let seconds = settings.crossfadeSeconds
         guard seconds > 0, duration > 0 else { return }
@@ -867,8 +893,16 @@ final class PlayerState {
     private func loadCrossfade(videoId: String, seconds: Double) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
+            let resolved: ResolvedStream
+            let usedPreloadedStream = preparedVideoId == videoId
+            if usedPreloadedStream, let preparedStream {
+                resolved = preparedStream
+                self.preparedVideoId = nil
+                self.preparedStream = nil
+            } else {
+                resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
                                                            preferences: preferences)
+            }
             if Task.isCancelled { return }
             let metadata = NowPlayingMetadata(
                 title: nowPlaying?.title ?? "",
@@ -877,7 +911,11 @@ final class PlayerState {
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration
             )
-            audio.crossfade(to: resolved.url, metadata: metadata, duration: seconds)
+            if usedPreloadedStream {
+                audio.crossfadePreloaded(url: resolved.url, metadata: metadata, duration: seconds)
+            } else {
+                audio.crossfade(to: resolved.url, metadata: metadata, duration: seconds)
+            }
             crossfadeLoading = false
             emitPlaybackChange()
             armHistory(resolved)
@@ -887,6 +925,46 @@ final class PlayerState {
             crossfadeLoading = false
             if !Task.isCancelled { startCurrent() }
         }
+    }
+
+    private func beginPreloadingNext() {
+        guard preparedVideoId == nil, preloadTask == nil,
+              repeatMode != .one, let nextTrack = nextQueuedTrack(),
+              let videoId = nextTrack.videoId else { return }
+
+        let track = nextTrack
+        let playlistId = playlistContext
+        let preferences = settings?.streamPreferences ?? StreamPreferences()
+        preloadTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.preloadTask = nil }
+            do {
+                let resolved = try await self.resolver.audioStream(videoId: videoId, playlistId: playlistId,
+                                                                    preferences: preferences)
+                guard !Task.isCancelled,
+                      self.nowPlaying?.videoId != videoId,
+                      self.nextQueuedTrack()?.videoId == videoId else { return }
+                let metadata = NowPlayingMetadata(
+                    title: track.title,
+                    artist: Self.cleanedArtist(NowPlaying(
+                        title: track.title, subtitle: track.subtitle, album: self.albumContext,
+                        thumbnailURL: track.thumbnailURL, videoId: videoId,
+                        artists: track.artists, albumLink: track.albumLink)),
+                    album: self.albumContext,
+                    artworkURL: track.thumbnailURL,
+                    knownDuration: resolved.duration
+                )
+                self.preparedVideoId = videoId
+                self.preparedStream = resolved
+                self.audio.preload(url: resolved.url, metadata: metadata)
+            } catch {}
+        }
+    }
+
+    private func nextQueuedTrack() -> Track? {
+        if currentIndex + 1 < queue.count { return queue[currentIndex + 1] }
+        guard repeatMode == .all, !queue.isEmpty else { return nil }
+        return queue[0]
     }
 
     // MARK: - Plugin hook

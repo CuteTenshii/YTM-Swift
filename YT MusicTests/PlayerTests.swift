@@ -111,6 +111,8 @@ final class FakeAudioOutput: AudioOutput {
     private(set) var restartCount = 0
     private(set) var crossfadedURL: URL?
     private(set) var crossfadeDuration: Double?
+    private(set) var preloadedURL: URL?
+    private(set) var loadedPreloadedURL: URL?
     private(set) var equalizer: EqualizerSettings?
 
     func load(url: URL, metadata: NowPlayingMetadata) {
@@ -118,6 +120,13 @@ final class FakeAudioOutput: AudioOutput {
         loadedMetadata = metadata
         loadCount += 1
         isPlaying = true
+    }
+    func preload(url: URL, metadata: NowPlayingMetadata) {
+        preloadedURL = url
+    }
+    func loadPreloaded(url: URL, metadata: NowPlayingMetadata) {
+        loadedPreloadedURL = url
+        load(url: url, metadata: metadata)
     }
     func togglePlayPause() { toggleCount += 1; isPlaying.toggle() }
     func seek(to seconds: Double) { seekedTo = seconds; currentTime = seconds }
@@ -679,6 +688,28 @@ struct PlayerStateQueueTests {
             s.crossfadeEnabled = false
         }
         return s
+    }
+
+    private func settings(preload seconds: Double) -> AppSettings {
+        let suite = UserDefaults(suiteName: "test.\(UUID().uuidString)")!
+        let s = AppSettings(defaults: suite)
+        s.nextTrackPreloadSeconds = seconds
+        return s
+    }
+
+    @Test("Preloads the next track at the configured lead time")
+    func preloadsNextTrackNearEnd() async {
+        let audio = FakeAudioOutput()
+        let p = PlayerState(audio: audio, resolver: StubResolver(), settings: settings(preload: 20))
+        p.play(tracks(["a", "b"]), startAt: 0)
+
+        audio.onProgress?(79, 100)
+        #expect(audio.preloadedURL == nil)
+
+        audio.onProgress?(81, 100)
+        await eventually { audio.preloadedURL != nil }
+        #expect(p.currentIndex == 0)
+        #expect(audio.preloadedURL != nil)
     }
 
     @Test("Approaching the end with crossfade on advances to the next track")
