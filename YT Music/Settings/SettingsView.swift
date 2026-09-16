@@ -46,6 +46,20 @@ private struct PlaybackSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Network") {
+                TextField("HTTP proxy URL", text: $settings.proxyURL)
+                    .textFieldStyle(.roundedBorder)
+                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. Relaunch the app after changing it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                if !settings.proxyURL.isEmpty && NetworkProxy(string: settings.proxyURL) == nil {
+                    Text("Enter a valid http:// or https:// proxy URL.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section("Crossfade") {
                 Toggle("Crossfade between tracks", isOn: $settings.crossfadeEnabled)
                 if settings.crossfadeEnabled {

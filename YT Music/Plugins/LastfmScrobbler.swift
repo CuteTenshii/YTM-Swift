@@ -176,8 +176,8 @@ actor LastfmClient {
     /// API key + secret captured at `requestToken`, reused by `completeAuthorization`.
     private var pending: (apiKey: String, secret: String)?
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        self.session = session ?? NetworkSession.make()
         self.account = Self.loadAccount()
     }
 

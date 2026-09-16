@@ -18,8 +18,8 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
     // LRCLIB asks clients to identify themselves in the User-Agent.
     private let userAgent = "YT Music (macOS; https://github.com/tenshii/YT-Music)"
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        self.session = session ?? NetworkSession.make()
     }
 
     private struct LRCLibTrack: Decodable {

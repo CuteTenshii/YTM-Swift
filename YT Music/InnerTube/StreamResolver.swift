@@ -67,7 +67,7 @@ actor StreamResolver: StreamResolving {
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
         PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—")")
         let signatureTimestamp = try await decipher.signatureTimestamp()
-        let response = try await client.player(
+        let response = try await playerResponse(
             videoId: videoId,
             signatureTimestamp: signatureTimestamp,
             playlistId: playlistId
@@ -95,6 +95,45 @@ actor StreamResolver: StreamResolving {
             .flatMap { URL(string: $0) }
         return ResolvedStream(url: url, duration: response.videoDetails?.duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn)
+    }
+
+    /// Player requests are safe to repeat. A short retry covers transient
+    /// connection resets and server errors without retrying auth or playability
+    /// failures that will not change on their own.
+    private func playerResponse(videoId: String, signatureTimestamp: String?, playlistId: String?) async throws -> PlayerResponse {
+        let delays: [UInt64] = [0, 300_000_000, 1_000_000_000]
+        var lastError: Error?
+
+        for (attempt, delay) in delays.enumerated() {
+            if delay > 0 { try await Task.sleep(nanoseconds: delay) }
+            do {
+                return try await client.player(
+                    videoId: videoId,
+                    signatureTimestamp: signatureTimestamp,
+                    playlistId: playlistId
+                )
+            } catch {
+                lastError = error
+                guard attempt < delays.count - 1, Self.isTransient(error) else { throw error }
+                PlaybackLog.note("transient player request failure; retrying attempt \(attempt + 2)")
+            }
+        }
+
+        throw lastError ?? InnerTubeError.emptyResponse
+    }
+
+    nonisolated static func isTransient(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return urlError.code != .cancelled
+        }
+        switch error {
+        case InnerTubeError.emptyResponse:
+            return true
+        case InnerTubeError.badStatus(let code):
+            return (500...599).contains(code)
+        default:
+            return false
+        }
     }
 
     /// Throws when the player response reports the video can't be played

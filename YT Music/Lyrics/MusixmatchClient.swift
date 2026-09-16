@@ -29,8 +29,8 @@ actor MusixmatchClient: LyricsProviding {
     /// The desktop user token, fetched once and reused (it's stable per client).
     private var cachedToken: String?
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        self.session = session ?? NetworkSession.make()
     }
 
     func lyrics(for query: LyricsQuery) async throws -> Lyrics? {

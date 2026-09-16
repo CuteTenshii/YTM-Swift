@@ -53,6 +53,12 @@ final class AppSettings {
         didSet { store(preferAudioOverVideo, for: .preferAudioOverVideo) }
     }
 
+    /// Optional HTTP(S) proxy used by YouTube requests and stream downloads.
+    /// Leave blank to use the system network configuration.
+    var proxyURL: String {
+        didSet { store(proxyURL.isEmpty ? nil : proxyURL, for: .proxyURL) }
+    }
+
     // MARK: Lyrics
 
     /// Where the lyrics panel fetches from.
@@ -145,6 +151,7 @@ final class AppSettings {
         self.audioQuality = (defaults.string(forKey: Key.audioQuality.rawValue)
             .flatMap(AudioQuality.init)) ?? .auto
         self.preferAudioOverVideo = defaults.object(forKey: Key.preferAudioOverVideo.rawValue) as? Bool ?? true
+        self.proxyURL = defaults.string(forKey: Key.proxyURL.rawValue) ?? ""
         self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
             .flatMap(LyricsProvider.init)) ?? .youtubeMusic
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
@@ -203,6 +210,7 @@ final class AppSettings {
     private enum Key: String {
         case audioQuality        = "settings.audioQuality"
         case preferAudioOverVideo = "settings.preferAudioOverVideo"
+        case proxyURL            = "settings.proxyURL"
         case lyricsProvider      = "settings.lyricsProvider"
         case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"

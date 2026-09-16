@@ -130,7 +130,7 @@ final class Downloader {
         try Task.checkCancellation()
 
         let destination = directory.appendingPathComponent(Self.fileName(for: job))
-        let (bytes, response) = try await URLSession.shared.bytes(from: resolved.url)
+        let (bytes, response) = try await NetworkSession.make().bytes(from: resolved.url)
         let total = response.expectedContentLength
 
         var buffer = Data()

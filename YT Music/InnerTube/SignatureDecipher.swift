@@ -70,7 +70,7 @@ actor SignatureDecipher {
     }
 
     private var cached: Solver?
-    private let session = URLSession.shared
+    private let session = NetworkSession.make()
 
     private let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "

@@ -200,8 +200,8 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// like-status paths (see `watchNextInfo(for:)`).
     private let watchNextCache = WatchNextStore()
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        self.session = session ?? NetworkSession.make()
         // The like status carried in cached watch-next info is account-relative,
         // so drop the whole cache whenever the session changes.
         NotificationCenter.default.addObserver(

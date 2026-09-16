@@ -11,6 +11,14 @@ import Foundation
 
 @Suite("Stream selection")
 struct StreamSelectionTests {
+    @Test("Transient player failures are classified for retry")
+    func transientErrors() {
+        #expect(StreamResolver.isTransient(URLError(.networkConnectionLost)))
+        #expect(StreamResolver.isTransient(InnerTubeError.emptyResponse))
+        #expect(StreamResolver.isTransient(InnerTubeError.badStatus(503)))
+        #expect(!StreamResolver.isTransient(InnerTubeError.unauthorized))
+        #expect(!StreamResolver.isTransient(StreamError.noCompatibleAudio))
+    }
 
     private func response(from json: String) throws -> PlayerResponse {
         try JSONDecoder().decode(PlayerResponse.self, from: Data(json.utf8))
