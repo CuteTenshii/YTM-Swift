@@ -53,7 +53,7 @@ struct YT_MusicApp: App {
     var body: some Scene {
         // `Window` (not `WindowGroup`) is a single unique window: no "New Window"
         // command and no ⌘N, so the user can't open multiple copies.
-        Window("YT Music", id: "main") {
+        Window("YouTube Music", id: "main") {
             ContentView()
                 .environment(player)
                 .environment(auth)

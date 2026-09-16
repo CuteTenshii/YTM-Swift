@@ -1,6 +1,6 @@
-# YT Music
+# YouTube Music
 
-YT Music is a native macOS client for YouTube Music, built with SwiftUI. It
+YouTube Music is a native macOS client for YouTube Music, built with SwiftUI. It
 uses YouTube's private InnerTube API directly from Swift. Playback, stream
 resolution, and signature decoding stay inside the app, with JavaScriptCore
 used for the player code that signs stream URLs.
@@ -43,12 +43,12 @@ integrations.
 
 ## Build
 
-Open `YT Music.xcodeproj` in Xcode and run the `YT Music` scheme.
+Open `YT Music.xcodeproj` in Xcode and run the `YouTube Music` scheme.
 
 From the command line:
 
 ```sh
-xcodebuild -scheme "YT Music" -destination 'platform=macOS' build
+xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' build
 ```
 
 ## Architecture
@@ -82,7 +82,7 @@ and `n` decoding, stream format selection, credential headers, parsing, lyrics,
 playlist behavior, and queue and playback state.
 
 ```sh
-xcodebuild -scheme "YT Music" -destination 'platform=macOS' test
+xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' test
 ```
 
 ## Disclaimer

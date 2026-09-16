@@ -7,6 +7,42 @@
 //
 
 import SwiftUI
+import AppKit
+
+private struct WindowTitleUpdater: NSViewRepresentable {
+    let title: String
+
+    func makeNSView(context: Context) -> TitleView {
+        TitleView(title: title)
+    }
+
+    func updateNSView(_ nsView: TitleView, context: Context) {
+        nsView.title = title
+        nsView.updateWindowTitle()
+    }
+
+    final class TitleView: NSView {
+        var title: String
+
+        init(title: String) {
+            self.title = title
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateWindowTitle()
+        }
+
+        func updateWindowTitle() {
+            window?.title = title
+        }
+    }
+}
 
 struct ContentView: View {
     enum Section: String, CaseIterable, Identifiable {
@@ -119,6 +155,17 @@ struct ContentView: View {
                 AddToPlaylistSheet(add: add) { playlists.dismiss() }
             }
         }
+        .background(WindowTitleUpdater(title: windowTitle))
+    }
+
+    private var windowTitle: String {
+        guard let nowPlaying = player.nowPlaying else { return "YouTube Music" }
+
+        let artist = nowPlaying.artists.map(\.name).joined(separator: ", ")
+        let fallbackArtist = PlayerState.withoutTypeLabel(nowPlaying.subtitle)
+            .components(separatedBy: " • ").first ?? ""
+        let artistName = artist.isEmpty ? fallbackArtist : artist
+        return artistName.isEmpty ? nowPlaying.title : "\(artistName) - \(nowPlaying.title)"
     }
 
     /// Presents the "Add to Playlist" picker while the coordinator has a pending
