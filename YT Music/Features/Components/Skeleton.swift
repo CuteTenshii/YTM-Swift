@@ -22,10 +22,10 @@ struct SkeletonBox: View {
     var body: some View {
         Group {
             if circular {
-                Circle().fill(Color.white.opacity(0.08))
+                Circle().fill(Color.primary.opacity(0.08))
             } else {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
+                    .fill(Color.primary.opacity(0.08))
             }
         }
         .frame(width: width, height: height)
@@ -45,7 +45,7 @@ private struct Shimmer: ViewModifier {
                 GeometryReader { geo in
                     let width = geo.size.width
                     LinearGradient(
-                        colors: [.clear, .white.opacity(0.12), .clear],
+                        colors: [.clear, .primary.opacity(0.12), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

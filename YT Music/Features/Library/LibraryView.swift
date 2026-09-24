@@ -26,14 +26,14 @@ struct LibraryView: View {
 
         NavigationStack(path: $navigator.libraryPath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
 
                 switch model.state {
                 case .loading:
                     ProgressView("Loading Library…")
                         .controlSize(.large)
-                        .tint(.white)
-                        .foregroundStyle(.white)
+                        .tint(.primary)
+                        .foregroundStyle(.primary)
 
                 case .signedOut:
                     signedOutView
@@ -104,7 +104,7 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(shelf.items) { item in
                     ItemCard(item: item) {
@@ -155,7 +155,7 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
             Text("Your library lives here")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text("Sign in to see your playlists, albums, and saved music.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -211,8 +211,8 @@ private struct FilterChips: View {
                             .font(.subheadline.weight(.medium))
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(isSelected ? Color.white : Color.white.opacity(0.12))
-                            .foregroundStyle(isSelected ? Color.black : Color.white)
+                            .background(isSelected ? Color.primary : Color.primary.opacity(0.12))
+                            .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
                             .clipShape(.capsule)
                     }
                     .buttonStyle(.plain)

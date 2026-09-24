@@ -24,7 +24,7 @@ struct SearchContent: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 if showsFilters {
@@ -88,7 +88,7 @@ struct SearchContent: View {
             Spacer()
             ProgressView()
                 .controlSize(.large)
-                .tint(.white)
+                .tint(.primary)
             Spacer()
 
         case .results(let shelves):
@@ -123,7 +123,7 @@ struct SearchContent: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .padding(.horizontal, 24)
 
             if isTrackShelf(shelf) {
@@ -160,7 +160,7 @@ struct SearchContent: View {
                 .foregroundStyle(.secondary)
             Text(title)
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -203,10 +203,10 @@ private struct FilterChip: View {
         Button(action: action) {
             Text(title)
                 .font(.callout.weight(.medium))
-                .foregroundStyle(selected ? Color.black : Color.white)
+                .foregroundStyle(selected ? Color.appBackground : Color.primary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .background(selected ? Color.white : Color.white.opacity(0.12))
+                .background(selected ? Color.primary : Color.primary.opacity(0.12))
                 .clipShape(.capsule)
         }
         .buttonStyle(.plain)
@@ -248,7 +248,7 @@ private struct SearchResultRow: View {
                 Text(item.title)
                     .font(.body)
                     .fontWeight(isCurrent ? .semibold : .regular)
-                    .foregroundStyle(isCurrent ? Color.red : .white)
+                    .foregroundStyle(isCurrent ? Color.red : .primary)
                     .lineLimit(1)
                 subtitle
             }
@@ -263,7 +263,7 @@ private struct SearchResultRow: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 8)
-        .background(hovering ? Color.white.opacity(0.06) : .clear)
+        .background(hovering ? Color.primary.opacity(0.06) : .clear)
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
@@ -328,7 +328,7 @@ private struct SearchLink: View {
         NavigationLink(value: link.destination) {
             Text(link.name)
                 .font(.caption)
-                .foregroundStyle(hovering ? Color.white : Color.secondary)
+                .foregroundStyle(hovering ? Color.primary : Color.secondary)
                 .underline(hovering)
                 .lineLimit(1)
         }

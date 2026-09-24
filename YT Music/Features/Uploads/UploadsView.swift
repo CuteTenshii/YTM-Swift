@@ -23,14 +23,14 @@ struct UploadsView: View {
 
         NavigationStack(path: $navigator.uploadsPath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
 
                 switch model.state {
                 case .loading:
                     ProgressView("Loading Uploads…")
                         .controlSize(.large)
-                        .tint(.white)
-                        .foregroundStyle(.white)
+                        .tint(.primary)
+                        .foregroundStyle(.primary)
 
                 case .signedOut:
                     signedOutView
@@ -111,19 +111,19 @@ struct UploadsView: View {
         case .uploading(let name):
             banner {
                 ProgressView().controlSize(.small)
-                Text("Uploading \(name)…").foregroundStyle(.white)
+                Text("Uploading \(name)…").foregroundStyle(.primary)
             }
         case .succeeded(let name):
             banner {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("Uploaded \(name).").foregroundStyle(.white)
+                Text("Uploaded \(name).").foregroundStyle(.primary)
                 Spacer(minLength: 0)
                 dismissButton
             }
         case .failed(let message):
             banner {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(message).foregroundStyle(.white)
+                Text(message).foregroundStyle(.primary)
                 Spacer(minLength: 0)
                 dismissButton
             }
@@ -136,7 +136,7 @@ struct UploadsView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.06))
+            .background(.primary.opacity(0.06))
     }
 
     private var dismissButton: some View {
@@ -153,7 +153,7 @@ struct UploadsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(shelf.items) { item in
                     ItemCard(item: item) {
@@ -180,7 +180,7 @@ struct UploadsView: View {
                 .foregroundStyle(.secondary)
             Text("No uploads yet")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text("Upload your own audio files to play them anywhere you're signed in.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -201,7 +201,7 @@ struct UploadsView: View {
                 .foregroundStyle(.secondary)
             Text("Your uploads live here")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text("Sign in to upload your own music and play it from any device.")
                 .font(.callout)
                 .foregroundStyle(.secondary)

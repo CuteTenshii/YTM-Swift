@@ -65,7 +65,7 @@ private struct ShelfHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
 
             Spacer(minLength: 12)
 
@@ -111,10 +111,10 @@ private struct ShelfButtonView: View {
             }
         }
         .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.white.opacity(0.85))
+        .foregroundStyle(.primary.opacity(0.85))
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .background(.white.opacity(0.1), in: Capsule())
+        .background(.primary.opacity(0.1), in: Capsule())
         .contentShape(Capsule())
     }
 }
@@ -168,7 +168,7 @@ struct ItemCard<Extra: View>: View {
             )
             Text(item.title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
 
@@ -215,16 +215,16 @@ struct ArtworkView: View {
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(.white.opacity(0.06), lineWidth: 1))
+        .overlay(shape.strokeBorder(.primary.opacity(0.06), lineWidth: 1))
         .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
     }
 
     private var placeholder: some View {
         ZStack {
-            Color.white.opacity(0.08)
+            Color.primary.opacity(0.08)
             Image(systemName: circular ? "person.fill" : "music.note")
                 .font(.system(size: size * 0.3))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(.primary.opacity(0.3))
         }
     }
 

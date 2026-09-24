@@ -18,14 +18,14 @@ struct ExploreView: View {
 
         NavigationStack(path: $navigator.explorePath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
 
                 switch model.state {
                 case .idle, .loading:
                     ProgressView("Loading Explore…")
                         .controlSize(.large)
-                        .tint(.white)
-                        .foregroundStyle(.white)
+                        .tint(.primary)
+                        .foregroundStyle(.primary)
 
                 case .loaded(let shelves):
                     content(shelves)
@@ -60,7 +60,7 @@ struct ExploreView: View {
                 .foregroundStyle(.secondary)
             Text("Couldn't load Explore")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)

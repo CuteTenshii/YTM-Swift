@@ -25,7 +25,7 @@ struct EntityView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea()
 
             switch model.state {
             case .loading:
@@ -99,7 +99,7 @@ struct EntityView: View {
                         // whose cards wrap into a grid rather than scrolling.
                         Text(page.header.title)
                             .font(.system(size: 40, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                             .padding(.horizontal, 24)
                             .padding(.top, topInset + 16)
 
@@ -232,7 +232,7 @@ private struct EntitySkeleton: View {
                     .padding(.vertical, 8)
                     .padding(.horizontal, 8)
                 if index < 7 {
-                    Divider().overlay(.white.opacity(0.08))
+                    Divider().overlay(.primary.opacity(0.08))
                 }
             }
         }
@@ -342,7 +342,7 @@ private struct HeaderView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(header.title)
                     .font(.system(size: 40, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(3)
 
                 if !header.subtitle.isEmpty {
@@ -369,7 +369,7 @@ private struct HeaderView: View {
     }
 
     /// A vertical wash built from the two most prominent cover-art colours,
-    /// fading to clear at the bottom so it melts into the black page and the
+    /// fading to clear at the bottom so it melts into the page and the
     /// track list below. Fills the header's frame (which the ScrollView extends
     /// under the titlebar), so the tint reaches the window's top edge.
     private var artworkGradient: some View {
@@ -390,9 +390,9 @@ private struct HeaderView: View {
     /// Scales a palette colour so its brightest channel hits `brightness`,
     /// preserving hue. Unlike `adjusted(brightness:)` (which only darkens), this
     /// also lifts dark, muddy tints — the common case for dim cover art — into a
-    /// vivid wash that actually reads over the black page.
+    /// vivid wash that actually reads over the page.
     private func vivid(_ color: PaletteColor?, brightness target: Double) -> Color {
-        guard let color else { return Color.white.opacity(0.12) }
+        guard let color else { return Color.primary.opacity(0.12) }
         let mx = max(color.red, color.green, color.blue)
         guard mx > 0 else { return Color(.sRGB, red: target, green: target, blue: target) }
         let k = target / mx
@@ -416,8 +416,8 @@ private struct HeaderView: View {
         }
     }
 
-    /// Full-bleed artist banner: the wide artwork fills the width, fading to
-    /// black at the bottom, with the title and actions overlaid.
+    /// Full-bleed artist banner: the wide artwork fills the width, fading into
+    /// the page at the bottom, with the title and actions overlaid.
     private func bannerHeader(_ url: URL) -> some View {
         ZStack(alignment: .bottomLeading) {
             CachedAsyncImage(url: url) { phase in
@@ -425,7 +425,7 @@ private struct HeaderView: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 default:
-                    Color.white.opacity(0.06)
+                    Color.primary.opacity(0.06)
                 }
             }
             .frame(height: 360)
@@ -433,7 +433,7 @@ private struct HeaderView: View {
             .clipped()
             .overlay(
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.35), .black],
+                    colors: [.clear, Color.appBackground.opacity(0.35), Color.appBackground],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -442,20 +442,20 @@ private struct HeaderView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(header.title)
                     .font(.system(size: 52, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                     .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
 
                 if !header.subtitle.isEmpty {
                     Text(header.subtitle)
                         .font(.callout)
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(.primary.opacity(0.85))
                 }
 
                 if !header.description.isEmpty {
                     Text(header.description)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(.primary.opacity(0.75))
                         .lineLimit(3)
                 }
 
@@ -658,7 +658,7 @@ private struct TrackListView: View {
                     onRemove: onRemove
                 )
                 if index < tracks.count - 1 {
-                    Divider().overlay(.white.opacity(0.08))
+                    Divider().overlay(.primary.opacity(0.08))
                 }
             }
 
@@ -722,7 +722,7 @@ private struct TrackRow: View {
                 Text(track.title)
                     .font(.body)
                     .fontWeight(isCurrent ? .semibold : .regular)
-                    .foregroundStyle(isCurrent ? Color.red : .white)
+                    .foregroundStyle(isCurrent ? Color.red : .primary)
                     .lineLimit(1)
                 if !track.subtitle.isEmpty {
                     Text(track.subtitle)
@@ -742,7 +742,7 @@ private struct TrackRow: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 8)
-        .background(hovering ? Color.white.opacity(0.06) : .clear)
+        .background(hovering ? Color.primary.opacity(0.06) : .clear)
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }

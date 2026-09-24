@@ -23,14 +23,14 @@ struct HomeView: View {
 
         NavigationStack(path: $navigator.homePath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
 
                 switch model.state {
                 case .idle, .loading:
                     ProgressView("Loading Home…")
                         .controlSize(.large)
-                        .tint(.white)
-                        .foregroundStyle(.white)
+                        .tint(.primary)
+                        .foregroundStyle(.primary)
 
                 case .loaded(let feed):
                     if showingSearch {
@@ -95,10 +95,10 @@ struct HomeView: View {
                     } label: {
                         Text(chip.title)
                             .font(.callout.weight(.medium))
-                            .foregroundStyle(selectedChip == chip ? .black : .white)
+                            .foregroundStyle(selectedChip == chip ? Color.appBackground : .primary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(selectedChip == chip ? Color.white : Color.white.opacity(0.12))
+                            .background(selectedChip == chip ? Color.primary : Color.primary.opacity(0.12))
                             .clipShape(.capsule)
                     }
                     .buttonStyle(.plain)
@@ -119,7 +119,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
             Text("Couldn't load Home")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)

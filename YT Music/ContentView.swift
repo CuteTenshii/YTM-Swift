@@ -335,7 +335,7 @@ private struct NowPlayingBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider().overlay(.white.opacity(0.1))
+            Divider().overlay(.primary.opacity(0.1))
             HStack(spacing: 16) {
                 // Left and right clusters share a fixed width so the transport
                 // controls between the two Spacers stay truly centered.
@@ -425,7 +425,7 @@ private struct NowPlayingBar: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(nowPlaying.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     subtitle(nowPlaying)
@@ -523,7 +523,7 @@ private struct NowPlayingBar: View {
             Button(action: player.previous) {
                 Image(systemName: "backward.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(player.canGoPrevious ? Color.white : Color.secondary)
+                    .foregroundStyle(player.canGoPrevious ? Color.primary : Color.secondary)
             }
             .buttonStyle(.plain)
             .disabled(!player.canGoPrevious)
@@ -533,7 +533,7 @@ private struct NowPlayingBar: View {
             Button(action: player.next) {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(player.canGoNext ? Color.white : Color.secondary)
+                    .foregroundStyle(player.canGoNext ? Color.primary : Color.secondary)
             }
             .buttonStyle(.plain)
             .disabled(!player.canGoNext)
@@ -570,7 +570,7 @@ private struct NowPlayingBar: View {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .disabled(player.loadError != nil)
@@ -588,7 +588,7 @@ private struct NowPlayingBar: View {
                 .frame(width: 16)
             Slider(value: $player.volume, in: 0...1)
                 .controlSize(.small)
-                .tint(.white)
+                .tint(.primary)
         }
     }
 
@@ -646,7 +646,7 @@ private struct EntityLinkButton: View {
         Button(action: action) {
             Text(link.name)
                 .font(.caption)
-                .foregroundStyle(hovering ? Color.white : Color.secondary)
+                .foregroundStyle(hovering ? Color.primary : Color.secondary)
                 .underline(hovering)
                 .lineLimit(1)
         }
@@ -677,11 +677,11 @@ struct SeekBar: View {
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(.white.opacity(0.15))
+                    .fill(.primary.opacity(0.15))
                     .frame(height: trackHeight)
 
                 Capsule()
-                    .fill(.white.opacity(0.3))
+                    .fill(.primary.opacity(0.3))
                     .frame(width: width * fraction(bufferedTime), height: trackHeight)
 
                 Capsule()
@@ -689,7 +689,7 @@ struct SeekBar: View {
                     .frame(width: width * fraction(played), height: trackHeight)
 
                 Circle()
-                    .fill(.white)
+                    .fill(.primary)
                     .frame(width: thumbSize, height: thumbSize)
                     .offset(x: width * fraction(played) - thumbSize / 2)
             }

@@ -20,14 +20,14 @@ struct HistoryView: View {
 
         NavigationStack(path: $navigator.historyPath) {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea()
 
                 switch model.state {
                 case .loading:
                     ProgressView("Loading History…")
                         .controlSize(.large)
-                        .tint(.white)
-                        .foregroundStyle(.white)
+                        .tint(.primary)
+                        .foregroundStyle(.primary)
 
                 case .signedOut:
                     signedOutView
@@ -89,7 +89,7 @@ struct HistoryView: View {
                 .foregroundStyle(.secondary)
             Text("Your history lives here")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Text("Sign in to see the music you've recently played.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -130,14 +130,14 @@ private struct HistorySectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(section.title)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
                 ForEach(Array(section.tracks.enumerated()), id: \.element.id) { index, track in
                     HistoryTrackRow(track: track, index: index, tracks: section.tracks, model: model)
                     if track.id != section.tracks.last?.id {
-                        Divider().overlay(.white.opacity(0.08))
+                        Divider().overlay(.primary.opacity(0.08))
                     }
                 }
             }
@@ -180,7 +180,7 @@ private struct HistoryTrackRow: View {
                 Text(track.title)
                     .font(.body)
                     .fontWeight(isCurrent ? .semibold : .regular)
-                    .foregroundStyle(isCurrent ? Color.red : .white)
+                    .foregroundStyle(isCurrent ? Color.red : .primary)
                     .lineLimit(1)
                 if !track.subtitle.isEmpty {
                     Text(track.subtitle)
@@ -200,7 +200,7 @@ private struct HistoryTrackRow: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 8)
-        .background(hovering ? Color.white.opacity(0.06) : .clear)
+        .background(hovering ? Color.primary.opacity(0.06) : .clear)
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
