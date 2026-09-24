@@ -12,18 +12,18 @@ A native **macOS SwiftUI** YouTube Music client (bundle id `moe.tenshii.YT-Music
 
 ```sh
 # Build
-xcodebuild -scheme "YT Music" -destination 'platform=macOS' build
+xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' build
 
 # Run all tests
-xcodebuild -scheme "YT Music" -destination 'platform=macOS' test
+xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' test
 
 # Run a single test (Swift Testing) — filter by suite/test name
-xcodebuild -scheme "YT Music" -destination 'platform=macOS' test \
+xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' test \
   -only-testing:"YT MusicTests/StreamSelectionTests"
 ```
 
 - The project uses `PBXFileSystemSynchronizedRootGroup` (objectVersion 110): any `.swift` file dropped under `YT Music/` or `YT MusicTests/` is auto-included in its target — **never hand-edit `project.pbxproj` to add sources.**
-- Tests use **Swift Testing** (`import Testing`, `@Test`/`@Suite`/`#expect`/`#require`), hosted in the app (`@testable import YT_Music`). The shared scheme `YT Music.xcscheme` wires the test action — required for `xcodebuild test` to find it.
+- Tests use **Swift Testing** (`import Testing`, `@Test`/`@Suite`/`#expect`/`#require`), hosted in the app (`@testable import YT_Music`). The shared scheme `YouTube Music.xcscheme` wires the test action — required for `xcodebuild test` to find it.
 
 ## Concurrency model (important, easy to trip on)
 
