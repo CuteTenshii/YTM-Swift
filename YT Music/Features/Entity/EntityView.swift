@@ -29,7 +29,7 @@ struct EntityView: View {
 
             switch model.state {
             case .loading:
-                EntitySkeleton(circular: model.destination.kind == .artist)
+                EntitySkeleton(circular: model.destination.kind == .artist || model.destination.kind == .profile)
 
             case .loaded(let page):
                 loadedContent(page)

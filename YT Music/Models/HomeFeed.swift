@@ -55,6 +55,7 @@ struct HomeItem: Identifiable, Sendable {
         case album
         case playlist
         case artist
+        case profile       // a user's channel
         case unknown
     }
 
@@ -85,8 +86,8 @@ struct HomeItem: Identifiable, Sendable {
     /// decide whether to resolve it on demand.
     var likeStatus: LikeStatus? = nil
 
-    /// Artists render as circles; everything else as rounded squares.
-    var prefersCircularArtwork: Bool { kind == .artist }
+    /// Artists and profiles render as circles; everything else as rounded squares.
+    var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
 
     /// The raw playlist id when this card is one of the user's own (editable)
     /// playlists — their byline labels the visibility ("Private playlist" /

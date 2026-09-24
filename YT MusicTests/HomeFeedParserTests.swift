@@ -93,6 +93,19 @@ struct HomeFeedParserTests {
         #expect(item.browseId == "UCart")
     }
 
+    @Test("A profile row is a profile with a round avatar")
+    func profileRowIsCircular() throws {
+        let item = try card("""
+        {"musicResponsiveListItemRenderer":{
+          "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some User"}]}}}],
+          "navigationEndpoint":{"browseEndpoint":{"browseId":"UCuser",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}
+        }}
+        """)
+        #expect(item.kind == .profile)
+        #expect(item.prefersCircularArtwork)
+    }
+
     @Test("A liked two-row card reads .liked from its like toggle")
     func likedToggleReadsLiked() throws {
         // The default (tap) action would set INDIFFERENT — so it's currently liked.

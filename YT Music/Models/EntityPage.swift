@@ -86,7 +86,7 @@ struct EntityHeader: Sendable {
     /// own never do.
     var privacy: PlaylistPrivacy? = nil
 
-    var prefersCircularArtwork: Bool { kind == .artist }
+    var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
 }
 
 /// The artist subscribe button's state and the InnerTube params needed to toggle
