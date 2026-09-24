@@ -179,7 +179,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if ! command -v swiftlint >/dev/null; then\n  echo \"error: SwiftLint is required. Install it with: brew install swiftlint\"\n  exit 1\nfi\n\nswiftlint lint --strict --no-cache --config \"${SRCROOT}/.swiftlint.yml\"\n";
+			shellScript = "\"${SRCROOT}/scripts/swiftlint.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
