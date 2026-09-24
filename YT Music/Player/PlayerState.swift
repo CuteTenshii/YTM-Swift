@@ -143,6 +143,11 @@ final class PlayerState {
     /// the track is shown but no stream is loaded yet, so the first play resolves
     /// and starts it rather than toggling an empty engine.
     private var awaitingResume = false
+    /// The restored track's saved position and duration, shown until it's resumed.
+    private var restoredPosition: Double = 0
+    private var restoredDuration: Double = 0
+    /// Position at the last progress-driven snapshot, to throttle saves.
+    private var lastPersistedPosition: Double = 0
     /// Set once per track when a crossfade into the next track has been kicked
     /// off, so the approaching-end window only triggers it once. Re-armed when a
     /// new track starts playing from the top.
@@ -443,8 +448,8 @@ final class PlayerState {
     // MARK: - Transport
 
     var isPlaying: Bool { audio.isPlaying }
-    var currentTime: Double { audio.currentTime }
-    var duration: Double { audio.duration }
+    var currentTime: Double { awaitingResume ? restoredPosition : audio.currentTime }
+    var duration: Double { awaitingResume ? restoredDuration : audio.duration }
     var bufferedTime: Double { audio.bufferedTime }
 
     /// Output volume, 0...1. Forwards to the engine and persists via settings.
@@ -467,9 +472,16 @@ final class PlayerState {
             return
         }
         audio.togglePlayPause()
+        persist()
         emitPlaybackChange()
     }
     func seek(to seconds: Double) {
+        // Moves where the not-yet-loaded restored track will resume.
+        if awaitingResume {
+            restoredPosition = restoredDuration > 0 ? min(max(0, seconds), restoredDuration) : max(0, seconds)
+            persist()
+            return
+        }
         audio.seek(to: seconds)
         emitPlaybackChange()   // keep plugin-presence timestamps in sync
     }
@@ -690,6 +702,8 @@ final class PlayerState {
         albumContext = snapshot.album
         playlistContext = snapshot.playlistId
         isShuffled = snapshot.isShuffled
+        restoredPosition = snapshot.position
+        restoredDuration = snapshot.duration
         awaitingResume = true
     }
 
@@ -703,37 +717,45 @@ final class PlayerState {
             repeatMode: repeatMode,
             album: albumContext,
             isShuffled: isShuffled,
-            playlistId: playlistContext
+            playlistId: playlistContext,
+            // Mid-load, the engine still reports the previous track's times.
+            position: isLoading ? 0 : currentTime,
+            duration: isLoading ? 0 : duration
         ))
     }
 
-    /// Starts the restored track (resolving its stream for the first time).
+    /// Starts the restored track (resolving its stream for the first time),
+    /// from its saved position.
     private func resumeRestored() {
+        let position = restoredPosition > 0 ? restoredPosition : nil
         if !queue.isEmpty {
-            startCurrent()
+            startCurrent(at: position)
         } else if let nowPlaying {
             startTrack(title: nowPlaying.title, subtitle: nowPlaying.subtitle,
                        album: nowPlaying.album, thumbnailURL: nowPlaying.thumbnailURL,
                        videoId: nowPlaying.videoId,
-                       artists: nowPlaying.artists, albumLink: nowPlaying.albumLink)
+                       artists: nowPlaying.artists, albumLink: nowPlaying.albumLink,
+                       startAt: position)
         }
     }
 
     // MARK: - Loading
 
-    private func startCurrent() {
+    private func startCurrent(at position: Double? = nil) {
         guard queue.indices.contains(currentIndex),
               let videoId = queue[currentIndex].videoId else { return }
         let track = queue[currentIndex]
         startTrack(title: track.title, subtitle: track.subtitle, album: albumContext,
                    thumbnailURL: track.thumbnailURL, videoId: videoId,
-                   artists: track.artists, albumLink: track.albumLink)
+                   artists: track.artists, albumLink: track.albumLink, startAt: position)
     }
 
     private func startTrack(title: String, subtitle: String, album: String,
                             thumbnailURL: URL?, videoId: String,
-                            artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
+                            artists: [EntityLink] = [], albumLink: EntityLink? = nil,
+                            startAt position: Double? = nil) {
         awaitingResume = false
+        lastPersistedPosition = 0
         crossfadeArmed = false
         crossfadeLoading = false
         pendingHistory = nil
@@ -763,14 +785,14 @@ final class PlayerState {
         fetchLikeStatus(for: videoId)
 
         loadTask?.cancel()
-        loadTask = Task { await loadStream(videoId: videoId) }
+        loadTask = Task { await loadStream(videoId: videoId, startAt: position) }
 
         maybeContinueWithRadio()
     }
 
     /// Resolves the stream and hands it to the audio engine. Split out from
     /// `startTrack` so tests can await it directly (no Task race).
-    func loadStream(videoId: String) async {
+    func loadStream(videoId: String, startAt position: Double? = nil) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
             let resolved: ResolvedStream
@@ -796,6 +818,7 @@ final class PlayerState {
             } else {
                 audio.load(url: resolved.url, metadata: metadata)
             }
+            if let position { audio.seek(to: position) }
             isLoading = false
             emitPlaybackChange()
             // Don't ping history yet — the real client reports a live position once
@@ -861,6 +884,11 @@ final class PlayerState {
     private func handleProgress(current: Double, duration: Double) {
         // History beacons fire from real progress regardless of crossfade settings.
         reportHistoryProgress(current: current, duration: duration)
+
+        if abs(current - lastPersistedPosition) >= 5 {
+            lastPersistedPosition = current
+            persist()
+        }
 
         if let seconds = settings?.nextTrackPreloadSeconds,
            seconds > 0, duration > 0, duration - current <= seconds {

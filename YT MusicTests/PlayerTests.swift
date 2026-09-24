@@ -1041,6 +1041,63 @@ struct PlayerStatePersistenceTests {
         #expect(p.isLoading)
     }
 
+    @Test("a restored track shows its saved position and duration before loading")
+    func restoredShowsProgress() {
+        let store = InMemoryStore()
+        var saved = snapshot(videoId: "v")
+        saved.position = 42
+        saved.duration = 200
+        store.snapshot = saved
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(), store: store)
+        #expect(p.currentTime == 42)
+        #expect(p.duration == 200)
+    }
+
+    @Test("seeking a restored track moves its saved position without loading")
+    func seekRestored() {
+        let store = InMemoryStore()
+        var saved = snapshot(videoId: "v")
+        saved.duration = 200
+        store.snapshot = saved
+        let audio = FakeAudioOutput()
+        let p = PlayerState(audio: audio, resolver: StubResolver(), store: store)
+        p.seek(to: 90)
+        #expect(p.currentTime == 90)
+        #expect(audio.seekedTo == nil)
+        #expect(!p.isLoading)
+        #expect(store.snapshot?.position == 90)
+    }
+
+    @Test("resuming a restored track starts from its saved position")
+    func resumeSeeksToSavedPosition() async {
+        let store = InMemoryStore()
+        var saved = snapshot(videoId: "v")
+        saved.position = 42
+        saved.duration = 200
+        store.snapshot = saved
+        let audio = FakeAudioOutput()
+        let p = PlayerState(audio: audio, resolver: StubResolver(), store: store)
+        p.togglePlayPause()
+        for _ in 0..<100 where audio.loadCount == 0 { await Task.yield() }
+        #expect(audio.loadCount == 1)
+        #expect(audio.seekedTo == 42)
+    }
+
+    @Test("the snapshot records the playing position once loaded")
+    func persistsPosition() async {
+        let store = InMemoryStore()
+        let audio = FakeAudioOutput()
+        let p = PlayerState(audio: audio, resolver: StubResolver(), store: store)
+        p.play(title: "Song", subtitle: "Artist", thumbnailURL: nil, videoId: "v")
+        #expect(store.snapshot?.position == 0)
+        await p.loadStream(videoId: "v")
+        audio.currentTime = 30
+        audio.duration = 180
+        p.togglePlayPause()
+        #expect(store.snapshot?.position == 30)
+        #expect(store.snapshot?.duration == 180)
+    }
+
     @Test("restores the queue and repeat mode")
     func restoresQueueAndRepeat() {
         let store = InMemoryStore()
