@@ -17,7 +17,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		FA3492202FEEB0AA00171075 /* YT Music.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "YT Music.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA3492202FEEB0AA00171075 /* YT Music.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "YT Music.app"; path = "YouTube Music.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FADE0000000000000000A002 /* YT MusicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "YT MusicTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -165,21 +165,12 @@
 		FADE0000000000000000A012 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
 			name = SwiftLint;
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/scripts/swiftlint.sh\"\n";
+			shellScript = (
+				"\"${SRCROOT}/scripts/swiftlint.sh\"",
+				"",
+			);
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -340,7 +331,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				EXCLUDED_SOURCE_FILE_NAMES = "MilkdropShaders.metal";
+				EXCLUDED_SOURCE_FILE_NAMES = MilkdropShaders.metal;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "YouTube Music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -377,7 +368,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				EXCLUDED_SOURCE_FILE_NAMES = "MilkdropShaders.metal";
+				EXCLUDED_SOURCE_FILE_NAMES = MilkdropShaders.metal;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "YouTube Music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
