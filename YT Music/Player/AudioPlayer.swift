@@ -110,11 +110,9 @@ final class AudioPlayer: AudioOutput {
             AVURLAssetPreferPreciseDurationAndTimingKey: false
         ])
         let item = AVPlayerItem(asset: asset)
-        // Keep buffering ~30s ahead once playing. This doesn't gate the start of
-        // playback (automaticallyWaitsToMinimizeStalling does), so time-to-first-
-        // audio is unchanged — it just builds a cushion so network jitter mid-track
-        // doesn't underrun the buffer and stutter.
-        item.preferredForwardBufferDuration = 30
+        // Let AVPlayer start from the first available bytes. A large preferred
+        // buffer delays time-to-first-audio on slow connections.
+        item.preferredForwardBufferDuration = 0
         installEqualizer(on: item, asset: asset)
         return item
     }
@@ -139,28 +137,13 @@ final class AudioPlayer: AudioOutput {
 
     func load(url: URL, metadata: NowPlayingMetadata) {
         // A hard cut: abandon any in-flight crossfade and silence the idle player.
-        fadeTask?.cancel()
-        fadeTask = nil
-        idle.pause()
-        idle.replaceCurrentItem(with: nil)
+        cancelFade()
+        clearIdlePlayer()
         preloadedURL = nil
-        idle.volume = clampedVolume
 
-        self.metadata = metadata
         let item = makeItem(url: url)
-        observeEnd(of: item)
-        hasSignalledEnd = false
-        active.volume = clampedVolume
         active.replaceCurrentItem(with: item)
-        currentTime = 0
-        bufferedTime = 0
-        duration = metadata.knownDuration ?? 0
-        active.play()
-        isPlaying = true
-
-        artwork = nil
-        loadArtwork(metadata.artworkURL)
-        updateNowPlayingInfo()
+        activate(item: item, metadata: metadata)
     }
 
     func preload(url: URL, metadata: NowPlayingMetadata) {
@@ -177,24 +160,12 @@ final class AudioPlayer: AudioOutput {
             load(url: url, metadata: metadata)
             return
         }
-        fadeTask?.cancel()
-        fadeTask = nil
+        cancelFade()
         active.pause()
         active.replaceCurrentItem(with: nil)
         active = idle
         preloadedURL = nil
-        self.metadata = metadata
-        observeEnd(of: active.currentItem!)
-        hasSignalledEnd = false
-        active.volume = clampedVolume
-        currentTime = 0
-        bufferedTime = 0
-        duration = metadata.knownDuration ?? 0
-        active.play()
-        isPlaying = true
-        artwork = nil
-        loadArtwork(metadata.artworkURL)
-        updateNowPlayingInfo()
+        activate(item: active.currentItem!, metadata: metadata)
     }
 
     func crossfade(to url: URL, metadata: NowPlayingMetadata, duration: Double) {
@@ -202,7 +173,7 @@ final class AudioPlayer: AudioOutput {
             load(url: url, metadata: metadata)
             return
         }
-        fadeTask?.cancel()
+        cancelFade()
         fadeGeneration += 1
         let generation = fadeGeneration
 
@@ -212,29 +183,12 @@ final class AudioPlayer: AudioOutput {
         preloadedURL = nil
         incoming.volume = 0
         incoming.replaceCurrentItem(with: item)
-        incoming.play()
 
         // The incoming player becomes the source of truth before observing its
         // end, so end-of-track routes from the track now in front.
         active = incoming
-        observeEnd(of: item)
-        hasSignalledEnd = false
-
-        self.metadata = metadata
-        currentTime = 0
-        bufferedTime = 0
-        self.duration = metadata.knownDuration ?? 0
-        isPlaying = true
-        artwork = nil
-        loadArtwork(metadata.artworkURL)
-        updateNowPlayingInfo()
-
-        fadeTask = Task { [weak self] in
-            await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: duration)
-            // Only this fade's own completion may clear `fadeTask` — if a newer
-            // crossfade has since started, its task owns the slot now.
-            if self?.fadeGeneration == generation { self?.fadeTask = nil }
-        }
+        activate(item: item, metadata: metadata, volume: 0)
+        startFade(outgoing: outgoing, incoming: incoming, seconds: duration, generation: generation)
     }
 
     func crossfadePreloaded(url: URL, metadata: NowPlayingMetadata, duration: Double) {
@@ -243,28 +197,51 @@ final class AudioPlayer: AudioOutput {
             return
         }
         preloadedURL = nil
-        fadeTask?.cancel()
+        cancelFade()
         fadeGeneration += 1
         let generation = fadeGeneration
         let outgoing = active
         let incoming = idle
         incoming.volume = 0
-        incoming.play()
         active = incoming
-        observeEnd(of: incoming.currentItem!)
+        activate(item: incoming.currentItem!, metadata: metadata, volume: 0)
+        startFade(outgoing: outgoing, incoming: incoming, seconds: duration, generation: generation)
+    }
+
+    private func activate(item: AVPlayerItem, metadata: NowPlayingMetadata,
+                          volume: Float? = nil) {
+        observeEnd(of: item)
         hasSignalledEnd = false
+        active.volume = volume ?? clampedVolume
         self.metadata = metadata
         currentTime = 0
         bufferedTime = 0
-        self.duration = metadata.knownDuration ?? 0
+        duration = metadata.knownDuration ?? 0
+        active.playImmediately(atRate: 1)
         isPlaying = true
         artwork = nil
         loadArtwork(metadata.artworkURL)
         updateNowPlayingInfo()
+    }
+
+    private func startFade(outgoing: AVPlayer, incoming: AVPlayer, seconds: Double,
+                           generation: Int) {
         fadeTask = Task { [weak self] in
-            await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: duration)
+            await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: seconds)
+            // Only this fade's own completion may clear `fadeTask`.
             if self?.fadeGeneration == generation { self?.fadeTask = nil }
         }
+    }
+
+    private func cancelFade() {
+        fadeTask?.cancel()
+        fadeTask = nil
+    }
+
+    private func clearIdlePlayer() {
+        idle.pause()
+        idle.replaceCurrentItem(with: nil)
+        idle.volume = clampedVolume
     }
 
     /// Linearly ramps `outgoing` 1→0 and `incoming` 0→1 over `seconds` (both
