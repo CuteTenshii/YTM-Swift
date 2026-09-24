@@ -348,13 +348,21 @@ actor SignatureDecipher {
     /// code only manipulates URL strings).
     private static let setupScript = """
     var globalThis=(function(){return this})();
-    if(typeof globalThis.console==='undefined')globalThis.console={log:function(){},warn:function(){},error:function(){},debug:function(){},info:function(){}};
-    if(typeof globalThis.setTimeout==='undefined')globalThis.setTimeout=function(){return 0};
+    if(typeof globalThis.console==='undefined')globalThis.console={
+        log:function(){},warn:function(){},error:function(){},debug:function(){},info:function(){}
+    };
+    if(typeof globalThis.setTimeout==='undefined')
+        globalThis.setTimeout=function(){return 0};
     if(typeof globalThis.clearTimeout==='undefined')globalThis.clearTimeout=function(){};
     if(typeof globalThis.setInterval==='undefined')globalThis.setInterval=function(){return 0};
     if(typeof globalThis.clearInterval==='undefined')globalThis.clearInterval=function(){};
     if(typeof globalThis.XMLHttpRequest==='undefined'){globalThis.XMLHttpRequest=function(){};globalThis.XMLHttpRequest.prototype={};}
-    if(typeof globalThis.location==='undefined')globalThis.location={hash:'',host:'www.youtube.com',hostname:'www.youtube.com',href:'https://www.youtube.com/watch?v=yt-dlp-wins',origin:'https://www.youtube.com',password:'',pathname:'/watch',port:'',protocol:'https:',search:'?v=yt-dlp-wins',username:''};
+    if(typeof globalThis.location==='undefined')globalThis.location={
+        hash:'',host:'www.youtube.com',hostname:'www.youtube.com',
+        href:'https://www.youtube.com/watch?v=yt-dlp-wins',
+        origin:'https://www.youtube.com',password:'',pathname:'/watch',port:'',
+        protocol:'https:',search:'?v=yt-dlp-wins',username:''
+    };
     if(typeof globalThis.document==='undefined')globalThis.document=Object.create(null);
     if(typeof globalThis.navigator==='undefined')globalThis.navigator={userAgent:'Mozilla/5.0'};
     if(typeof globalThis.self==='undefined')globalThis.self=globalThis;

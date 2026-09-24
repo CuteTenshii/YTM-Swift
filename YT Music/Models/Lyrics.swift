@@ -74,8 +74,7 @@ nonisolated enum LyricsFocus: Equatable {
         let pending = lines.firstIndex { $0.time > now }
         // The current line is the last one that has started (nil before the
         // first line / during a long intro).
-        let currentIndex: Int? = if let pending { pending == 0 ? nil : pending - 1 }
-                                 else { lines.count - 1 }
+        let currentIndex: Int? = if let pending { pending == 0 ? nil : pending - 1 } else { lines.count - 1 }
 
         if let pending {
             // The interlude spans from where the current line's content ends
@@ -214,4 +213,3 @@ nonisolated struct LyricsQuery: Sendable, Equatable {
     /// Track length in seconds, when known (improves LRCLIB's exact match).
     var duration: Double?
 }
-

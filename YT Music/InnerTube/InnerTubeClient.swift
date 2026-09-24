@@ -108,8 +108,8 @@ private actor WatchNextStore {
     }
 }
 
-/// Visibility of one of the user's playlists, as sent by `playlist/create` and
-/// the `edit_playlist` set-privacy action.
+/// Visibility of one of the user's playlists, as sent by `playlist/create`
+/// and the `edit_playlist` set-privacy action.
 nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
@@ -120,10 +120,15 @@ nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
     /// text doesn't say — saved playlists and albums never do.
     init?(subtitleText: String) {
         let lowered = subtitleText.lowercased()
-        if lowered.contains("private playlist") { self = .private }
-        else if lowered.contains("unlisted playlist") { self = .unlisted }
-        else if lowered.contains("public playlist") { self = .public }
-        else { return nil }
+        if lowered.contains("private playlist") {
+            self = .private
+        } else if lowered.contains("unlisted playlist") {
+            self = .unlisted
+        } else if lowered.contains("public playlist") {
+            self = .public
+        } else {
+            return nil
+        }
     }
 }
 
@@ -324,7 +329,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
                     "playlistFilterSearchFormData": [
                         "playlistId": playlistId,
                         "playlistVideoItemIdentifiers": identifiers,
-                    ]
+                    ],
                 ],
             ]
         )
@@ -680,21 +685,27 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// Applies metadata edits (name / description / visibility) to one of the
     /// user's playlists as one `edit_playlist` batch. Nil fields produce no
     /// action, so callers send just what changed. Requires auth.
-    func updatePlaylist(playlistId: String,
-                       title: String? = nil,
-                       description: String? = nil,
-                       privacy: PlaylistPrivacy? = nil) async throws {
+    func updatePlaylist(
+        playlistId: String,
+        title: String? = nil,
+        description: String? = nil,
+        privacy: PlaylistPrivacy? = nil
+    ) async throws {
         var actions: [[String: Any]] = []
         if let title {
             actions.append(["action": "ACTION_SET_PLAYLIST_NAME", "playlistName": title])
         }
         if let description {
-            actions.append(["action": "ACTION_SET_PLAYLIST_DESCRIPTION",
-                            "playlistDescription": description])
+            actions.append([
+                "action": "ACTION_SET_PLAYLIST_DESCRIPTION",
+                "playlistDescription": description,
+            ])
         }
         if let privacy {
-            actions.append(["action": "ACTION_SET_PLAYLIST_PRIVACY",
-                            "playlistPrivacy": privacy.rawValue])
+            actions.append([
+                "action": "ACTION_SET_PLAYLIST_PRIVACY",
+                "playlistPrivacy": privacy.rawValue,
+            ])
         }
         try await editPlaylist(playlistId: playlistId, actions: actions)
     }
@@ -712,15 +723,19 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// Removes tracks from one of the user's playlists. Each item pairs the
     /// track's plain `videoId` with its playlist-scoped `setVideoId` (both are
     /// required by the remove action). Requires auth.
-    func removeFromPlaylist(playlistId: String,
-                           items: [(videoId: String, setVideoId: String)]) async throws {
+    func removeFromPlaylist(
+        playlistId: String,
+        items: [(videoId: String, setVideoId: String)]
+    ) async throws {
         guard !items.isEmpty else { return }
         try await editPlaylist(
             playlistId: playlistId,
             actions: items.map {
-                ["action": "ACTION_REMOVE_VIDEO",
-                 "removedVideoId": $0.videoId,
-                 "setVideoId": $0.setVideoId]
+                [
+                    "action": "ACTION_REMOVE_VIDEO",
+                    "removedVideoId": $0.videoId,
+                    "setVideoId": $0.setVideoId,
+                ]
             }
         )
     }

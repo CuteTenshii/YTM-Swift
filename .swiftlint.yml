@@ -1,0 +1,67 @@
+included:
+  - YT Music
+  - YT MusicTests
+
+excluded:
+  - .build
+  - DerivedData
+  - build
+
+line_length:
+  warning: 210
+  error: 240
+
+file_length:
+  warning: 1500
+  error: 2000
+
+function_body_length:
+  warning: 80
+  error: 1000
+
+type_body_length:
+  warning: 1000
+  error: 1500
+
+cyclomatic_complexity:
+  warning: 20
+  error: 100
+
+function_parameter_count:
+  warning: 6
+  error: 12
+
+identifier_name:
+  min_length:
+    warning: 1
+    error: 1
+  max_length:
+    warning: 80
+    error: 100
+  allowed_symbols:
+    - _
+
+type_name:
+  allowed_symbols:
+    - _
+
+nesting:
+  type_level:
+    warning: 6
+
+trailing_comma:
+  mandatory_comma: true
+
+disabled_rules:
+  - implicit_optional_initialization
+  - large_tuple
+  - unused_setter_value
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - last_where
+  - sorted_first_last
+  - toggle_bool
+
+reporter: xcode

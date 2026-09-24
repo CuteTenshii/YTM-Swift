@@ -206,7 +206,7 @@ final class PlayerState {
     /// Not part of any album, so a stale album context from a previous play is
     /// dropped along with the old queue.
     func play(title: String, subtitle: String, album: String = "", thumbnailURL: URL?, videoId: String,
-               artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
+              artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         queue = []
         currentIndex = 0
         albumContext = ""

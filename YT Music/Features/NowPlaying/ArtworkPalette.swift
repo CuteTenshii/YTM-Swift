@@ -68,11 +68,9 @@ nonisolated enum ArtworkPalette {
         // Greedily keep the heaviest buckets, skipping any too close to one we
         // already took, so the palette spans the art instead of clustering.
         var chosen: [PaletteColor] = []
-        for candidate in ranked {
-            if chosen.allSatisfy({ distanceSquared($0, candidate.color) > 0.02 }) {
-                chosen.append(candidate.color)
-                if chosen.count == count { break }
-            }
+        for candidate in ranked where chosen.allSatisfy({ distanceSquared($0, candidate.color) > 0.02 }) {
+            chosen.append(candidate.color)
+            if chosen.count == count { break }
         }
         return chosen
     }

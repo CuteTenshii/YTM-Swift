@@ -138,7 +138,8 @@ private struct LastfmConfigView: View {
                 }
                 .disabled(plugin.working)
             } else {
-                Text("Create an API account at last.fm/api, then connect. You'll approve access in the browser — your password is never entered here.")
+                Text("Create an API account at last.fm/api, then connect. You'll approve access "
+                    + "in the browser, and your password is never entered here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextField("API key", text: $apiKey)

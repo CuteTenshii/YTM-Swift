@@ -49,7 +49,8 @@ private struct PlaybackSettingsTab: View {
             Section("Network") {
                 TextField("HTTP proxy URL", text: $settings.proxyURL)
                     .textFieldStyle(.roundedBorder)
-                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. Relaunch the app after changing it.")
+                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. "
+                    + "Relaunch the app after changing it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
@@ -109,7 +110,10 @@ private struct PlaybackSettingsTab: View {
                         Text(provider.label).tag(provider)
                     }
                 }
-                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database matched by title and artist, with wider coverage and synced (karaoke) lyrics. Musixmatch adds word-by-word timing where available, via an unofficial endpoint that can be less reliable.")
+                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database "
+                    + "matched by title and artist, with wider coverage and synced (karaoke) lyrics. "
+                    + "Musixmatch adds word-by-word timing where available, via an unofficial endpoint "
+                    + "that can be less reliable.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

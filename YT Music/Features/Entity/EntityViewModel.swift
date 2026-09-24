@@ -140,7 +140,6 @@ final class EntityViewModel {
         }
     }
 
-
     /// Toggles the artist subscription, updating local state only once the request
     /// succeeds (so a failed call leaves the button as it was), then reconciles
     /// against the server's actual state so optimism can't drift.

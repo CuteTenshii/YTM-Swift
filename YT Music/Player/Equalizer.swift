@@ -68,13 +68,13 @@ nonisolated enum EqualizerPreset: String, CaseIterable, Identifiable, Sendable {
     //                 32   64  125  250  500   1k   2k   4k   8k  16k
     var gains: [Double] {
         switch self {
-        case .flat:        [ 0,   0,   0,   0,   0,   0,   0,   0,   0,   0]
-        case .bassBoost:   [ 6,   5,   4,   2,   0,   0,   0,   0,   0,   0]
-        case .trebleBoost: [ 0,   0,   0,   0,   0,   1,   2,   4,   5,   6]
-        case .vocal:       [-2,  -1,   0,   2,   4,   4,   3,   1,   0,  -1]
-        case .rock:        [ 4,   3,   1,  -1,  -1,   0,   2,   3,   4,   4]
-        case .electronic:  [ 4,   3,   0,  -1,  -2,   1,   0,   2,   4,   5]
-        case .loudness:    [ 5,   4,   1,   0,  -1,   0,   1,   3,   5,   5]
+        case .flat:        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        case .bassBoost:   [ 6, 5, 4, 2, 0, 0, 0, 0, 0, 0]
+        case .trebleBoost: [ 0, 0, 0, 0, 0, 1, 2, 4, 5, 6]
+        case .vocal:       [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1]
+        case .rock:        [ 4, 3, 1, -1, -1, 0, 2, 3, 4, 4]
+        case .electronic:  [ 4, 3, 0, -1, -2, 1, 0, 2, 4, 5]
+        case .loudness:    [ 5, 4, 1, 0, -1, 0, 1, 3, 5, 5]
         }
     }
 

@@ -937,7 +937,6 @@ struct PlayerStateShuffleTests {
     }
 }
 
-
 // MARK: - Persistence / restore
 
 @Suite("PlayerState persistence")

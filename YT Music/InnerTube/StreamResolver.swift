@@ -75,7 +75,10 @@ actor StreamResolver: StreamResolving {
 
         let status = response.playabilityStatus?.status ?? "nil"
         let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
-        PlaybackLog.note("playabilityStatus=\(status) · adaptiveFormats=\(adaptiveCount) · lengthSeconds=\(response.videoDetails?.lengthSeconds ?? "nil")")
+        PlaybackLog.note(
+            "playabilityStatus=\(status) · adaptiveFormats=\(adaptiveCount) "
+                + "· lengthSeconds=\(response.videoDetails?.lengthSeconds ?? "nil")"
+        )
 
         try checkPlayability(response)
 

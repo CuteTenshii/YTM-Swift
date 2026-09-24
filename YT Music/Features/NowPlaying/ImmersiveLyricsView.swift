@@ -110,16 +110,18 @@ struct ImmersiveLyricsView: View {
                     Color.black
                 }
                 .blur(radius: 70)
-                .scaleEffect(1.4)   // hide the blur's soft edges
+                .scaleEffect(1.4) // hide the blur's soft edges
             }
         }
     }
 
     /// A 3×3 control grid for the mesh — evenly spaced, corners pinned.
     private var meshPoints: [SIMD2<Float>] {
-        [[0, 0], [0.5, 0], [1, 0],
-         [0, 0.5], [0.5, 0.5], [1, 0.5],
-         [0, 1], [0.5, 1], [1, 1]]
+        [
+            [0, 0], [0.5, 0], [1, 0],
+            [0, 0.5], [0.5, 0.5], [1, 0.5],
+            [0, 1], [0.5, 1], [1, 1],
+        ]
     }
 
     /// Tiles the sampled palette across the nine mesh vertices (darkened so the

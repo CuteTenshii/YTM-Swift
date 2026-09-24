@@ -51,6 +51,19 @@ From the command line:
 xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' build
 ```
 
+## Linting
+
+The project uses [SwiftLint](https://github.com/realm/SwiftLint). Install it
+with Homebrew, then run it from the repository root:
+
+```sh
+brew install swiftlint
+swiftlint lint
+```
+
+Xcode runs SwiftLint on each app build. It must be installed, and lint
+violations fail the build.
+
 ## Architecture
 
 The app uses `@Observable` state injected through SwiftUI's environment. The
