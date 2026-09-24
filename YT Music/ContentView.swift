@@ -75,6 +75,8 @@ struct ContentView: View {
     @State private var comments = CommentsViewModel()
     /// Shared by the Library tab and the sidebar's library list.
     @State private var library = LibraryViewModel()
+    /// Held here, not in the toolbar item, which AppKit recreates on relayout.
+    @State private var avatar: NSImage?
 
     var body: some View {
         @Bindable var auth = auth
@@ -95,8 +97,8 @@ struct ContentView: View {
                         SidebarLibraryItems(model: library)
                     }
                     .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        AccountControl(auth: auth)
+                    .toolbar {
+                        ToolbarItem { AccountControl(auth: auth, avatar: avatar) }
                     }
                 } detail: {
                     switch navigator.section {
@@ -162,6 +164,7 @@ struct ContentView: View {
         }
         .background(WindowTitleUpdater(title: windowTitle))
         .task(id: auth.generation) { await library.load(isSignedIn: auth.isSignedIn) }
+        .task(id: auth.account?.avatarURL) { avatar = await AvatarBadge.load(auth.account?.avatarURL) }
     }
 
     private var windowTitle: String {
@@ -272,59 +275,38 @@ private struct SidebarLibraryItems: View {
     }
 }
 
-/// Sidebar footer: sign in, or a menu to sign out.
+/// Sidebar toolbar avatar: sign in, or a menu to sign out.
 private struct AccountControl: View {
     let auth: AuthStore
-
-    /// The account avatar pre-rendered as a small circular badge. Menu labels
-    /// are NSPopUpButton-backed and ignore SwiftUI frame/clip modifiers — a
-    /// resizable image there renders at its natural size, blowing up the row —
-    /// so the size and circle mask are baked into the image itself.
-    @State private var avatar: NSImage?
+    /// Pre-rendered circular badge: menu labels ignore SwiftUI frame/clip modifiers.
+    let avatar: NSImage?
 
     var body: some View {
-        Group {
-            switch auth.state {
-            case .unknown:
-                ProgressView().controlSize(.small)
-            case .signedOut:
-                Button {
-                    auth.isPresentingLogin = true
-                } label: {
-                    Label("Sign in", systemImage: "person.crop.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            case .signedIn:
-                Menu {
-                    Button("Sign out", role: .destructive) {
-                        Task { await auth.signOut() }
-                    }
-                } label: {
-                    signedInLabel
-                }
-                .menuStyle(.borderlessButton)
-                .task(id: auth.account?.avatarURL) { await loadAvatar() }
+        switch auth.state {
+        case .unknown:
+            ProgressView().controlSize(.small)
+        case .signedOut:
+            Button {
+                auth.isPresentingLogin = true
+            } label: {
+                Label("Sign in", systemImage: "person.crop.circle")
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    private var signedInLabel: some View {
-        HStack(spacing: 8) {
-            avatarView
-            VStack(alignment: .leading, spacing: 1) {
+            .help("Sign in")
+        case .signedIn:
+            Menu {
                 Text(auth.account?.name ?? "Signed in")
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
                 if let handle = auth.account?.handle, !handle.isEmpty {
                     Text(handle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
+                Divider()
+                Button("Sign out", role: .destructive) {
+                    Task { await auth.signOut() }
+                }
+            } label: {
+                avatarView
             }
-            Spacer(minLength: 0)
+            .menuIndicator(.hidden)
+            .help(auth.account?.name ?? "Account")
         }
     }
 
@@ -335,24 +317,9 @@ private struct AccountControl: View {
         } else {
             // No resizable/frame here: those don't stick inside menu labels.
             Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 24))
+                .font(.system(size: 18))
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func loadAvatar() async {
-        guard let url = auth.account?.avatarURL else {
-            avatar = nil
-            return
-        }
-        if let cached = ImageCache.shared.image(for: url) {
-            avatar = AvatarBadge.circular(cached, side: 28)
-            return
-        }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let image = NSImage(data: data) else { return }
-        ImageCache.shared.insert(image, for: url)
-        avatar = AvatarBadge.circular(image, side: 28)
     }
 }
 
@@ -360,6 +327,17 @@ private struct AccountControl: View {
 /// the bitmap (2x-pixel rep shown at `side` points, crisp on Retina). Needed
 /// wherever an avatar lives inside a menu label; elsewhere use `ArtworkView`.
 private enum AvatarBadge {
+    static func load(_ url: URL?) async -> NSImage? {
+        guard let url else { return nil }
+        if let cached = ImageCache.shared.image(for: url) {
+            return circular(cached, side: 22)
+        }
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = NSImage(data: data) else { return nil }
+        ImageCache.shared.insert(image, for: url)
+        return circular(image, side: 22)
+    }
+
     static func circular(_ image: NSImage, side: CGFloat) -> NSImage {
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(side * 2), pixelsHigh: Int(side * 2),
