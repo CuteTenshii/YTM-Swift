@@ -109,6 +109,8 @@ struct EntityHeader: Sendable {
     /// their strapline). Nil when the page didn't say — playlists you don't
     /// own never do.
     var privacy: PlaylistPrivacy? = nil
+    /// Whether the playlist is saved to the library, when the header says.
+    var isSaved: Bool? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
 }

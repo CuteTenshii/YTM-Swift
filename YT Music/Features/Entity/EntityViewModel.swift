@@ -35,10 +35,8 @@ final class EntityViewModel {
     /// True while a subscribe/unsubscribe request is in flight (disables the button).
     private(set) var isUpdatingSubscription = false
 
-    /// "Save to library" toggle state for playlist pages. Optimistic, like the
-    /// subscribe button: flipped only once the request succeeds. We can't read
-    /// the initial saved state back from the browse response, so it starts off;
-    /// re-saving an already-saved playlist is an idempotent server no-op.
+    /// "Save to library" toggle state for playlist pages: read from the page
+    /// header, then flipped only once a save/unsave request succeeds.
     private(set) var isSaved = false
     /// True while a save/unsave request is in flight (disables the button).
     private(set) var isUpdatingSaved = false
@@ -85,6 +83,7 @@ final class EntityViewModel {
         do {
             let page = try await client.entity(destination)
             subscription = page.header.subscription
+            isSaved = page.header.isSaved ?? false
             title = page.header.title
             state = .loaded(page)
         } catch {

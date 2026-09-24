@@ -182,7 +182,8 @@ nonisolated enum EntityPageParser {
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
                 artists: artists,
-                privacy: PlaylistPrivacy(subtitleText: subtitle)
+                privacy: PlaylistPrivacy(subtitleText: subtitle),
+                isSaved: responsive.isSaved
             )
         }
 

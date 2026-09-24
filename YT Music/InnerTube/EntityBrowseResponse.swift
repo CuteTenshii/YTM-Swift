@@ -130,6 +130,34 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let secondSubtitle: InnerTubeText?
             let thumbnail: ResponsiveThumbnail?
             let description: DescriptionWrapper?
+            let buttons: [Button]?
+
+            struct Button: Decodable {
+                let toggleButtonRenderer: Toggle?
+
+                struct Toggle: Decodable {
+                    let isToggled: Bool?
+                    let defaultServiceEndpoint: ServiceEndpoint?
+                }
+
+                struct ServiceEndpoint: Decodable {
+                    let likeEndpoint: LikeEndpoint?
+
+                    struct LikeEndpoint: Decodable {
+                        let target: Target?
+                        struct Target: Decodable { let playlistId: String? }
+                    }
+                }
+            }
+
+            /// Whether the playlist is saved to the library, from its "Save to
+            /// library" toggle (a like of the playlist). Nil without that toggle.
+            var isSaved: Bool? {
+                buttons?.lazy
+                    .compactMap(\.toggleButtonRenderer)
+                    .first { $0.defaultServiceEndpoint?.likeEndpoint?.target?.playlistId != nil }
+                    .map { $0.isToggled ?? false }
+            }
 
             struct ResponsiveThumbnail: Decodable {
                 let musicThumbnailRenderer: ThumbnailRendererWrapper.MusicThumbnailRenderer?

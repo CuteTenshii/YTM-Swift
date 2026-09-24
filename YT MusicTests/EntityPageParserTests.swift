@@ -159,6 +159,42 @@ struct EntityPageParserTests {
         ])
     }
 
+    private func headerFixture(saved: Bool) -> String {
+        """
+        {"contents":{"twoColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicResponsiveHeaderRenderer":{
+            "title":{"runs":[{"text":"Some Playlist"}]},
+            "buttons":[
+              {"toggleButtonRenderer":{
+                "isToggled":\(saved),
+                "defaultServiceEndpoint":{"likeEndpoint":{"status":"LIKE","target":{"playlistId":"PLabc"}}}
+              }}
+            ]
+          }}
+        ]}}}}]}}}
+        """
+    }
+
+    @Test("Reads a playlist's saved state from its Save to library toggle", arguments: [true, false])
+    func parsesSavedState(saved: Bool) throws {
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(headerFixture(saved: saved).utf8)
+        )
+        let page = EntityPageParser.parse(response, fallback: playlistDestination)
+        #expect(page.header.isSaved == saved)
+    }
+
+    @Test("A header without the save toggle leaves the saved state unknown")
+    func savedStateUnknownWithoutToggle() throws {
+        let fixture = """
+        {"contents":{"twoColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicResponsiveHeaderRenderer":{"title":{"runs":[{"text":"My Playlist"}]}}}
+        ]}}}}]}}}
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        #expect(EntityPageParser.parse(response, fallback: playlistDestination).header.isSaved == nil)
+    }
+
     /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
     /// entity header and lays its cards out as a grid rather than a track list.
     private let feedFixture = """
