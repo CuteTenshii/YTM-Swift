@@ -80,6 +80,19 @@ struct HomeFeedParserTests {
         #expect(item.playlistId == nil)
     }
 
+    @Test("A library artist row opens the artist's channel page")
+    func libraryArtistMapsToChannel() throws {
+        let item = try card("""
+        {"musicResponsiveListItemRenderer":{
+          "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Artist"}]}}}],
+          "navigationEndpoint":{"browseEndpoint":{"browseId":"MPLAUCart",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_LIBRARY_ARTIST"}}}}
+        }}
+        """)
+        #expect(item.kind == .artist)
+        #expect(item.browseId == "UCart")
+    }
+
     @Test("A liked two-row card reads .liked from its like toggle")
     func likedToggleReadsLiked() throws {
         // The default (tap) action would set INDIFFERENT — so it's currently liked.

@@ -222,6 +222,9 @@ nonisolated enum HomeFeedParser {
             case "MUSIC_PAGE_TYPE_ALBUM":    return (.album, nil, browseId, nil)
             case "MUSIC_PAGE_TYPE_PLAYLIST": return (.playlist, nil, browseId, nil)
             case "MUSIC_PAGE_TYPE_ARTIST":   return (.artist, nil, browseId, nil)
+            // The library's per-artist view ("MPLA" + channel id): open the artist.
+            case "MUSIC_PAGE_TYPE_LIBRARY_ARTIST":
+                return (.artist, nil, browseId.hasPrefix("MPLA") ? String(browseId.dropFirst(4)) : browseId, nil)
             default:                         return (.unknown, nil, browseId, nil)
             }
         }
