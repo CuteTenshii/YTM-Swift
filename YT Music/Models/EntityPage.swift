@@ -33,6 +33,25 @@ struct EntityLink: Hashable, Codable, Sendable {
     }
 }
 
+/// A playlist filter chip. Selecting it reloads the track list from `token`;
+/// `clearToken` reloads the unfiltered list.
+struct PlaylistFilter: Identifiable, Hashable, Sendable {
+    var id: String { title }
+    var title: String
+    var token: String
+    var clearToken: String?
+    var isSelected = false
+}
+
+/// A playlist sort order ("Newest first", "Title", …). Selecting it reloads
+/// the track list from `token`.
+struct PlaylistSortOption: Identifiable, Hashable, Sendable {
+    var id: String { title }
+    var title: String
+    var token: String
+    var isSelected = false
+}
+
 /// A fully-loaded album / playlist / artist page.
 struct EntityPage: Sendable {
     var header: EntityHeader
@@ -41,6 +60,9 @@ struct EntityPage: Sendable {
     var continuationToken: String? = nil
     /// The page's official share URL (e.g. an album's `playlist?list=OLAK…`).
     var shareURL: URL? = nil
+    /// A playlist's filter chips ("Party", "Chill", …), when it offers them.
+    var filters: [PlaylistFilter] = []
+    var sortOptions: [PlaylistSortOption] = []
 
     /// A bare feed page (e.g. a shelf's "More" → "Listen again"): only carousels
     /// of cards, no entity of its own. Rendered as a titled list of shelves
@@ -55,7 +77,9 @@ struct EntityPage: Sendable {
             tracks: tracks + next.tracks,
             shelves: shelves,
             continuationToken: next.continuationToken,
-            shareURL: shareURL
+            shareURL: shareURL,
+            filters: filters,
+            sortOptions: sortOptions
         )
     }
 }

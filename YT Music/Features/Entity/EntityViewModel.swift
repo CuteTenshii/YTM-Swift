@@ -43,6 +43,9 @@ final class EntityViewModel {
     /// True while a save/unsave request is in flight (disables the button).
     private(set) var isUpdatingSaved = false
     private(set) var isLoadingMore = false
+    /// True while a filter or sort reload of the track list is in flight.
+    private(set) var isReloadingTracks = false
+    private var reloadGeneration = 0
     private var playlistSearchIndex: [Track]?
 
     /// The playlist id this page can save, derived from the browse id
@@ -89,6 +92,41 @@ final class EntityViewModel {
         }
     }
 
+    /// The applied filter chip, per the server.
+    var selectedFilter: PlaylistFilter? {
+        guard case .loaded(let page) = state else { return nil }
+        return page.filters.first(where: \.isSelected)
+    }
+
+    /// Filters the track list by `filter`, or clears the filter when nil.
+    func applyFilter(_ filter: PlaylistFilter?) async {
+        guard filter != selectedFilter, let token = filter?.token ?? selectedFilter?.clearToken else { return }
+        await reloadTracks(token)
+    }
+
+    func applySort(_ option: PlaylistSortOption) async {
+        guard !option.isSelected else { return }
+        await reloadTracks(option.token)
+    }
+
+    /// Replaces the track list (and the filters / sort options, which carry the
+    /// new selection) with a reload. The latest request wins.
+    private func reloadTracks(_ token: String) async {
+        guard case .loaded(let page) = state else { return }
+        reloadGeneration += 1
+        let generation = reloadGeneration
+        isReloadingTracks = true
+        let reload = try? await client.entityTrackReload(token, header: page.header)
+        guard generation == reloadGeneration else { return }
+        isReloadingTracks = false
+        guard let reload, case .loaded(var current) = state else { return }
+        current.tracks = reload.tracks
+        current.continuationToken = reload.continuationToken
+        current.filters = reload.filters
+        current.sortOptions = reload.sortOptions
+        state = .loaded(current)
+    }
+
     func loadMore() async {
         guard !isLoadingMore, case .loaded(let page) = state,
               let token = page.continuationToken else { return }
@@ -102,7 +140,9 @@ final class EntityViewModel {
                 startIndex: page.tracks.count + 1,
                 header: page.header
             )
-            state = .loaded(page.appending(next))
+            // A filter may have replaced the list meanwhile.
+            guard case .loaded(let current) = state, current.continuationToken == token else { return }
+            state = .loaded(current.appending(next))
         } catch {
             // Keep the current page and allow a later scroll attempt to retry.
         }

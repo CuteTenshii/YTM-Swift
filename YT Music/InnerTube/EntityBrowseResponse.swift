@@ -17,6 +17,36 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     let onResponseReceivedActions: [ResponseAction]?
     let onResponseReceivedCommands: [ResponseAction]?
     let microformat: Microformat?
+    let frameworkUpdates: FrameworkUpdates?
+
+    /// Entity-store mutations; a playlist's sort options resolve to commands here.
+    struct FrameworkUpdates: Decodable {
+        let entityBatchUpdate: BatchUpdate?
+
+        struct BatchUpdate: Decodable {
+            let mutations: [Mutation]?
+        }
+
+        struct Mutation: Decodable {
+            let entityKey: String?
+            let payload: Payload?
+        }
+
+        struct Payload: Decodable {
+            let commandEntity: CommandEntity?
+        }
+
+        struct CommandEntity: Decodable {
+            let command: ChipCloudRenderer.Endpoint?
+        }
+
+        /// The reload token of the command stored under `key`.
+        func reloadToken(forKey key: String) -> String? {
+            entityBatchUpdate?.mutations?
+                .first { $0.entityKey == key }?
+                .payload?.commandEntity?.command?.reloadToken
+        }
+    }
 
     struct Microformat: Decodable {
         let microformatDataRenderer: DataRenderer?
@@ -60,6 +90,8 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     struct ContinuationContents: Decodable {
         let musicShelfContinuation: MusicShelfRenderer?
         let musicPlaylistShelfContinuation: MusicShelfRenderer?
+        /// A playlist filter chip's reloaded track section.
+        let sectionListContinuation: BrowseResponse.SectionList?
 
         var shelf: MusicShelfRenderer? {
             musicShelfContinuation ?? musicPlaylistShelfContinuation

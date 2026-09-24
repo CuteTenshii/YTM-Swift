@@ -74,6 +74,25 @@ struct EntityView: View {
         }
     }
 
+    private func sortMenu(_ options: [PlaylistSortOption]) -> some View {
+        let selection = Binding<String>(
+            get: { options.first(where: \.isSelected)?.title ?? "" },
+            set: { title in
+                guard let option = options.first(where: { $0.title == title }) else { return }
+                Task { await model.applySort(option) }
+            }
+        )
+        return Picker("Sort", selection: selection) {
+            ForEach(options) { option in
+                Text(option.title).tag(option.title)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .fixedSize()
+        .disabled(model.isReloadingTracks)
+    }
+
     private func emptyText(_ text: String) -> some View {
         Text(text)
             .font(.title3)
@@ -118,7 +137,28 @@ struct EntityView: View {
                         HeaderView(header: page.header, tracks: page.tracks,
                                    album: album, model: model, topInset: topInset)
 
-                        if !visibleTracks.isEmpty {
+                        if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
+                            HStack(spacing: 12) {
+                                if page.filters.isEmpty {
+                                    Spacer()
+                                } else {
+                                    FilterChipRow(chips: page.filters, title: \.title,
+                                                  selection: model.selectedFilter) { filter in
+                                        Task { await model.applyFilter(filter) }
+                                    }
+                                }
+                                if !page.sortOptions.isEmpty {
+                                    sortMenu(page.sortOptions)
+                                        .padding(.trailing, 24)
+                                }
+                            }
+                        }
+
+                        if model.isReloadingTracks && !isSearching {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                        } else if !visibleTracks.isEmpty {
                             TrackListView(
                                 tracks: visibleTracks,
                                 album: album,
@@ -134,6 +174,8 @@ struct EntityView: View {
                                 .padding(.horizontal, 24)
                         } else if isSearching {
                             emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                        } else if let filter = model.selectedFilter {
+                            emptyText("No songs for \"\(filter.title)\"")
                         } else if page.header.kind == .playlist {
                             emptyText("This playlist is empty")
                         }

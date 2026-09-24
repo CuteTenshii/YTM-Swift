@@ -21,9 +21,13 @@ nonisolated enum EntityPageParser {
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
         var continuationToken = continuationToken(from: response.contents)
+        var sortOptions: [PlaylistSortOption] = []
 
         for section in sections {
             if let shelf = section.listShelf {
+                if sortOptions.isEmpty {
+                    sortOptions = self.sortOptions(shelf.header, updates: response.frameworkUpdates)
+                }
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
                 continuationToken = shelf.continuationToken ?? continuationToken
             } else if let carousel = section.carousel {
@@ -40,8 +44,52 @@ nonisolated enum EntityPageParser {
             tracks: tracks,
             shelves: shelves,
             continuationToken: continuationToken,
-            shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:))
+            shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:)),
+            filters: filters(response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?
+                .sectionListRenderer?.header?.chipCloudRenderer),
+            sortOptions: sortOptions
         )
+    }
+
+    /// A filter or sort reload of a playlist's track section. The reloaded
+    /// section carries its own filters and sort options (with the new
+    /// selection, and tokens that keep it combined with the other control).
+    static func parseTrackReload(_ response: EntityBrowseResponse, header: EntityHeader) -> EntityPage {
+        let section = response.continuationContents?.sectionListContinuation
+        let shelf = section?.contents?.lazy.compactMap(\.listShelf).first
+        return EntityPage(
+            header: header,
+            tracks: parseItems(shelf?.contents ?? [], startIndex: 1, header: header),
+            shelves: [],
+            continuationToken: shelf?.continuationToken,
+            filters: filters(section?.header?.chipCloudRenderer),
+            sortOptions: sortOptions(shelf?.header, updates: response.frameworkUpdates)
+        )
+    }
+
+    private static func filters(_ cloud: ChipCloudRenderer?) -> [PlaylistFilter] {
+        (cloud?.chips ?? []).compactMap { chip in
+            guard let renderer = chip.chipCloudChipRenderer,
+                  let title = renderer.text?.text, !title.isEmpty,
+                  let token = renderer.navigationEndpoint?.reloadToken else { return nil }
+            return PlaylistFilter(title: title, token: token,
+                                  clearToken: renderer.onDeselectedCommand?.reloadToken,
+                                  isSelected: renderer.isSelected ?? false)
+        }
+    }
+
+    private static func sortOptions(
+        _ header: BrowseResponse.SectionList.Header?,
+        updates: EntityBrowseResponse.FrameworkUpdates?
+    ) -> [PlaylistSortOption] {
+        let items = (header?.musicSideAlignedItemRenderer?.startItems ?? [])
+            .flatMap { $0.sortFilterSubMenuRenderer?.subMenuItems ?? [] }
+        return items.compactMap { item in
+            guard let title = item.title, !title.isEmpty,
+                  let key = item.navigationEndpoint?.executeEntityCommand?.commandEntityKey,
+                  let token = updates?.reloadToken(forKey: key) else { return nil }
+            return PlaylistSortOption(title: title, token: token, isSelected: item.selected ?? false)
+        }
     }
 
     static func parseContinuation(

@@ -297,6 +297,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
+    /// Reloads a playlist's track section through a filter or sort token.
+    func entityTrackReload(_ token: String, header: EntityHeader) async throws -> EntityPage {
+        let response: EntityBrowseResponse = try await post("browse", body: ["continuation": token])
+        return EntityPageParser.parseTrackReload(response, header: header)
+    }
+
     /// Loads the complete lightweight playlist index used by playlist search.
     /// This contains names and IDs, not full browse rows, so it does not create
     /// thousands of SwiftUI views or eagerly load artwork.

@@ -94,6 +94,71 @@ struct EntityPageParserTests {
         #expect(page.shareURL?.absoluteString == "https://music.youtube.com/playlist?list=OLAK5uy_album")
     }
 
+    private let playlistDestination = EntityDestination(
+        browseId: "VLLM", kind: .playlist, title: "Liked Music", subtitle: "", thumbnailURL: nil
+    )
+
+    @Test("Parses a playlist's filter chips with their reload and clear tokens")
+    func parsesPlaylistFilters() throws {
+        let fixture = """
+        {"contents":{"twoColumnBrowseResultsRenderer":{"secondaryContents":{"sectionListRenderer":{
+          "header":{"chipCloudRenderer":{"chips":[
+            {"chipCloudChipRenderer":{
+              "text":{"runs":[{"text":"Party"}]},
+              "navigationEndpoint":{"browseSectionListReloadEndpoint":{"continuation":{"reloadContinuationData":{"continuation":"PARTY"}}}},
+              "onDeselectedCommand":{"browseSectionListReloadEndpoint":{"continuation":{"reloadContinuationData":{"continuation":"ALL"}}}}
+            }}
+          ]}},
+          "contents":[]
+        }}}}}
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let page = EntityPageParser.parse(response, fallback: playlistDestination)
+        #expect(page.filters == [PlaylistFilter(title: "Party", token: "PARTY", clearToken: "ALL")])
+    }
+
+    @Test("Parses a track reload: tracks, next token, and the new filter and sort selection")
+    func parsesTrackReload() throws {
+        let fixture = """
+        {"continuationContents":{"sectionListContinuation":{
+          "header":{"chipCloudRenderer":{"chips":[
+            {"chipCloudChipRenderer":{
+              "text":{"runs":[{"text":"Party"}]}, "isSelected":true,
+              "navigationEndpoint":{"browseSectionListReloadEndpoint":{"continuation":{"reloadContinuationData":{"continuation":"PARTY"}}}}
+            }}
+          ]}},
+          "contents":[
+          {"musicPlaylistShelfRenderer":{
+            "header":{"musicSideAlignedItemRenderer":{"startItems":[{"sortFilterSubMenuRenderer":{"subMenuItems":[
+              {"title":"Newest first","selected":true,"navigationEndpoint":{"executeEntityCommand":{"commandEntityKey":"K1"}}},
+              {"title":"Title","selected":false,"navigationEndpoint":{"executeEntityCommand":{"commandEntityKey":"K2"}}}
+            ]}}]}},
+            "contents":[
+            {"musicResponsiveListItemRenderer":{
+              "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Song"}]}}}],
+              "playlistItemData":{"videoId":"vid1"}
+            }},
+            {"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"NEXT"}}}}
+          ]}}
+        ]}},
+        "frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+          {"entityKey":"K1","payload":{"commandEntity":{"command":{"browseSectionListReloadEndpoint":{"continuation":{"reloadContinuationData":{"continuation":"NEWEST"}}}}}}},
+          {"entityKey":"K2","payload":{"commandEntity":{"command":{"browseSectionListReloadEndpoint":{"continuation":{"reloadContinuationData":{"continuation":"TITLE"}}}}}}}
+        ]}}}
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, kind: .playlist)
+        let reload = EntityPageParser.parseTrackReload(response, header: header)
+        #expect(reload.tracks.map(\.videoId) == ["vid1"])
+        #expect(reload.tracks.map(\.index) == [1])
+        #expect(reload.continuationToken == "NEXT")
+        #expect(reload.filters.map(\.isSelected) == [true])
+        #expect(reload.sortOptions == [
+            PlaylistSortOption(title: "Newest first", token: "NEWEST", isSelected: true),
+            PlaylistSortOption(title: "Title", token: "TITLE"),
+        ])
+    }
+
     /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
     /// entity header and lays its cards out as a grid rather than a track list.
     private let feedFixture = """

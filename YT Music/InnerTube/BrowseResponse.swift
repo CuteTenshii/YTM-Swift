@@ -86,6 +86,27 @@ struct BrowseResponse: Decodable {
 
                 struct StartItem: Decodable {
                     let chipCloudRenderer: ChipCloudRenderer?
+                    /// A playlist track shelf's "Sort" menu.
+                    let sortFilterSubMenuRenderer: SortMenu?
+                }
+
+                struct SortMenu: Decodable {
+                    let subMenuItems: [Item]?
+
+                    struct Item: Decodable {
+                        let title: String?
+                        let selected: Bool?
+                        let navigationEndpoint: Endpoint?
+                    }
+
+                    /// Resolved through the response's `frameworkUpdates`.
+                    struct Endpoint: Decodable {
+                        let executeEntityCommand: EntityCommand?
+
+                        struct EntityCommand: Decodable {
+                            let commandEntityKey: String?
+                        }
+                    }
                 }
             }
         }
@@ -136,11 +157,27 @@ nonisolated struct ChipCloudRenderer: Decodable {
     struct Renderer: Decodable {
         let text: InnerTubeText?
         let navigationEndpoint: Endpoint?
+        let onDeselectedCommand: Endpoint?
+        let isSelected: Bool?
     }
 
     struct Endpoint: Decodable {
         let browseEndpoint: NavigationEndpoint.BrowseEndpoint?
         let commandExecutorCommand: CommandExecutor?
+        /// Playlist filter chips reload the track section from a continuation.
+        let browseSectionListReloadEndpoint: ReloadEndpoint?
+
+        struct ReloadEndpoint: Decodable {
+            let continuation: Continuation?
+
+            struct Continuation: Decodable {
+                let reloadContinuationData: ContinuationData?
+            }
+        }
+
+        var reloadToken: String? {
+            browseSectionListReloadEndpoint?.continuation?.reloadContinuationData?.continuation
+        }
 
         struct CommandExecutor: Decodable {
             let commands: [Command]?
@@ -193,6 +230,7 @@ nonisolated struct GridRenderer: Decodable {
 /// A flat list shelf whose `contents` are list rows. Used for track listings.
 struct MusicShelfRenderer: Decodable {
     let title: InnerTubeText?
+    let header: BrowseResponse.SectionList.Header?
     let contents: [CarouselItem]?
     let continuations: [BrowseContinuation]?
 
