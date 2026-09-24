@@ -74,6 +74,14 @@ struct EntityView: View {
         }
     }
 
+    private func emptyText(_ text: String) -> some View {
+        Text(text)
+            .font(.title3)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+    }
+
     private func content(_ page: EntityPage) -> some View {
         // Tracks played from an album page carry the album name into Now Playing.
         let album = page.header.kind == .album ? page.header.title : ""
@@ -120,14 +128,14 @@ struct EntityView: View {
                                 onReachedEnd: { Task { await model.loadMore() } }
                             )
                                 .padding(.horizontal, 24)
-                        } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !searchCompleted {
+                        } else if isSearching && !searchCompleted {
                             ProgressView()
                                 .controlSize(.small)
                                 .padding(.horizontal, 24)
-                        } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("No tracks found for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 24)
+                        } else if isSearching {
+                            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                        } else if page.header.kind == .playlist {
+                            emptyText("This playlist is empty")
                         }
 
                         ForEach(page.shelves) { shelf in
