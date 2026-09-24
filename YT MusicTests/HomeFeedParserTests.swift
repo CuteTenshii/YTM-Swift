@@ -41,6 +41,45 @@ struct HomeFeedParserTests {
         #expect(home.albumLink?.name == "Some Album")
     }
 
+    @Test("An album card takes its queueable playlist id from the play button")
+    func albumPlaylistIdFromPlayButton() throws {
+        let item = try card("""
+        {"musicTwoRowItemRenderer":{
+          "title":{"runs":[{"text":"Some Album"}]},
+          "navigationEndpoint":{"browseEndpoint":{"browseId":"MPREbAlb",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}},
+          "thumbnailOverlay":{"musicItemThumbnailOverlayRenderer":{"content":{"musicPlayButtonRenderer":{
+            "playNavigationEndpoint":{"watchPlaylistEndpoint":{"playlistId":"OLAK5uy_album"}}}}}}
+        }}
+        """)
+        #expect(item.kind == .album)
+        #expect(item.playlistId == "OLAK5uy_album")
+    }
+
+    @Test("A playlist card without a play button falls back to its VL browse id")
+    func playlistIdFromBrowseId() throws {
+        let item = try card("""
+        {"musicTwoRowItemRenderer":{
+          "title":{"runs":[{"text":"Some Playlist"}]},
+          "navigationEndpoint":{"browseEndpoint":{"browseId":"VLPLabc",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}
+        }}
+        """)
+        #expect(item.playlistId == "PLabc")
+    }
+
+    @Test("An artist card gets no playlist id")
+    func artistHasNoPlaylistId() throws {
+        let item = try card("""
+        {"musicTwoRowItemRenderer":{
+          "title":{"runs":[{"text":"Some Artist"}]},
+          "navigationEndpoint":{"browseEndpoint":{"browseId":"UCart",
+            "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}
+        }}
+        """)
+        #expect(item.playlistId == nil)
+    }
+
     @Test("A liked two-row card reads .liked from its like toggle")
     func likedToggleReadsLiked() throws {
         // The default (tap) action would set INDIFFERENT — so it's currently liked.

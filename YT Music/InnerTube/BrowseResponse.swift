@@ -234,12 +234,17 @@ nonisolated struct ContinuationItemRenderer: Decodable {
 // MARK: - Card renderers
 
 /// The big square/circle cards used across most home shelves.
-struct MusicTwoRowItemRenderer: Decodable {
+nonisolated final class MusicTwoRowItemRenderer: Decodable, @unchecked Sendable {
     let title: InnerTubeText?
     let subtitle: InnerTubeText?
     let thumbnailRenderer: ThumbnailRendererWrapper?
     let navigationEndpoint: NavigationEndpoint?
+    let thumbnailOverlay: MusicResponsiveListItemRenderer.Overlay?
     let menu: RendererMenu?
+
+    var overlayPlayEndpoint: NavigationEndpoint? {
+        thumbnailOverlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint
+    }
 
     /// The delete entity id for an uploaded album/release card, if present.
     var deleteEntityId: String? { menu?.deleteEntityId }
@@ -324,9 +329,11 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     }
 
     var playEndpoint: NavigationEndpoint? {
-        navigationEndpoint
-            ?? overlay?.musicItemThumbnailOverlayRenderer?
-                .content?.musicPlayButtonRenderer?.playNavigationEndpoint
+        navigationEndpoint ?? overlayPlayEndpoint
+    }
+
+    var overlayPlayEndpoint: NavigationEndpoint? {
+        overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint
     }
 
     /// Most reliable video id for a track row.

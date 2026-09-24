@@ -117,7 +117,9 @@ nonisolated enum HomeFeedParser {
         let title = row.title?.text ?? ""
         guard !title.isEmpty else { return nil }
 
-        let (kind, videoId, browseId, playlistId) = resolve(row.navigationEndpoint)
+        let (kind, videoId, browseId, resolvedPlaylistId) = resolve(row.navigationEndpoint)
+        let playlistId = resolvedPlaylistId
+            ?? collectionPlaylistId(kind: kind, browseId: browseId, play: row.overlayPlayEndpoint)
         let links = row.subtitle?.entityLinks ?? []
 
         return HomeItem(
@@ -150,6 +152,8 @@ nonisolated enum HomeFeedParser {
             videoId = id
             if kind == .unknown { kind = .song }
         }
+        playlistId = playlistId
+            ?? collectionPlaylistId(kind: kind, browseId: browseId, play: row.overlayPlayEndpoint)
         let links = row.entityLinks
 
         return HomeItem(
@@ -189,6 +193,19 @@ nonisolated enum HomeFeedParser {
             browseId: browseId,
             playlistId: playlistId
         )
+    }
+
+    /// The queueable playlist id of an album/playlist card: its play button's,
+    /// else (playlists only) the browse id minus its "VL" prefix.
+    private static func collectionPlaylistId(
+        kind: HomeItem.Kind, browseId: String?, play: NavigationEndpoint?
+    ) -> String? {
+        guard kind == .album || kind == .playlist else { return nil }
+        if let id = play?.watchPlaylistEndpoint?.playlistId ?? play?.watchEndpoint?.playlistId {
+            return id
+        }
+        guard kind == .playlist, let browseId, browseId.hasPrefix("VL") else { return nil }
+        return String(browseId.dropFirst(2))
     }
 
     private static func resolve(
