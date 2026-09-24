@@ -669,28 +669,22 @@ private struct NowPlayingBar: View {
 
     // MARK: - Scrubber
 
-    @ViewBuilder
     private var scrubber: some View {
-        if player.duration > 0 {
-            HStack(spacing: 8) {
-                Text(timeString(player.currentTime))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Text(timeString(player.currentTime))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
 
-                SeekBar(
-                    currentTime: player.currentTime,
-                    bufferedTime: player.bufferedTime,
-                    duration: player.duration,
-                    onSeek: { player.seek(to: $0) }
-                )
+            SeekBar(
+                currentTime: player.currentTime,
+                bufferedTime: player.bufferedTime,
+                duration: player.duration,
+                onSeek: { player.seek(to: $0) }
+            )
 
-                Text(timeString(player.duration))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        } else {
-            // Keep the row height stable before a duration is known.
-            Color.clear.frame(height: 11)
+            Text(timeString(player.duration))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 

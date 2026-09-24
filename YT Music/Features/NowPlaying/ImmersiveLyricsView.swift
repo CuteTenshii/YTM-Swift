@@ -252,13 +252,11 @@ struct ImmersiveLyricsView: View {
 
     private var transport: some View {
         VStack(spacing: 12) {
-            if player.duration > 0 {
-                SeekBar(currentTime: player.currentTime,
-                        bufferedTime: player.bufferedTime,
-                        duration: player.duration,
-                        onSeek: { player.seek(to: $0) })
-                    .frame(maxWidth: 640)
-            }
+            SeekBar(currentTime: player.currentTime,
+                    bufferedTime: player.bufferedTime,
+                    duration: player.duration,
+                    onSeek: { player.seek(to: $0) })
+                .frame(maxWidth: 640)
             HStack(spacing: 34) {
                 Button(action: player.previous) {
                     Image(systemName: "backward.fill").font(.system(size: 20))
