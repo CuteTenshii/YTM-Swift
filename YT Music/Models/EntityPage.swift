@@ -75,6 +75,8 @@ struct EntityHeader: Sendable {
     /// The artist header's "Shuffle"/"Start radio" playlist id (e.g. `RDEM…`),
     /// when present — lets an artist page start a mix with no video seed.
     var radioPlaylistId: String? = nil
+    /// The artist header's "Start radio" playlist id, when present.
+    var startRadioPlaylistId: String? = nil
     /// The playlist's visibility, when the header labels it (owned playlists
     /// say "Private playlist" / "Unlisted playlist" / "Public playlist" in
     /// their strapline). Nil when the page didn't say — playlists you don't

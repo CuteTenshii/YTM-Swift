@@ -155,7 +155,9 @@ nonisolated enum EntityPageParser {
                 bannerURL: immersive.thumbnail?.musicThumbnailRenderer?.bestURL,
                 kind: fallback.kind,
                 subscription: parseSubscription(immersive.subscriptionButton),
-                radioPlaylistId: radioPlaylistId
+                radioPlaylistId: radioPlaylistId,
+                startRadioPlaylistId: immersive.startRadioButton?.buttonRenderer?.navigationEndpoint?
+                    .watchPlaylistEndpoint?.playlistId
             )
         }
 

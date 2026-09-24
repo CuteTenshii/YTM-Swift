@@ -40,6 +40,8 @@ extension InnerTubeClient: RadioProviding {}
 enum MixIds {
     /// A song's auto-generated radio: `RDAMVM<videoId>`.
     static func songRadio(for videoId: String) -> String { "RDAMVM\(videoId)" }
+    /// A playlist's or album's radio: `RDAMPL<playlistId>`.
+    static func playlistRadio(for playlistId: String) -> String { "RDAMPL\(playlistId)" }
 }
 
 @MainActor
@@ -334,19 +336,49 @@ final class PlayerState {
     /// real playlist/album) and plays it as the queue. Unlike a single-seed play
     /// this yields real per-track metadata (title/artist/artwork) instead of the
     /// button's own label.
-    func playAll(videoId: String?, playlistId: String) {
+    func playAll(videoId: String?, playlistId: String, shuffled: Bool = false) {
         loadTask?.cancel()
         radioTask?.cancel()
-        radioTask = Task { await loadAndPlayAll(videoId: videoId, playlistId: playlistId) }
+        radioTask = Task { await loadAndPlayAll(videoId: videoId, playlistId: playlistId, shuffled: shuffled) }
     }
 
     /// Fetches then plays a "Play all" queue, starting at the seed track when it's
     /// present in the returned queue. Split out so tests can await it directly.
-    func loadAndPlayAll(videoId: String?, playlistId: String) async {
+    func loadAndPlayAll(videoId: String?, playlistId: String, shuffled: Bool = false) async {
         guard let tracks = try? await radioProvider.watchQueue(videoId: videoId ?? "", playlistId: playlistId),
               !tracks.isEmpty else { return }
-        let start = videoId.flatMap { id in tracks.firstIndex { $0.videoId == id } } ?? 0
+        let start = shuffled
+            ? Int.random(in: tracks.indices)
+            : videoId.flatMap { id in tracks.firstIndex { $0.videoId == id } } ?? 0
         play(tracks, startAt: start, playlistId: playlistId)
+        if shuffled { toggleShuffle() }
+    }
+
+    /// Queues a playlist/album right after the current track (`next`) or at the
+    /// end of the queue. With nothing playing it just plays it.
+    func enqueueAll(playlistId: String, next: Bool) {
+        Task { await loadAndEnqueueAll(playlistId: playlistId, next: next) }
+    }
+
+    /// Fetches then queues a playlist/album. Split out so tests can await it.
+    func loadAndEnqueueAll(playlistId: String, next: Bool) async {
+        guard let tracks = try? await radioProvider.watchQueue(videoId: "", playlistId: playlistId) else { return }
+        let playable = tracks.filter { $0.videoId != nil }
+        guard !playable.isEmpty else { return }
+        guard let nowPlaying else {
+            play(playable, startAt: 0, playlistId: playlistId)
+            return
+        }
+        if queue.isEmpty {
+            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
+                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL,
+                                  videoId: nowPlaying.videoId, artists: nowPlaying.artists,
+                                  albumLink: nowPlaying.albumLink)
+            queue = [seedTrack]
+            currentIndex = 0
+        }
+        queue.insert(contentsOf: playable, at: next ? currentIndex + 1 : queue.count)
+        persist()
     }
 
     /// Autoplay: when the current track has nothing after it (a one-off play, or

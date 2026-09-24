@@ -616,6 +616,64 @@ struct PlayerStateQueueTests {
         #expect(p.nowPlaying?.videoId == "b")
     }
 
+    @Test("A shuffled playAll turns shuffle on over the whole fetched queue")
+    func playAllShuffled() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["a", "b", "c", "d"])))
+
+        await p.loadAndPlayAll(videoId: nil, playlistId: "PL42", shuffled: true)
+
+        #expect(p.isShuffled)
+        #expect(p.currentIndex == 0)
+        #expect(Set(p.queue.compactMap(\.videoId)) == ["a", "b", "c", "d"])
+    }
+
+    @Test("Enqueuing a playlist next inserts it after the current track")
+    func enqueueNext() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["x", "y"])))
+        p.play(tracks(["a", "b"]), startAt: 0)
+
+        await p.loadAndEnqueueAll(playlistId: "PL42", next: true)
+
+        #expect(p.queue.map(\.videoId) == ["a", "x", "y", "b"])
+        #expect(p.nowPlaying?.videoId == "a")
+    }
+
+    @Test("Adding a playlist to the queue appends it")
+    func enqueueAtEnd() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["x", "y"])))
+        p.play(tracks(["a", "b"]), startAt: 0)
+
+        await p.loadAndEnqueueAll(playlistId: "PL42", next: false)
+
+        #expect(p.queue.map(\.videoId) == ["a", "b", "x", "y"])
+    }
+
+    @Test("Enqueuing after a one-off play keeps the current track at the head")
+    func enqueueAfterOneOff() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["x", "y"])))
+        p.play(title: "S", subtitle: "A", thumbnailURL: nil, videoId: "seed")
+
+        await p.loadAndEnqueueAll(playlistId: "PL42", next: true)
+
+        #expect(p.queue.map(\.videoId) == ["seed", "x", "y"])
+        #expect(p.currentIndex == 0)
+    }
+
+    @Test("Enqueuing with nothing playing plays the playlist")
+    func enqueueWithNothingPlaying() async {
+        let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
+                            radioProvider: StubRadio(watchQueueTracks: tracks(["x", "y"])))
+
+        await p.loadAndEnqueueAll(playlistId: "PL42", next: false)
+
+        #expect(p.queue.map(\.videoId) == ["x", "y"])
+        #expect(p.nowPlaying?.videoId == "x")
+    }
+
     @Test("playAll is a no-op when the watch queue is empty")
     func playAllEmptyQueue() async {
         let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),

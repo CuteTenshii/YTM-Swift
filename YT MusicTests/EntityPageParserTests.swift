@@ -64,6 +64,23 @@ struct EntityPageParserTests {
         #expect(page.header.subscription == nil)
     }
 
+    @Test("Parses the artist header's Shuffle and Start radio mix ids separately")
+    func parsesArtistMixIds() throws {
+        let fixture = """
+        {"header":{"musicImmersiveHeaderRenderer":{
+          "title":{"runs":[{"text":"Some Artist"}]},
+          "playButton":{"buttonRenderer":{"navigationEndpoint":{"watchPlaylistEndpoint":{"playlistId":"RDAOshuffle"}}}},
+          "startRadioButton":{"buttonRenderer":{"navigationEndpoint":{"watchPlaylistEndpoint":{"playlistId":"RDEMradio"}}}}
+        }}}
+        """
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(fixture.utf8)
+        )
+        let page = EntityPageParser.parse(response, fallback: artistDestination)
+        #expect(page.header.radioPlaylistId == "RDAOshuffle")
+        #expect(page.header.startRadioPlaylistId == "RDEMradio")
+    }
+
     /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
     /// entity header and lays its cards out as a grid rather than a track list.
     private let feedFixture = """

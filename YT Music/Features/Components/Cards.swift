@@ -366,8 +366,8 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
     }
 
     /// Entity cards (album / playlist / artist / podcast) have no video of
-    /// their own: offer to play the collection when it's queuable, and to open
-    /// its page (what a left-click does).
+    /// their own: queuable collections get the playback/queue actions, artists
+    /// get their page's Shuffle / Start radio mixes.
     @ViewBuilder
     private func entityActions(_ destination: EntityDestination) -> some View {
         if let playlistId {
@@ -376,13 +376,50 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
             } label: {
                 Label("Play", systemImage: "play.fill")
             }
+            Button {
+                player.playAll(videoId: nil, playlistId: playlistId, shuffled: true)
+            } label: {
+                Label("Shuffle", systemImage: "shuffle")
+            }
+            Button {
+                player.enqueueAll(playlistId: playlistId, next: true)
+            } label: {
+                Label("Play Next", systemImage: "text.insert")
+            }
+            Button {
+                player.enqueueAll(playlistId: playlistId, next: false)
+            } label: {
+                Label("Add to Queue", systemImage: "text.append")
+            }
+            Button {
+                player.playAll(videoId: nil, playlistId: MixIds.playlistRadio(for: playlistId))
+            } label: {
+                Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+            }
+        } else if destination.kind == .artist {
+            Button {
+                playArtistMix(destination, radio: false)
+            } label: {
+                Label("Shuffle", systemImage: "shuffle")
+            }
+            Button {
+                playArtistMix(destination, radio: true)
+            } label: {
+                Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+            }
         }
-        Button {
-            navigator.open(destination)
-        } label: {
-            Label("Open", systemImage: "arrow.right")
+    }
+
+    /// Artist cards carry no mix ids, so fetch them from the artist page.
+    private func playArtistMix(_ destination: EntityDestination, radio: Bool) {
+        Task {
+            guard let header = try? await InnerTubeClient.shared.entity(destination).header,
+                  let mixId = radio
+                    ? header.startRadioPlaylistId ?? header.radioPlaylistId
+                    : header.radioPlaylistId
+            else { return }
+            player.playAll(videoId: nil, playlistId: mixId)
         }
-        .disabled(isCurrentPage(destination.browseId))
     }
 
     /// "Go to artist" for a single artist, or a submenu listing each when a track
@@ -436,7 +473,7 @@ extension View {
     /// Adds the standard right-click menu for a music item. Playable tracks
     /// (with a `videoId`) get Play / Play Next / Start radio / Like / Add to
     /// Playlist; entity cards (albums, playlists, artists, podcasts — pass
-    /// their `entityDestination`) get Play / Open instead. Both kinds get
+    /// their `entityDestination`) get Play / Shuffle / queue / radio instead. Both kinds get
     /// "Go to artist"/"Go to album" when those links are known, Share / Copy
     /// Link, and any screen-specific `extraActions` appended at the bottom.
     func musicContextMenu<Extra: View>(
