@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct AccountInfo: Sendable, Equatable {
+struct AccountInfo: Sendable, Equatable, Codable {
     var name: String
     var handle: String      // "@handle" or email; may be empty
     var avatarURL: URL?

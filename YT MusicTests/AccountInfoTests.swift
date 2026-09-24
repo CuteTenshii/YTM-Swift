@@ -69,3 +69,28 @@ struct AccountInfoTests {
         #expect(AccountInfoParser.parse(response) == nil)
     }
 }
+
+@Suite("Cached account")
+@MainActor
+struct CachedAccountTests {
+
+    @Test("Starts signed in with the cached account")
+    func restoresCachedAccount() throws {
+        let suite = try #require(UserDefaults(suiteName: "test.\(UUID().uuidString)"))
+        let cached = AccountInfo(name: "Ada", handle: "@ada", avatarURL: URL(string: "https://img/a"))
+        suite.set(try JSONEncoder().encode(cached), forKey: "auth.account")
+
+        let auth = AuthStore(defaults: suite)
+
+        #expect(auth.isSignedIn)
+        #expect(auth.account == cached)
+    }
+
+    @Test("Starts unknown without a cached account")
+    func noCache() throws {
+        let suite = try #require(UserDefaults(suiteName: "test.\(UUID().uuidString)"))
+        let auth = AuthStore(defaults: suite)
+        #expect(!auth.isSignedIn)
+        #expect(auth.account == nil)
+    }
+}

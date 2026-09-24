@@ -32,7 +32,18 @@ final class AuthStore {
 
     var isSignedIn: Bool { state == .signedIn }
 
-    init() {
+    private let defaults: UserDefaults
+    private static let accountKey = "auth.account"
+
+    /// Starts from the cached account, if any, so the UI and first loads are
+    /// signed in without waiting on the Keychain.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if let data = defaults.data(forKey: Self.accountKey),
+           let cached = try? JSONDecoder().decode(AccountInfo.self, from: data) {
+            account = cached
+            state = .signedIn
+        }
         // A 401 on any authenticated request (posted by InnerTubeClient) means the
         // session expired; surface a banner prompting re-authentication.
         NotificationCenter.default.addObserver(
@@ -55,13 +66,15 @@ final class AuthStore {
     }
 
     func refresh() async {
+        let wasSignedIn = isSignedIn
         if await CredentialStore.shared.isSignedIn {
             state = .signedIn
-            await loadAccountInfo()
         } else {
             state = .signedOut
-            account = nil
+            setAccount(nil)
         }
+        if isSignedIn != wasSignedIn { generation += 1 }
+        if isSignedIn { await loadAccountInfo() }
     }
 
     /// Called by the login web view once it has captured a usable cookie jar.
@@ -81,7 +94,7 @@ final class AuthStore {
         await CredentialStore.shared.clear()
         await Self.clearWebData()
         state = .signedOut
-        account = nil
+        setAccount(nil)
         sessionExpired = false
         generation += 1
     }
@@ -89,7 +102,16 @@ final class AuthStore {
     /// Best-effort: a failure here shouldn't change the signed-in state.
     private func loadAccountInfo() async {
         if let info = try? await InnerTubeClient.shared.accountInfo() {
-            account = info
+            setAccount(info)
+        }
+    }
+
+    private func setAccount(_ info: AccountInfo?) {
+        account = info
+        if let info, let data = try? JSONEncoder().encode(info) {
+            defaults.set(data, forKey: Self.accountKey)
+        } else {
+            defaults.removeObject(forKey: Self.accountKey)
         }
     }
 
