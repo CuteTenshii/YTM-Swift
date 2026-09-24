@@ -36,10 +36,16 @@ struct MusicLinksTests {
         #expect(url?.absoluteString == "https://music.youtube.com/playlist?list=PLabc")
     }
 
+    @Test("Channel browse ids produce a channel URL")
+    func channelURL() {
+        let url = MusicLinks.url(videoId: nil, playlistId: nil, browseId: "UCchannel")
+        #expect(url?.absoluteString == "https://music.youtube.com/channel/UCchannel")
+    }
+
     @Test("Other browse ids produce a browse URL")
     func browseURL() {
-        let url = MusicLinks.url(videoId: nil, playlistId: nil, browseId: "UCchannel")
-        #expect(url?.absoluteString == "https://music.youtube.com/browse/UCchannel")
+        let url = MusicLinks.url(videoId: nil, playlistId: nil, browseId: "MPREbAlbum")
+        #expect(url?.absoluteString == "https://music.youtube.com/browse/MPREbAlbum")
     }
 
     @Test("No identifiers yields nil")

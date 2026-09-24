@@ -25,6 +25,9 @@ enum MusicLinks {
             if browseId.hasPrefix("VL") {
                 return URL(string: "\(base)/playlist?list=\(browseId.dropFirst(2))")
             }
+            if browseId.hasPrefix("UC") {
+                return URL(string: "\(base)/channel/\(browseId)")
+            }
             return URL(string: "\(base)/browse/\(browseId)")
         }
         return nil

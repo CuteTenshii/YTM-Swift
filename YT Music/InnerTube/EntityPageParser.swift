@@ -39,7 +39,8 @@ nonisolated enum EntityPageParser {
             header: header,
             tracks: tracks,
             shelves: shelves,
-            continuationToken: continuationToken
+            continuationToken: continuationToken,
+            shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:))
         )
     }
 

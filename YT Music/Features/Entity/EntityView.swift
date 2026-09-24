@@ -532,10 +532,10 @@ private struct HeaderView: View {
         auth.isSignedIn && model.isEditablePlaylist
     }
 
-    /// The entity's canonical share URL — a `playlist?list=` link for playlist
-    /// pages, a `/browse/` link for artists/albums/podcasts.
+    /// The page's official share URL once loaded, else one built from its ids.
     private var link: URL? {
-        MusicLinks.url(
+        if case .loaded(let page) = model.state, let url = page.shareURL { return url }
+        return MusicLinks.url(
             videoId: nil,
             playlistId: model.savablePlaylistId,
             browseId: model.destination.browseId

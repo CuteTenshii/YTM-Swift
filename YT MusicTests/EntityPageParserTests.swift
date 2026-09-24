@@ -81,6 +81,19 @@ struct EntityPageParserTests {
         #expect(page.header.startRadioPlaylistId == "RDEMradio")
     }
 
+    @Test("Reads the page's canonical share URL from its microformat")
+    func parsesShareURL() throws {
+        let fixture = """
+        {"microformat":{"microformatDataRenderer":{
+          "urlCanonical":"https://music.youtube.com/playlist?list=OLAK5uy_album"}}}
+        """
+        let response = try JSONDecoder().decode(
+            EntityBrowseResponse.self, from: Data(fixture.utf8)
+        )
+        let page = EntityPageParser.parse(response, fallback: artistDestination)
+        #expect(page.shareURL?.absoluteString == "https://music.youtube.com/playlist?list=OLAK5uy_album")
+    }
+
     /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
     /// entity header and lays its cards out as a grid rather than a track list.
     private let feedFixture = """

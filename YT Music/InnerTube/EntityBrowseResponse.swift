@@ -10,12 +10,21 @@
 
 import Foundation
 
-struct EntityBrowseResponse: Decodable {
+nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     let header: HeaderContainer?
     let contents: EntityContents?
     let continuationContents: ContinuationContents?
     let onResponseReceivedActions: [ResponseAction]?
     let onResponseReceivedCommands: [ResponseAction]?
+    let microformat: Microformat?
+
+    struct Microformat: Decodable {
+        let microformatDataRenderer: DataRenderer?
+
+        struct DataRenderer: Decodable {
+            let urlCanonical: String?
+        }
+    }
 
     struct ResponseAction: Decodable {
         let appendContinuationItemsAction: ContinuationItemsAction?
