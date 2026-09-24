@@ -207,7 +207,7 @@ nonisolated enum EntityPageParser {
         parseItems(shelf.contents ?? [], startIndex: startIndex, header: header)
     }
 
-    private static func parseItems(
+    static func parseItems(
         _ items: [CarouselItem],
         startIndex: Int,
         header: EntityHeader

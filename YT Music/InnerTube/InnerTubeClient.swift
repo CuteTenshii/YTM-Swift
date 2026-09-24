@@ -340,13 +340,19 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityPageParser.parse(response, fallback: fallback).tracks
     }
 
-    /// Loads the signed-in user's library landing page (requires auth).
-    func library() async throws -> [HomeShelf] {
-        let response: BrowseResponse = try await post(
-            "browse",
-            body: ["browseId": "FEmusic_library_landing"]
-        )
+    /// Loads a library page (requires auth): the landing page by default, or a
+    /// filter chip's page (`FEmusic_liked_playlists`, …).
+    func library(browseId: String = "FEmusic_library_landing", params: String? = nil) async throws -> LibraryPage {
+        var body: [String: Any] = ["browseId": browseId]
+        if let params { body["params"] = params }
+        let response: BrowseResponse = try await post("browse", body: body)
         return LibraryParser.parse(response)
+    }
+
+    /// Loads the next page of a library listing.
+    func libraryContinuation(_ token: String) async throws -> LibraryPage {
+        let response: BrowseResponse = try await post("browse", body: ["continuation": token])
+        return LibraryParser.parseContinuation(response)
     }
 
     /// Loads the signed-in user's uploaded music landing page

@@ -23,6 +23,13 @@ import Foundation
 
 struct BrowseResponse: Decodable {
     let contents: Contents?
+    let continuationContents: ContinuationContents?
+
+    /// The next page of a paginated grid or list (e.g. a library listing).
+    struct ContinuationContents: Decodable {
+        let gridContinuation: GridRenderer?
+        let musicShelfContinuation: MusicShelfRenderer?
+    }
 
     struct Contents: Decodable {
         let singleColumnBrowseResultsRenderer: SingleColumn?
@@ -71,6 +78,16 @@ struct BrowseResponse: Decodable {
 
         struct Header: Decodable {
             let chipCloudRenderer: ChipCloudRenderer?
+            /// The library pages' header: filter chips on the start side.
+            let musicSideAlignedItemRenderer: SideAligned?
+
+            struct SideAligned: Decodable {
+                let startItems: [StartItem]?
+
+                struct StartItem: Decodable {
+                    let chipCloudRenderer: ChipCloudRenderer?
+                }
+            }
         }
 
         var continuationToken: String? {
@@ -118,7 +135,25 @@ nonisolated struct ChipCloudRenderer: Decodable {
 
     struct Renderer: Decodable {
         let text: InnerTubeText?
-        let navigationEndpoint: NavigationEndpoint?
+        let navigationEndpoint: Endpoint?
+    }
+
+    struct Endpoint: Decodable {
+        let browseEndpoint: NavigationEndpoint.BrowseEndpoint?
+        let commandExecutorCommand: CommandExecutor?
+
+        struct CommandExecutor: Decodable {
+            let commands: [Command]?
+
+            struct Command: Decodable {
+                let browseEndpoint: NavigationEndpoint.BrowseEndpoint?
+            }
+        }
+
+        /// Library chips wrap their browse in a command executor.
+        var browse: NavigationEndpoint.BrowseEndpoint? {
+            browseEndpoint ?? commandExecutorCommand?.commands?.lazy.compactMap(\.browseEndpoint).first
+        }
     }
 }
 
@@ -141,6 +176,11 @@ nonisolated struct MusicCardShelfRenderer: Decodable {
 nonisolated struct GridRenderer: Decodable {
     let header: GridHeader?
     let items: [CarouselItem]?
+    let continuations: [BrowseContinuation]?
+
+    var continuationToken: String? {
+        continuations?.first?.nextContinuationData?.continuation
+    }
 
     struct GridHeader: Decodable {
         let gridHeaderRenderer: Inner?

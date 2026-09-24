@@ -2,7 +2,8 @@
 //  LibraryView.swift
 //  YT Music
 //
-//  The Library tab: the signed-in user's playlists/albums as wrapping grids.
+//  The Library tab: the signed-in user's library as wrapping grids, filtered
+//  by the server's chips (each chip is its own paginated browse page).
 //  Requires authentication; prompts to sign in otherwise.
 //
 
@@ -12,7 +13,6 @@ struct LibraryView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
     let model: LibraryViewModel
-    @State private var filter: LibraryFilter = .all
     /// The card being renamed (drives the rename alert), and its draft name.
     @State private var renaming: HomeItem?
     @State private var renameText = ""
@@ -38,8 +38,8 @@ struct LibraryView: View {
                 case .signedOut:
                     signedOutView
 
-                case .loaded(let shelves):
-                    content(shelves)
+                case .loaded:
+                    content
 
                 case .failed(let message):
                     errorView(message)
@@ -75,22 +75,37 @@ struct LibraryView: View {
         }
     }
 
-    private func content(_ shelves: [HomeShelf]) -> some View {
-        let available = LibraryFilter.available(for: shelves)
-        let filtered = filter.apply(to: shelves)
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FilterChips(chips: model.chips, selection: model.selectedChip) { chip in
+                Task { await model.select(chip) }
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
-        return VStack(alignment: .leading, spacing: 0) {
-            FilterChips(filters: available, selection: $filter)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-
-            if filtered.isEmpty {
+            switch model.visibleState {
+            case .loading, .signedOut:
+                Spacer()
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            case .failed(let message):
+                errorView(message)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .loaded(let page) where page.isEmpty:
                 emptyFilterView
-            } else {
+            case .loaded(let page):
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
-                        ForEach(filtered) { shelf in
-                            shelfSection(shelf)
+                        ForEach(page.shelves) { shelf in
+                            shelfSection(shelf, lastItemID: page.shelves.last?.items.last?.id)
+                        }
+                        if !page.tracks.isEmpty {
+                            TrackListView(tracks: page.tracks, album: "", hasMore: page.continuation != nil) {
+                                Task { await model.loadMoreVisible() }
+                            }
+                            .padding(.horizontal, 24)
                         }
                     }
                     .padding(.vertical, 16)
@@ -99,7 +114,7 @@ struct LibraryView: View {
         }
     }
 
-    private func shelfSection(_ shelf: HomeShelf) -> some View {
+    private func shelfSection(_ shelf: HomeShelf, lastItemID: UUID?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
@@ -121,6 +136,9 @@ struct LibraryView: View {
                                 Label("Delete Playlist…", systemImage: "trash")
                             }
                         }
+                    }
+                    .onAppear {
+                        if item.id == lastItemID { Task { await model.loadMoreVisible() } }
                     }
                 }
             }
@@ -193,31 +211,35 @@ struct LibraryView: View {
         .frame(width: 900, height: 600)
 }
 
-/// Horizontal row of selectable filter chips (YT Music style).
+/// Horizontal row of selectable filter chips (YT Music style): "All" (the
+/// landing page) plus the server's chips.
 private struct FilterChips: View {
-    let filters: [LibraryFilter]
-    @Binding var selection: LibraryFilter
+    let chips: [HomeChip]
+    let selection: HomeChip?
+    let select: (HomeChip?) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(filters) { filter in
-                    let isSelected = filter == selection
-                    Button {
-                        selection = filter
-                    } label: {
-                        Text(filter.rawValue)
-                            .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(isSelected ? Color.primary : Color.primary.opacity(0.12))
-                            .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
-                            .clipShape(.capsule)
-                    }
-                    .buttonStyle(.plain)
+                chipButton("All", isSelected: selection == nil) { select(nil) }
+                ForEach(chips) { chip in
+                    chipButton(chip.title, isSelected: chip == selection) { select(chip) }
                 }
             }
             .padding(.horizontal, 24)
         }
+    }
+
+    private func chipButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? Color.primary : Color.primary.opacity(0.12))
+                .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
+                .clipShape(.capsule)
+        }
+        .buttonStyle(.plain)
     }
 }

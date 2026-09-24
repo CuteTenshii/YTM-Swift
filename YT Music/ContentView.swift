@@ -219,9 +219,10 @@ private struct SidebarLibraryItems: View {
     @Environment(Navigator.self) private var navigator
 
     var body: some View {
-        if case .loaded(let shelves) = model.state {
+        if case .loaded(let page) = model.state {
+            let items = page.shelves.flatMap(\.items)
             SwiftUI.Section("Library") {
-                ForEach(shelves.flatMap(\.items)) { item in
+                ForEach(items) { item in
                     Button { open(item) } label: {
                         HStack(spacing: 8) {
                             ArtworkView(url: item.thumbnailURL,
@@ -252,6 +253,9 @@ private struct SidebarLibraryItems: View {
                         entityDestination: item.entityDestination,
                         likeStatus: item.likeStatus
                     )
+                    .onAppear {
+                        if item.id == items.last?.id { Task { await model.loadMoreLanding() } }
+                    }
                 }
             }
         }
