@@ -73,6 +73,8 @@ struct ContentView: View {
     /// Shared comments loader: drives both the panel's Comments tab and whether
     /// the now-playing bar's Comments button is enabled.
     @State private var comments = CommentsViewModel()
+    /// Shared by the Library tab and the sidebar's library list.
+    @State private var library = LibraryViewModel()
 
     var body: some View {
         @Bindable var auth = auth
@@ -85,9 +87,12 @@ struct ContentView: View {
                 }
 
                 NavigationSplitView {
-                    List(Section.allCases, selection: $navigator.section) { section in
-                        Label(section.rawValue, systemImage: section.icon)
-                            .tag(section)
+                    List(selection: $navigator.section) {
+                        ForEach(Section.allCases) { section in
+                            Label(section.rawValue, systemImage: section.icon)
+                                .tag(section)
+                        }
+                        SidebarLibraryItems(model: library)
                     }
                     .navigationSplitViewColumnWidth(min: 180, ideal: 200)
                     .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -100,7 +105,7 @@ struct ContentView: View {
                     case .explore:
                         ExploreView()
                     case .library:
-                        LibraryView()
+                        LibraryView(model: library)
                     case .uploads:
                         UploadsView()
                     case .history:
@@ -156,6 +161,7 @@ struct ContentView: View {
             }
         }
         .background(WindowTitleUpdater(title: windowTitle))
+        .task(id: auth.generation) { await library.load(isSignedIn: auth.isSignedIn) }
     }
 
     private var windowTitle: String {
@@ -202,6 +208,63 @@ private struct SessionExpiredBanner: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background(.yellow)
+    }
+}
+
+/// The signed-in user's library items, listed under the sidebar sections.
+private struct SidebarLibraryItems: View {
+    let model: LibraryViewModel
+
+    @Environment(PlayerState.self) private var player
+    @Environment(Navigator.self) private var navigator
+
+    var body: some View {
+        if case .loaded(let shelves) = model.state {
+            SwiftUI.Section("Library") {
+                ForEach(shelves.flatMap(\.items)) { item in
+                    Button { open(item) } label: {
+                        HStack(spacing: 8) {
+                            ArtworkView(url: item.thumbnailURL,
+                                        circular: item.prefersCircularArtwork, size: 32)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.title).lineLimit(1)
+                                if !item.subtitle.isEmpty {
+                                    Text(item.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help(item.title)
+                    .musicContextMenu(
+                        title: item.title,
+                        subtitle: item.subtitle,
+                        thumbnailURL: item.thumbnailURL,
+                        videoId: item.videoId,
+                        playlistId: item.playlistId,
+                        browseId: item.browseId,
+                        artists: item.artists,
+                        albumLink: item.albumLink,
+                        entityDestination: item.entityDestination,
+                        likeStatus: item.likeStatus
+                    )
+                }
+            }
+        }
+    }
+
+    private func open(_ item: HomeItem) {
+        if let destination = item.entityDestination {
+            navigator.section = .library
+            navigator.open(destination)
+        } else if let videoId = item.videoId {
+            player.play(title: item.title, subtitle: item.subtitle, thumbnailURL: item.thumbnailURL,
+                        videoId: videoId, artists: item.artists, albumLink: item.albumLink)
+        }
     }
 }
 

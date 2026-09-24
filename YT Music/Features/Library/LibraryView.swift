@@ -11,7 +11,7 @@ import SwiftUI
 struct LibraryView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
-    @State private var model = LibraryViewModel()
+    let model: LibraryViewModel
     @State private var filter: LibraryFilter = .all
     /// The card being renamed (drives the rename alert), and its draft name.
     @State private var renaming: HomeItem?
@@ -50,7 +50,6 @@ struct LibraryView: View {
                 EntityView(destination: destination)
             }
         }
-        .task(id: auth.generation) { await model.load(isSignedIn: auth.isSignedIn) }
         .alert("Rename Playlist", isPresented: renamingBinding) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { renaming = nil }
@@ -188,7 +187,7 @@ struct LibraryView: View {
 }
 
 #Preview {
-    LibraryView()
+    LibraryView(model: LibraryViewModel())
         .environment(PlayerState())
         .environment(AuthStore())
         .frame(width: 900, height: 600)
