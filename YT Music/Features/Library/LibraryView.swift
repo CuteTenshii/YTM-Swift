@@ -77,7 +77,7 @@ struct LibraryView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FilterChips(chips: model.chips, selection: model.selectedChip) { chip in
+            FilterChipRow(chips: model.chips, title: \.title, selection: model.selectedChip) { chip in
                 Task { await model.select(chip) }
             }
             .padding(.top, 16)
@@ -209,37 +209,4 @@ struct LibraryView: View {
         .environment(PlayerState())
         .environment(AuthStore())
         .frame(width: 900, height: 600)
-}
-
-/// Horizontal row of selectable filter chips (YT Music style): "All" (the
-/// landing page) plus the server's chips.
-private struct FilterChips: View {
-    let chips: [HomeChip]
-    let selection: HomeChip?
-    let select: (HomeChip?) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chipButton("All", isSelected: selection == nil) { select(nil) }
-                ForEach(chips) { chip in
-                    chipButton(chip.title, isSelected: chip == selection) { select(chip) }
-                }
-            }
-            .padding(.horizontal, 24)
-        }
-    }
-
-    private func chipButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(isSelected ? Color.primary : Color.primary.opacity(0.12))
-                .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
-                .clipShape(.capsule)
-        }
-        .buttonStyle(.plain)
-    }
 }
