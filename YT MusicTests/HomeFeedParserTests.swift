@@ -212,6 +212,28 @@ struct HomeFeedParserTests {
         #expect(feed.continuation == "page3")
     }
 
+    @Test("A shelf with rows per column lays out as a grid of that many rows")
+    func gridShelf() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{
+          "sectionListRenderer":{"contents":[
+            {"musicCarouselShelfRenderer":{
+              "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"Quick picks"}]}}},
+              "numItemsPerColumn":"4",
+              "contents":[{"musicResponsiveListItemRenderer":{
+                "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Song"}]}}}],
+                "playlistItemData":{"videoId":"vid1"}
+              }}]
+            }},
+            \(shelfJSON)
+          ]}
+        }}}]}}}
+        """.utf8))
+
+        let shelves = HomeFeedParser.parse(response).shelves
+        #expect(shelves.map(\.gridRows) == [4, nil])
+    }
+
     @Test("The last continuation page has no next token")
     func lastContinuationPage() throws {
         let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""

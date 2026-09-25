@@ -137,6 +137,7 @@ struct ExploreParserTests {
         let shelf = try #require(ExploreParser.parse(response).first)
 
         #expect(shelf.isRanked)
+        #expect(shelf.gridRows == 4)
         #expect(shelf.items.map(\.chartRank) == [
             ChartRank(rank: "1", trend: .up),
             ChartRank(rank: "2", trend: .down),

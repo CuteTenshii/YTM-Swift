@@ -262,6 +262,10 @@ nonisolated struct ContinuationData: Decodable {
 nonisolated struct MusicCarouselShelfRenderer: Decodable {
     let header: Header?
     let contents: [CarouselItem]?
+    /// Set on grid shelves ("Quick picks"), as a string ("4").
+    let numItemsPerColumn: String?
+
+    var rowsPerColumn: Int { numItemsPerColumn.flatMap(Int.init) ?? 1 }
 
     struct Header: Decodable {
         let musicCarouselShelfBasicHeaderRenderer: Basic?

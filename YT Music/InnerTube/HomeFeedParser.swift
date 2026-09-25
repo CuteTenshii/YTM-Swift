@@ -78,7 +78,10 @@ nonisolated enum HomeFeedParser {
         guard !items.isEmpty else { return nil }
 
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(title: title, items: items, buttons: shelfButtons(from: carousel))
+        return HomeShelf(
+            title: title, items: items, buttons: shelfButtons(from: carousel),
+            rowsPerColumn: carousel.rowsPerColumn
+        )
     }
 
     // MARK: - Shelf header buttons

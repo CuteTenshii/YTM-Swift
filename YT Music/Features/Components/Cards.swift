@@ -16,27 +16,30 @@ struct ShelfView: View {
     let shelf: HomeShelf
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ShelfHeader(shelf: shelf)
+        if let rows = shelf.gridRows {
+            RowGridShelfView(shelf: shelf, rowsPerColumn: rows)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                ShelfHeader(shelf: shelf)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 16) {
-                    ForEach(shelf.items) { item in
-                        ItemCard(item: item)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(shelf.items) { item in
+                            ItemCard(item: item)
+                        }
                     }
+                    .padding(.horizontal, 24)
                 }
-                .padding(.horizontal, 24)
             }
         }
     }
 }
 
-/// A chart shelf ("Top songs", "Trending"): horizontally scrolling columns of
-/// compact rows, each led by its rank and trend arrow.
-struct RankedShelfView: View {
+/// A grid shelf ("Quick picks", charts): horizontally scrolling columns of
+/// compact rows, chart rows led by their rank and trend arrow.
+private struct RowGridShelfView: View {
     let shelf: HomeShelf
-
-    private let rowsPerColumn = 4
+    let rowsPerColumn: Int
 
     private var columns: [[HomeItem]] {
         stride(from: 0, to: shelf.items.count, by: rowsPerColumn).map {
@@ -53,7 +56,7 @@ struct RankedShelfView: View {
                     ForEach(columns, id: \.first?.id) { column in
                         VStack(spacing: 0) {
                             ForEach(column) { item in
-                                RankedRow(item: item)
+                                ShelfRow(item: item)
                             }
                         }
                         .frame(width: 340)
@@ -65,7 +68,7 @@ struct RankedShelfView: View {
     }
 }
 
-private struct RankedRow: View {
+private struct ShelfRow: View {
     @Environment(PlayerState.self) private var player
     let item: HomeItem
 

@@ -33,9 +33,17 @@ struct HomeShelf: Identifiable, Sendable {
     /// Tappable actions in the shelf header ("More", "Play all", …), parsed from
     /// the shelf's header buttons. Empty when the shelf carries none.
     var buttons: [ShelfButton] = []
+    /// Rows stacked per column when YouTube lays the shelf out as a grid.
+    var rowsPerColumn = 1
 
-    /// A chart shelf, whose rows carry a rank and render as a ranked list.
+    /// A chart shelf, whose rows carry a rank.
     var isRanked: Bool { items.contains { $0.chartRank != nil } }
+
+    /// Rows per column for a grid of list rows, nil for a strip of cards.
+    var gridRows: Int? {
+        if rowsPerColumn > 1 { return rowsPerColumn }
+        return isRanked ? 4 : nil
+    }
 }
 
 /// A row's position in a chart, with its movement since the last chart when known.

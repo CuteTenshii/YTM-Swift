@@ -346,7 +346,10 @@ nonisolated enum EntityPageParser {
         let items = (carousel.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(title: title, items: items, buttons: HomeFeedParser.shelfButtons(from: carousel))
+        return HomeShelf(
+            title: title, items: items, buttons: HomeFeedParser.shelfButtons(from: carousel),
+            rowsPerColumn: carousel.rowsPerColumn
+        )
     }
 
     private static func makeShelf(from grid: GridRenderer) -> HomeShelf? {
