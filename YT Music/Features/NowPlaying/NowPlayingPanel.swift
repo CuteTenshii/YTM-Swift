@@ -455,8 +455,6 @@ private struct RelatedShelfView: View {
     let shelf: HomeShelf
     let onSelect: (HomeItem) -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 132), spacing: 16, alignment: .top)]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
@@ -466,12 +464,14 @@ private struct RelatedShelfView: View {
             if let rows = shelf.gridRows {
                 rowGrid(rowsPerColumn: rows)
             } else {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
-                    ForEach(shelf.items) { item in
-                        RelatedCard(item: item) { onSelect(item) }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(shelf.items) { item in
+                            RelatedCard(item: item) { onSelect(item) }
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
+                .contentMargins(.horizontal, 16, for: .scrollContent)
             }
         }
     }
