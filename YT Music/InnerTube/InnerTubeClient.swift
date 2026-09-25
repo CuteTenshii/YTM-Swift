@@ -231,6 +231,16 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return HomeFeedParser.parse(response)
     }
 
+    /// Loads the next batch of home feed shelves (no chips).
+    func homeContinuation(_ token: String, visitorData: String?) async throws -> HomeFeed {
+        let response: BrowseResponse = try await post(
+            "browse",
+            body: ["continuation": token],
+            visitorData: visitorData
+        )
+        return HomeFeedParser.parseContinuation(response)
+    }
+
     /// Loads the YouTube Music explore landing page (`FEmusic_explore`): new
     /// releases, charts, trending, and top music videos.
     func explore() async throws -> [HomeShelf] {
@@ -882,9 +892,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         _ endpoint: String,
         body: [String: Any],
         client: ClientProfile? = nil,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        visitorData: String? = nil
     ) async throws -> T {
-        let data = try await postData(endpoint, body: body, client: client, authenticated: authenticated)
+        let data = try await postData(
+            endpoint, body: body, client: client, authenticated: authenticated, visitorData: visitorData
+        )
         return try JSONDecoder().decode(T.self, from: data)
     }
 
@@ -894,7 +907,8 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         _ endpoint: String,
         body: [String: Any],
         client: ClientProfile? = nil,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        visitorData: String? = nil
     ) async throws -> Data {
         let profile = client ?? webRemix
         var components = URLComponents(
@@ -911,8 +925,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyClientHeaders(to: &request, client: profile)
 
+        if let visitorData {
+            request.setValue(visitorData, forHTTPHeaderField: "X-Goog-Visitor-Id")
+        }
+
         var payload = body
-        payload["context"] = context(client: profile)
+        payload["context"] = context(client: profile, visitorData: visitorData)
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         // Attach the signed-in session, if any (Cookie + SAPISIDHASH). Empty when
@@ -957,16 +975,15 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     }
 
     /// The InnerTube `context.client` block identifying the impersonated client.
-    private func context(client: ClientProfile? = nil) -> [String: Any] {
+    private func context(client: ClientProfile? = nil, visitorData: String? = nil) -> [String: Any] {
         let profile = client ?? webRemix
-        return [
-            "client": [
-                "clientName": profile.clientName,
-                "clientVersion": profile.clientVersion,
-                "hl": "en",
-                "gl": "US",
-            ],
-            "user": [:],
+        var clientContext: [String: Any] = [
+            "clientName": profile.clientName,
+            "clientVersion": profile.clientVersion,
+            "hl": "en",
+            "gl": "US",
         ]
+        if let visitorData { clientContext["visitorData"] = visitorData }
+        return ["client": clientContext, "user": [:]]
     }
 }

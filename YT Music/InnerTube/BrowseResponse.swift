@@ -22,13 +22,22 @@ import Foundation
 // MARK: - Top level
 
 struct BrowseResponse: Decodable {
+    let responseContext: ResponseContext?
     let contents: Contents?
     let continuationContents: ContinuationContents?
+
+    /// Anonymous continuations only resolve when sent with the visitor id of
+    /// the response that issued their token.
+    struct ResponseContext: Decodable {
+        let visitorData: String?
+    }
 
     /// The next page of a paginated grid or list (e.g. a library listing).
     struct ContinuationContents: Decodable {
         let gridContinuation: GridRenderer?
         let musicShelfContinuation: MusicShelfRenderer?
+        /// More shelves of a feed page (the home feed).
+        let sectionListContinuation: SectionList?
     }
 
     struct Contents: Decodable {
@@ -111,7 +120,7 @@ struct BrowseResponse: Decodable {
             }
         }
 
-        var continuationToken: String? {
+        nonisolated var continuationToken: String? {
             continuations?.first?.nextContinuationData?.continuation
         }
     }

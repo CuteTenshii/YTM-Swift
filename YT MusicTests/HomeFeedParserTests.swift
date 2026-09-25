@@ -170,4 +170,54 @@ struct HomeFeedParserTests {
         #expect(feed.chips.map(\.title) == ["Energize", "Relax"])
         #expect(feed.chips.map(\.params) == ["energize", "relax"])
     }
+
+    private let shelfJSON = """
+    {"musicCarouselShelfRenderer":{
+      "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"New releases"}]}}},
+      "contents":[{"musicTwoRowItemRenderer":{
+        "title":{"runs":[{"text":"Some Album"}]},
+        "navigationEndpoint":{"browseEndpoint":{"browseId":"MPREbAlb"}}
+      }}]
+    }}
+    """
+
+    @Test("The first page carries the continuation token and visitor id")
+    func firstPageContinuation() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""
+        {"responseContext":{"visitorData":"visitor1"},
+         "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{
+          "sectionListRenderer":{
+            "contents":[\(shelfJSON)],
+            "continuations":[{"nextContinuationData":{"continuation":"page2"}}]
+          }
+        }}}]}}}
+        """.utf8))
+
+        let feed = HomeFeedParser.parse(response)
+        #expect(feed.continuation == "page2")
+        #expect(feed.visitorData == "visitor1")
+    }
+
+    @Test("A continuation page yields its shelves and the next token")
+    func continuationPage() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""
+        {"continuationContents":{"sectionListContinuation":{
+          "contents":[\(shelfJSON)],
+          "continuations":[{"nextContinuationData":{"continuation":"page3"}}]
+        }}}
+        """.utf8))
+
+        let feed = HomeFeedParser.parseContinuation(response)
+        #expect(feed.shelves.map(\.title) == ["New releases"])
+        #expect(feed.continuation == "page3")
+    }
+
+    @Test("The last continuation page has no next token")
+    func lastContinuationPage() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("""
+        {"continuationContents":{"sectionListContinuation":{"contents":[\(shelfJSON)]}}}
+        """.utf8))
+
+        #expect(HomeFeedParser.parseContinuation(response).continuation == nil)
+    }
 }

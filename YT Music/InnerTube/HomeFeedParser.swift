@@ -16,7 +16,8 @@ nonisolated enum HomeFeedParser {
             .tabs?.first?
             .tabRenderer
         let content = tab?.content
-        let sections = content?.sectionListRenderer?.contents ?? []
+        let sectionList = content?.sectionListRenderer
+        let sections = sectionList?.contents ?? []
 
         let shelves = sections.compactMap { shelf(from: $0) }
         let sectionChips = sections.flatMap { section in
@@ -50,7 +51,22 @@ nonisolated enum HomeFeedParser {
         var chips = topChips + sectionChips
         var seen = Set<String>()
         chips.removeAll { !seen.insert($0.id).inserted }
-        return HomeFeed(shelves: shelves, chips: chips)
+        return HomeFeed(
+            shelves: shelves,
+            chips: chips,
+            continuation: sectionList?.continuationToken,
+            visitorData: response.responseContext?.visitorData
+        )
+    }
+
+    /// Parses a feed continuation page: more shelves plus the next token.
+    static func parseContinuation(_ response: BrowseResponse) -> HomeFeed {
+        let sectionList = response.continuationContents?.sectionListContinuation
+        return HomeFeed(
+            shelves: (sectionList?.contents ?? []).compactMap { shelf(from: $0) },
+            continuation: sectionList?.continuationToken,
+            visitorData: response.responseContext?.visitorData
+        )
     }
 
     // MARK: - Shelves

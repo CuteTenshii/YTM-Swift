@@ -80,6 +80,13 @@ struct HomeView: View {
                 ForEach(feed.shelves) { shelf in
                     ShelfView(shelf: shelf)
                 }
+
+                if let continuation = feed.continuation {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .task(id: continuation) { await model.loadMore() }
+                }
             }
             .padding(.vertical, 24)
         }

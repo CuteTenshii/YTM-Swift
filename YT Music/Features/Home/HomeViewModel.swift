@@ -17,6 +17,7 @@ final class HomeViewModel {
 
     private(set) var state: State = .idle
     private(set) var isLoadingChip = false
+    private var isLoadingMore = false
 
     private let client: InnerTubeClient
 
@@ -55,5 +56,19 @@ final class HomeViewModel {
                 state = .failed(error.localizedDescription)
             }
         }
+    }
+
+    /// Appends the feed's next batch of shelves, if it has one.
+    func loadMore() async {
+        guard !isLoadingMore, case .loaded(let feed) = state,
+              let token = feed.continuation else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        guard let next = try? await client.homeContinuation(token, visitorData: feed.visitorData),
+              case .loaded(var current) = state, current.continuation == token else { return }
+        current.shelves += next.shelves
+        current.continuation = next.continuation
+        state = .loaded(current)
     }
 }
