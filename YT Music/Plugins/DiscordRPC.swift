@@ -152,6 +152,9 @@ final class DiscordRPC: @unchecked Sendable {
         for path in candidatePaths() {
             let s = socket(AF_UNIX, SOCK_STREAM, 0)
             guard s >= 0 else { continue }
+            // A write after Discord closes the socket must fail with EPIPE, not kill the app.
+            var noSigPipe: Int32 = 1
+            _ = setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
 
             var addr = sockaddr_un()
             addr.sun_family = sa_family_t(AF_UNIX)
