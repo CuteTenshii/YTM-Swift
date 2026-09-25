@@ -536,6 +536,18 @@ private struct RelatedRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .musicContextMenu(
+            title: item.title,
+            subtitle: item.subtitle,
+            thumbnailURL: item.thumbnailURL,
+            videoId: item.videoId,
+            playlistId: item.playlistId,
+            browseId: item.browseId,
+            artists: item.artists,
+            albumLink: item.albumLink,
+            entityDestination: item.entityDestination,
+            likeStatus: item.likeStatus
+        )
     }
 }
 
@@ -574,6 +586,18 @@ private struct RelatedCard: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .musicContextMenu(
+            title: item.title,
+            subtitle: item.subtitle,
+            thumbnailURL: item.thumbnailURL,
+            videoId: item.videoId,
+            playlistId: item.playlistId,
+            browseId: item.browseId,
+            artists: item.artists,
+            albumLink: item.albumLink,
+            entityDestination: item.entityDestination,
+            likeStatus: item.likeStatus
+        )
     }
 }
 
