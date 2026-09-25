@@ -167,7 +167,8 @@ nonisolated enum HomeFeedParser {
             artists: links.filter { $0.kind == .artist },
             albumLink: links.first { $0.kind == .album },
             deleteEntityId: row.deleteEntityId,
-            likeStatus: row.likeStatus
+            likeStatus: row.likeStatus,
+            chartRank: row.chartRank
         )
     }
 

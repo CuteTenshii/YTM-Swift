@@ -342,6 +342,7 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let overlay: Overlay?
     let playlistItemData: PlaylistItemData?
     let menu: RendererMenu?
+    let customIndexColumn: CustomIndexColumn?
 
     struct FlexColumn: Decodable {
         let musicResponsiveListItemFlexColumnRenderer: FlexRenderer?
@@ -357,6 +358,20 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
         struct FixedRenderer: Decodable {
             let text: InnerTubeText?
+        }
+    }
+
+    /// A chart row's rank column: the position plus a trend arrow icon.
+    struct CustomIndexColumn: Decodable {
+        let musicCustomIndexColumnRenderer: Renderer?
+
+        struct Renderer: Decodable {
+            let text: InnerTubeText?
+            let icon: Icon?
+        }
+
+        struct Icon: Decodable {
+            let iconType: String?
         }
     }
 
@@ -412,6 +427,12 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
     var overlayPlayEndpoint: NavigationEndpoint? {
         overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint
+    }
+
+    var chartRank: ChartRank? {
+        guard let renderer = customIndexColumn?.musicCustomIndexColumnRenderer,
+              let rank = renderer.text?.text, !rank.isEmpty else { return nil }
+        return ChartRank(rank: rank, trend: renderer.icon?.iconType.flatMap(ChartRank.Trend.init(iconType:)))
     }
 
     /// Most reliable video id for a track row.

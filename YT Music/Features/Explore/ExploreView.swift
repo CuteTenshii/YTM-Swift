@@ -46,7 +46,11 @@ struct ExploreView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 32) {
                 ForEach(shelves) { shelf in
-                    ShelfView(shelf: shelf)
+                    if shelf.isRanked {
+                        RankedShelfView(shelf: shelf)
+                    } else {
+                        ShelfView(shelf: shelf)
+                    }
                 }
             }
             .padding(.vertical, 24)

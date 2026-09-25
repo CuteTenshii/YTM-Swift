@@ -29,6 +29,28 @@ struct HomeShelf: Identifiable, Sendable {
     /// Tappable actions in the shelf header ("More", "Play all", …), parsed from
     /// the shelf's header buttons. Empty when the shelf carries none.
     var buttons: [ShelfButton] = []
+
+    /// A chart shelf, whose rows carry a rank and render as a ranked list.
+    var isRanked: Bool { items.contains { $0.chartRank != nil } }
+}
+
+/// A row's position in a chart, with its movement since the last chart when known.
+nonisolated struct ChartRank: Sendable, Hashable {
+    enum Trend: Sendable, Hashable {
+        case up, down, neutral
+
+        init?(iconType: String) {
+            switch iconType {
+            case "ARROW_DROP_UP": self = .up
+            case "ARROW_DROP_DOWN": self = .down
+            case "ARROW_CHART_NEUTRAL": self = .neutral
+            default: return nil
+            }
+        }
+    }
+
+    var rank: String
+    var trend: Trend?
 }
 
 /// A tappable action in a shelf header. YouTube shelves carry buttons beside the
@@ -85,6 +107,8 @@ struct HomeItem: Identifiable, Sendable {
     /// feed-page card) — distinct from a known `.indifferent` — so the UI can
     /// decide whether to resolve it on demand.
     var likeStatus: LikeStatus? = nil
+    /// Chart position for rows of a ranked shelf ("Top songs", "Trending").
+    var chartRank: ChartRank? = nil
 
     /// Artists and profiles render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }

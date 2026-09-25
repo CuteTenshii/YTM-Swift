@@ -109,6 +109,49 @@ struct ExploreParserTests {
         #expect(button.action == .play(videoId: "vid123", playlistId: "PL42"))
     }
 
+    @Test("Chart rows parse their rank and trend arrow")
+    func parsesChartRanks() throws {
+        func row(_ rank: String, _ icon: String?) -> String {
+            let iconJSON = icon.map { #","icon":{"iconType":"\#($0)"}"# } ?? ""
+            return """
+            {"musicResponsiveListItemRenderer":{
+              "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song \(rank)"}]}}}],
+              "playlistItemData":{"videoId":"vid\(rank)"},
+              "customIndexColumn":{"musicCustomIndexColumnRenderer":{"text":{"runs":[{"text":"\(rank)"}]}\(iconJSON)}}
+            }}
+            """
+        }
+        let rows = [
+            row("1", "ARROW_DROP_UP"), row("2", "ARROW_DROP_DOWN"),
+            row("3", "ARROW_CHART_NEUTRAL"), row("4", nil),
+        ].joined(separator: ",")
+        let json = """
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicCarouselShelfRenderer":{
+            "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"Top songs"}]}}},
+            "contents":[\(rows)]
+          }}
+        ]}}}}]}}}
+        """
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(json.utf8))
+        let shelf = try #require(ExploreParser.parse(response).first)
+
+        #expect(shelf.isRanked)
+        #expect(shelf.items.map(\.chartRank) == [
+            ChartRank(rank: "1", trend: .up),
+            ChartRank(rank: "2", trend: .down),
+            ChartRank(rank: "3", trend: .neutral),
+            ChartRank(rank: "4", trend: nil),
+        ])
+    }
+
+    @Test("Shelves without a rank column aren't ranked")
+    func unrankedShelf() throws {
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(fixture.utf8))
+        let shelf = try #require(ExploreParser.parse(response).first)
+        #expect(!shelf.isRanked)
+    }
+
     @Test("An empty response yields no shelves")
     func emptyResponse() throws {
         let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("{}".utf8))
