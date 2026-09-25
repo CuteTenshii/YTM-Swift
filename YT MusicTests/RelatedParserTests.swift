@@ -54,6 +54,24 @@ struct RelatedParserTests {
         #expect(shelf.items[1].entityDestination != nil)   // albums navigate
     }
 
+    @Test("A grid carousel keeps its rows per column")
+    func gridShelf() throws {
+        let json = """
+        {"contents":{"sectionListRenderer":{"contents":[
+        {"musicCarouselShelfRenderer":{
+          "header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"You might also like"}]}}},
+          "numItemsPerColumn":"4",
+          "contents":[{"musicResponsiveListItemRenderer":{
+            "flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"A Song"}]}}}],
+            "playlistItemData":{"videoId":"vid123"}
+          }}]}}
+        ]}}}
+        """
+        let response = try JSONDecoder().decode(BrowseResponse.self, from: Data(json.utf8))
+        let shelf = try #require(RelatedParser.parse(response).first)
+        #expect(shelf.gridRows == 4)
+    }
+
     @Test("An unrecognized response yields no shelves")
     func emptyOnGarbage() throws {
         let response = try JSONDecoder().decode(BrowseResponse.self, from: Data("{}".utf8))

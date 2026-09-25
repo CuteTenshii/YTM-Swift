@@ -463,13 +463,79 @@ private struct RelatedShelfView: View {
                 .font(.headline)
                 .padding(.horizontal, 16)
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
-                ForEach(shelf.items) { item in
-                    RelatedCard(item: item) { onSelect(item) }
+            if let rows = shelf.gridRows {
+                rowGrid(rowsPerColumn: rows)
+            } else {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
+                    ForEach(shelf.items) { item in
+                        RelatedCard(item: item) { onSelect(item) }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    /// Pages of stacked rows, each nearly the panel's width so the next peeks in.
+    private func rowGrid(rowsPerColumn: Int) -> some View {
+        let columns = stride(from: 0, to: shelf.items.count, by: rowsPerColumn).map {
+            Array(shelf.items[$0..<min($0 + rowsPerColumn, shelf.items.count)])
+        }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 8) {
+                ForEach(columns, id: \.first?.id) { column in
+                    VStack(spacing: 0) {
+                        ForEach(column) { item in
+                            RelatedRow(item: item) { onSelect(item) }
+                        }
+                    }
+                    .containerRelativeFrame(.horizontal) { width, _ in width - 48 }
                 }
             }
-            .padding(.horizontal, 16)
+            .scrollTargetLayout()
         }
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+    }
+}
+
+/// A compact related row: artwork beside its title and subtitle.
+private struct RelatedRow: View {
+    let item: HomeItem
+    let onSelect: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    let subtitle = PlayerState.withoutTypeLabel(item.subtitle)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 5)
+            .padding(.horizontal, 6)
+            .background(hovering ? Color.primary.opacity(0.06) : .clear)
+            .clipShape(.rect(cornerRadius: 6))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 

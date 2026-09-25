@@ -24,7 +24,8 @@ nonisolated enum RelatedParser {
             return makeShelf(
                 title: carousel.title,
                 contents: carousel.contents,
-                buttons: HomeFeedParser.shelfButtons(from: carousel)
+                buttons: HomeFeedParser.shelfButtons(from: carousel),
+                rowsPerColumn: carousel.rowsPerColumn
             )
         }
         if let listShelf = section.listShelf {
@@ -36,10 +37,14 @@ nonisolated enum RelatedParser {
     private static func makeShelf(
         title: String,
         contents: [CarouselItem]?,
-        buttons: [ShelfButton] = []
+        buttons: [ShelfButton] = [],
+        rowsPerColumn: Int = 1
     ) -> HomeShelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: title.isEmpty ? "Related" : title, items: items, buttons: buttons)
+        return HomeShelf(
+            title: title.isEmpty ? "Related" : title, items: items, buttons: buttons,
+            rowsPerColumn: rowsPerColumn
+        )
     }
 }
