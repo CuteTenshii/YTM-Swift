@@ -96,7 +96,10 @@ actor StreamResolver: StreamResolving {
             .flatMap { URL(string: $0) }
         let watchtimeURL = response.playbackTracking?.videostatsWatchtimeUrl?.baseUrl
             .flatMap { URL(string: $0) }
-        return ResolvedStream(url: url, duration: response.videoDetails?.duration,
+        let duration = format.approxDuration ?? response.videoDetails?.duration
+        PlaybackLog.note("duration=\(duration.map { String($0) } ?? "nil")s "
+            + "(approxDurationMs=\(format.approxDurationMs ?? "nil"))")
+        return ResolvedStream(url: url, duration: duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn)
     }
 
