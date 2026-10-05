@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Sparkle
 
 /// Keeps the process alive when the only window is closed, so playback continues
 /// in the background and the window can be reopened from the Dock.
@@ -24,6 +25,9 @@ struct YT_MusicApp: App {
     @State private var pluginHost: PluginHost
     @State private var navigator = Navigator()
     @State private var playlists = PlaylistCoordinator()
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
+    )
 
     init() {
         CrashHandler.install()
@@ -66,6 +70,7 @@ struct YT_MusicApp: App {
         }
         .commands {
             MediaCommands(player: player, navigator: navigator)
+            UpdateCommands(updater: updaterController.updater)
         }
 
         // The native macOS settings window (app menu → Settings…, ⌘,). Scenes
