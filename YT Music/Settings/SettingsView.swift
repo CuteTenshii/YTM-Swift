@@ -35,7 +35,7 @@ struct SettingsView: View {
     }
 }
 
-/// Login item and automatic update checks.
+/// Login item, network proxy, and automatic update checks.
 private struct GeneralSettingsTab: View {
     let updater: SPUUpdater?
     @Environment(AppSettings.self) private var settings
@@ -47,6 +47,21 @@ private struct GeneralSettingsTab: View {
         Form {
             Section("Startup") {
                 Toggle("Open at login", isOn: $settings.openAtLogin)
+            }
+
+            Section("Network") {
+                TextField("HTTP proxy URL", text: $settings.proxyURL)
+                    .textFieldStyle(.roundedBorder)
+                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. "
+                    + "Relaunch the app after changing it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                if !settings.proxyURL.isEmpty && NetworkProxy(string: settings.proxyURL) == nil {
+                    Text("Enter a valid http:// or https:// proxy URL.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
 
             if let updater {
@@ -63,7 +78,7 @@ private struct GeneralSettingsTab: View {
     }
 }
 
-/// Audio quality, crossfade, and lyrics-source preferences.
+/// Audio quality, crossfade, autoplay, and lyrics-source preferences.
 private struct PlaybackSettingsTab: View {
     @Environment(AppSettings.self) private var settings
 
@@ -85,21 +100,6 @@ private struct PlaybackSettingsTab: View {
                 Text("Turn down tracks that are louder than YouTube's reference level, as YouTube does.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("Network") {
-                TextField("HTTP proxy URL", text: $settings.proxyURL)
-                    .textFieldStyle(.roundedBorder)
-                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. "
-                    + "Relaunch the app after changing it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.disabled)
-                if !settings.proxyURL.isEmpty && NetworkProxy(string: settings.proxyURL) == nil {
-                    Text("Enter a valid http:// or https:// proxy URL.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
             }
 
             Section("Crossfade") {

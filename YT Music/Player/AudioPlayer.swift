@@ -35,6 +35,8 @@ final class AudioPlayer: AudioOutput {
     /// (the end notification and the tick backstop can both observe the end).
     @ObservationIgnored private var hasSignalledEnd = false
     @ObservationIgnored private var preloadedURL: URL?
+    /// Routes stream fetches through the configured proxy; nil when there is none.
+    @ObservationIgnored private let proxiedLoader = ProxiedStreamLoader()
     /// Loudness of the item loaded on each player, keyed by player identity.
     @ObservationIgnored private var loudness: [ObjectIdentifier: Double] = [:]
 
@@ -121,9 +123,12 @@ final class AudioPlayer: AudioOutput {
     /// `knownDuration`, so AVFoundation doesn't need to read to the end of the
     /// stream before playback can begin (which otherwise stalls the start).
     private func makeItem(url: URL) -> AVPlayerItem {
-        let asset = AVURLAsset(url: url, options: [
+        let asset = AVURLAsset(url: proxiedLoader == nil ? url : ProxiedStreamLoader.loaderURL(for: url), options: [
             AVURLAssetPreferPreciseDurationAndTimingKey: false
         ])
+        if let proxiedLoader {
+            asset.resourceLoader.setDelegate(proxiedLoader, queue: proxiedLoader.queue)
+        }
         let item = AVPlayerItem(asset: asset)
         // Let AVPlayer start from the first available bytes. A large preferred
         // buffer delays time-to-first-audio on slow connections.
