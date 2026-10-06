@@ -3,9 +3,9 @@
 //  YT Music
 //
 //  The native macOS settings window (Settings scene, ⌘,): a toolbar tab bar
-//  with Playback, Equalizer, and Plugins tabs. Plugins render themselves from
-//  the PluginHost, so new plugins appear here automatically without editing
-//  this file.
+//  with Playback, Equalizer, Plugins, and Storage tabs. Plugins render
+//  themselves from the PluginHost, so new plugins appear here automatically
+//  without editing this file.
 //
 
 import SwiftUI
@@ -21,6 +21,9 @@ struct SettingsView: View {
             }
             Tab("Plugins", systemImage: "puzzlepiece.extension") {
                 PluginsSettingsTab()
+            }
+            Tab("Storage", systemImage: "internaldrive") {
+                StorageSettingsTab()
             }
         }
     }
@@ -199,6 +202,34 @@ private struct PluginsSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Disk usage of the shared HTTP cache (API responses and artwork) with a
+/// button to clear it along with the in-memory artwork cache.
+private struct StorageSettingsTab: View {
+    @State private var cacheBytes = URLCache.shared.currentDiskUsage
+
+    var body: some View {
+        Form {
+            Section("Cache") {
+                LabeledContent("Cache size") {
+                    Text(Int64(cacheBytes).formatted(.byteCount(style: .file)))
+                        .monospacedDigit()
+                }
+                Button("Clear Cache") {
+                    URLCache.shared.removeAllCachedResponses()
+                    ImageCache.shared.removeAll()
+                    cacheBytes = URLCache.shared.currentDiskUsage
+                }
+                .disabled(cacheBytes == 0)
+                Text("Cached API responses and artwork. They are downloaded again as needed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { cacheBytes = URLCache.shared.currentDiskUsage }
     }
 }
 
