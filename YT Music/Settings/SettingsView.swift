@@ -3,16 +3,22 @@
 //  YT Music
 //
 //  The native macOS settings window (Settings scene, ⌘,): a toolbar tab bar
-//  with Playback, Equalizer, Plugins, and Storage tabs. Plugins render
-//  themselves from the PluginHost, so new plugins appear here automatically
-//  without editing this file.
+//  with General, Playback, Equalizer, Plugins, and Storage tabs. Plugins
+//  render themselves from the PluginHost, so new plugins appear here
+//  automatically without editing this file.
 //
 
+import Sparkle
 import SwiftUI
 
 struct SettingsView: View {
+    let updater: SPUUpdater?
+
     var body: some View {
         TabView {
+            Tab("General", systemImage: "gearshape") {
+                GeneralSettingsTab(updater: updater)
+            }
             Tab("Playback", systemImage: "speaker.wave.2") {
                 PlaybackSettingsTab()
             }
@@ -26,6 +32,34 @@ struct SettingsView: View {
                 StorageSettingsTab()
             }
         }
+    }
+}
+
+/// Login item and automatic update checks.
+private struct GeneralSettingsTab: View {
+    let updater: SPUUpdater?
+    @Environment(AppSettings.self) private var settings
+    @State private var checksForUpdates = false
+
+    var body: some View {
+        @Bindable var settings = settings
+
+        Form {
+            Section("Startup") {
+                Toggle("Open at login", isOn: $settings.openAtLogin)
+            }
+
+            if let updater {
+                Section("Updates") {
+                    Toggle("Check for updates automatically", isOn: $checksForUpdates)
+                        .onChange(of: checksForUpdates) { _, enabled in
+                            updater.automaticallyChecksForUpdates = enabled
+                        }
+                }
+                .onAppear { checksForUpdates = updater.automaticallyChecksForUpdates }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -45,6 +79,10 @@ private struct PlaybackSettingsTab: View {
                 }
                 Toggle("Prefer audio over video", isOn: $settings.preferAudioOverVideo)
                 Text("Play music videos as audio-only streams. Turn off to allow combined video+audio streams when they're higher quality.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Normalize volume", isOn: $settings.volumeNormalization)
+                Text("Turn down tracks that are louder than YouTube's reference level, as YouTube does.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -81,6 +119,10 @@ private struct PlaybackSettingsTab: View {
             }
 
             Section("Next track") {
+                Toggle("Autoplay", isOn: $settings.autoplay)
+                Text("When the queue ends, keep playing a radio based on the last track.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Preload next track", isOn: Binding(
                     get: { settings.nextTrackPreloadSeconds > 0 },
                     set: { settings.nextTrackPreloadSeconds = $0 ? 5 : 0 }
@@ -274,7 +316,7 @@ private struct PluginRow: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(updater: nil)
         .environment(AppSettings())
         .environment(PluginHost(plugins: [DiscordPlugin(), NotificationsPlugin()]))
 }

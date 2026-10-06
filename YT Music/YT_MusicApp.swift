@@ -77,7 +77,7 @@ struct YT_MusicApp: App {
         // don't inherit each other's environments, so inject the same app-level
         // state here — plugin configuration views reach for it too.
         Settings {
-            SettingsView()
+            SettingsView(updater: updaterController.updater)
                 .environment(player)
                 .environment(auth)
                 .environment(settings)

@@ -13,6 +13,16 @@ struct PlayerResponse: Decodable, Sendable {
     let streamingData: StreamingData?
     let videoDetails: VideoDetails?
     let playbackTracking: PlaybackTracking?
+    let playerConfig: PlayerConfig?
+
+    nonisolated struct PlayerConfig: Decodable, Sendable {
+        let audioConfig: AudioConfig?
+
+        nonisolated struct AudioConfig: Decodable, Sendable {
+            let loudnessDb: Double?
+            let perceptualLoudnessDb: Double?
+        }
+    }
 
     struct PlayabilityStatus: Decodable, Sendable {
         let status: String?     // "OK", "LOGIN_REQUIRED", "UNPLAYABLE", "ERROR"
@@ -57,6 +67,7 @@ struct PlayerResponse: Decodable, Sendable {
         let signatureCipher: String?
         let cipher: String?         // older key name
         let audioQuality: String?
+        let loudnessDb: Double?
 
         var cipherString: String? { signatureCipher ?? cipher }
 

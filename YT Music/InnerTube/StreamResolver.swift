@@ -35,6 +35,8 @@ struct ResolvedStream: Sendable {
     /// The content-playback nonce that tags `url`; reused for the history ping so
     /// YouTube correlates the two. nil when no history URL is being reported.
     var cpn: String? = nil
+    /// Track loudness relative to YouTube's reference level, in dB (positive is louder).
+    var loudnessDb: Double? = nil
 }
 
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
@@ -97,7 +99,8 @@ actor StreamResolver: StreamResolving {
         let watchtimeURL = response.playbackTracking?.videostatsWatchtimeUrl?.baseUrl
             .flatMap { URL(string: $0) }
         return ResolvedStream(url: url, duration: response.videoDetails?.duration,
-                              historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn)
+                              historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
+                              loudnessDb: format.loudnessDb ?? response.playerConfig?.audioConfig?.loudnessDb)
     }
 
     /// Player requests are safe to repeat. A short retry covers transient
