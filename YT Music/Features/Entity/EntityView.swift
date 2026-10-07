@@ -664,7 +664,8 @@ private struct HeaderView: View {
         header.kind == .artist && auth.isSignedIn && model.subscription?.isEnabled == true
     }
 
-    /// Whether to offer the "Save to library" toggle: playlist pages, signed in.
+    /// Whether to offer the "Save to library" toggle: only when the header has
+    /// one (playlists the user owns don't).
     private var showsSave: Bool {
         auth.isSignedIn && model.savablePlaylistId != nil
     }
