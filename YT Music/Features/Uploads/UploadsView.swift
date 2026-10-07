@@ -93,7 +93,7 @@ struct UploadsView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(shelves) { shelf in
-                            shelfSection(shelf)
+                            shelfSection(shelf, showsTitle: shelves.count > 1)
                         }
                     }
                     .padding(.vertical, 16)
@@ -149,11 +149,14 @@ struct UploadsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func shelfSection(_ shelf: HomeShelf) -> some View {
+    /// `showsTitle` is false for a page's only shelf, whose title repeats the page's.
+    private func shelfSection(_ shelf: HomeShelf, showsTitle: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(shelf.title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.primary)
+            if showsTitle {
+                Text(shelf.title)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.primary)
+            }
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(shelf.items) { item in
                     ItemCard(item: item) {

@@ -99,7 +99,7 @@ struct LibraryView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(page.shelves) { shelf in
-                            shelfSection(shelf, lastItemID: page.shelves.last?.items.last?.id)
+                            shelfSection(shelf, showsTitle: page.shelves.count > 1, lastItemID: page.shelves.last?.items.last?.id)
                         }
                         if !page.tracks.isEmpty {
                             TrackListView(tracks: page.tracks, album: "", hasMore: page.continuation != nil) {
@@ -114,11 +114,14 @@ struct LibraryView: View {
         }
     }
 
-    private func shelfSection(_ shelf: HomeShelf, lastItemID: UUID?) -> some View {
+    /// `showsTitle` is false for a page's only shelf, whose title repeats the page's.
+    private func shelfSection(_ shelf: HomeShelf, showsTitle: Bool, lastItemID: UUID?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(shelf.title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.primary)
+            if showsTitle {
+                Text(shelf.title)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.primary)
+            }
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(shelf.items) { item in
                     ItemCard(item: item) {
