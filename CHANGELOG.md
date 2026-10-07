@@ -1,15 +1,7 @@
-<?xml version="1.0" standalone="yes"?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
-    <channel>
-        <title>YouTube Music</title>
-        <link>https://git.tenshii.moe/Tenshii/YTM-Swift</link>
-        <description>Updates for YouTube Music, a native macOS client.</description>
-        <language>en</language>
-        <item>
-            <title>1.0.0</title>
-            <link>https://git.tenshii.moe/Tenshii/YTM-Swift/releases/tag/v1.0.0</link>
-            <sparkle:fullReleaseNotesLink>https://git.tenshii.moe/Tenshii/YTM-Swift/raw/branch/master/CHANGELOG.md</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="markdown"><![CDATA[
+# Changelog
+
+## 1.0.0 - 2026-10-07
+
 First release of a native macOS client for YouTube Music.
 
 ### Playback
@@ -68,12 +60,3 @@ First release of a native macOS client for YouTube Music.
 - Menu-bar commands and keyboard shortcuts
 - Light and dark mode
 - Crash reporting
-]]></description>
-            <pubDate>Wed, 07 Oct 2026 12:44:01 +0200</pubDate>
-            <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://git.tenshii.moe/Tenshii/YTM-Swift/releases/download/v1.0.0/YouTube%20Music%201.0.0.dmg" length="3797584" type="application/octet-stream" sparkle:edSignature="z+zIjXdRqv9ovt4ZvLUTabMHApFtLttOMAaSuzF0GEb6lr4i2lej+m2HOR8uR13RyV4shY0jtHRO+DXGyVQhBw=="/>
-        </item>
-    </channel>
-</rss>
