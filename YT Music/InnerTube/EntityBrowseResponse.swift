@@ -224,6 +224,8 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
                 struct SubscribeButtonRenderer: Decodable {
                     let channelId: String?
                     let subscribed: Bool?
+                    /// False on the signed-in user's own channel.
+                    let enabled: Bool?
                     let serviceEndpoints: [ServiceEndpoint]?
                     /// Subscriber count, e.g. "79" or "1.2M" (channel headers).
                     let subscriberCountText: InnerTubeText?

@@ -239,6 +239,23 @@ struct EntityPageParserTests {
         #expect(page.header.subscription?.channelId == "UCchan")
         #expect(page.header.subscription?.isSubscribed == false)
         #expect(page.header.subscription?.subscribeParams == "SUB")
+        #expect(page.header.subscription?.isEnabled == true)
+    }
+
+    @Test("The user's own channel has its subscribe button disabled")
+    func ownChannelSubscriptionDisabled() throws {
+        let fixture = """
+        {"header":{"musicVisualHeaderRenderer":{
+          "title":{"runs":[{"text":"Me"}]},
+          "subscriptionButton":{"subscribeButtonRenderer":{
+            "channelId":"UCme","subscribed":false,"enabled":false
+          }}
+        }}}
+        """
+        let destination = EntityDestination(browseId: "UCme", kind: .artist, title: "Me", subtitle: "", thumbnailURL: nil)
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let page = EntityPageParser.parse(response, fallback: destination)
+        #expect(page.header.subscription?.isEnabled == false)
     }
 
     @Test("A feed page parses its grid into a shelf and reads as a feed")

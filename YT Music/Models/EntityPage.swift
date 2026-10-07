@@ -139,6 +139,8 @@ struct ArtistSubscription: Sendable, Equatable {
     /// Opaque params for the subscribe / unsubscribe service endpoints.
     var subscribeParams: String?
     var unsubscribeParams: String?
+    /// False when the server disables the button (the user's own channel).
+    var isEnabled = true
 }
 
 /// A single playable track in a listing.

@@ -658,10 +658,10 @@ private struct HeaderView: View {
         }
     }
 
-    /// Whether to offer the subscribe toggle: artist pages, signed in, with a
-    /// subscribe button parsed from the header.
+    /// Whether to offer the subscribe toggle: artist pages, signed in, with an
+    /// enabled subscribe button (disabled on the user's own channel).
     private var showsSubscribe: Bool {
-        header.kind == .artist && auth.isSignedIn && model.subscription != nil
+        header.kind == .artist && auth.isSignedIn && model.subscription?.isEnabled == true
     }
 
     /// Whether to offer the "Save to library" toggle: playlist pages, signed in.

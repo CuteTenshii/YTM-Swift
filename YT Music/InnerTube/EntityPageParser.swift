@@ -363,7 +363,8 @@ nonisolated enum EntityPageParser {
             channelId: channelId,
             isSubscribed: renderer.subscribed ?? false,
             subscribeParams: subscribeParams,
-            unsubscribeParams: unsubscribeParams
+            unsubscribeParams: unsubscribeParams,
+            isEnabled: renderer.enabled ?? true
         )
     }
 
