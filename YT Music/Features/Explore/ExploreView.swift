@@ -34,7 +34,7 @@ struct ExploreView: View {
                     errorView(message)
                 }
             }
-            .navigationTitle("Explore")
+            .pageTitle("Explore")
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }

@@ -42,7 +42,6 @@ struct UploadsView: View {
                     errorView(message)
                 }
             }
-            .navigationTitle("Uploads")
             .toolbar {
                 if auth.isSignedIn {
                     ToolbarItem {
@@ -56,6 +55,7 @@ struct UploadsView: View {
                     }
                 }
             }
+            .pageTitle("Uploads")
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }

@@ -12,9 +12,6 @@ import AppKit
 struct EntityView: View {
     @Environment(AuthStore.self) private var auth
     @State private var model: EntityViewModel
-    /// True once the header has scrolled up under the titlebar — flips the
-    /// window toolbar from transparent (immersive) to its blurred background.
-    @State private var scrolledUnderBar = false
     @State private var searchText = ""
     @State private var searchResults: [Track]?
     @State private var searchCompleted = false
@@ -38,13 +35,7 @@ struct EntityView: View {
                 errorView(message)
             }
         }
-        .navigationTitle(model.title)
-        // Let the artwork gradient bleed up under the window titlebar while the
-        // header is in view; once scrolled past it, restore the blurred bar so
-        // the back button + title stay legible over the track list. Dark scheme
-        // keeps those controls light in both states.
-        .toolbarBackground(scrolledUnderBar ? .visible : .hidden, for: .windowToolbar)
-        .toolbarColorScheme(.dark, for: .windowToolbar)
+        .pageTitle(model.title)
         .task { await model.loadIfNeeded() }
         .task(id: searchText) {
             searchResults = nil
@@ -170,13 +161,6 @@ struct EntityView: View {
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 0)
             .ignoresSafeArea(.container, edges: .top)
-            // Flip the toolbar background once the tinted header has mostly
-            // scrolled out of view, animating the transition.
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y > topInset + 140
-            } action: { _, past in
-                withAnimation(.easeInOut(duration: 0.25)) { scrolledUnderBar = past }
-            }
         }
     }
 
@@ -667,7 +651,7 @@ private struct HeaderView: View {
     /// Whether to offer the "Save to library" toggle: only when the header has
     /// one (playlists the user owns don't).
     private var showsSave: Bool {
-        auth.isSignedIn && model.savablePlaylistId != nil
+        auth.isSignedIn && model.savablePlaylistId != nil && header.isSaved != nil
     }
 
     /// Whether to offer playlist editing (rename / delete): one of the signed-in

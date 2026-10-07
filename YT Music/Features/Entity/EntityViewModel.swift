@@ -17,7 +17,7 @@ final class EntityViewModel {
     private(set) var state: State = .loading
 
     /// The page's title: the destination's at push time, replaced by the
-    /// server's once loaded and updated after a rename, so the window title
+    /// server's once loaded and updated after a rename, so the toolbar title
     /// stays in sync with the page.
     private(set) var title: String
 

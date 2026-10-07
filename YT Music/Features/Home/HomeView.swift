@@ -43,7 +43,7 @@ struct HomeView: View {
                     errorView(message)
                 }
             }
-            .navigationTitle("Home")
+            .pageTitle("Home")
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }

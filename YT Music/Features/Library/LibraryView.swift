@@ -45,7 +45,7 @@ struct LibraryView: View {
                     errorView(message)
                 }
             }
-            .navigationTitle("Library")
+            .pageTitle("Library")
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
