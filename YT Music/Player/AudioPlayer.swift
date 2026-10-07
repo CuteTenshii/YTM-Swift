@@ -27,6 +27,8 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored private var timeObservers: [(AVPlayer, Any)] = []
     @ObservationIgnored private var timeControlObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var endObserver: NSObjectProtocol?
+    /// How far past the known length the playhead may run before the track counts as finished.
+    private static let pastKnownEndTolerance: Double = 1.0
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
     /// Bumped on every new crossfade so a just-superseded fade's cleanup can't
     /// clear the newer `fadeTask` it races against.
@@ -233,6 +235,10 @@ final class AudioPlayer: AudioOutput {
 
     private func activate(item: AVPlayerItem, metadata: NowPlayingMetadata,
                           volume: Float? = nil) {
+        // Without precise timing AVPlayer can over-estimate the length and play silence past the end.
+        if let end = metadata.streamEnd, end > 0 {
+            item.forwardPlaybackEndTime = CMTime(seconds: end, preferredTimescale: 1000)
+        }
         observeEnd(of: item)
         hasSignalledEnd = false
         active.volume = volume ?? level(for: active)
@@ -467,6 +473,11 @@ final class AudioPlayer: AudioOutput {
         // still advances.
         if isPlaying, duration > 0, raw >= duration - 0.5,
            player.timeControlStatus != .playing {
+            signalEnd()
+        }
+        // Backstop for a playhead still running past the known length.
+        if isPlaying, let known = metadata.knownDuration, known > 0,
+           raw >= known + Self.pastKnownEndTolerance {
             signalEnd()
         }
     }

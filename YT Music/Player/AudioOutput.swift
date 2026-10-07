@@ -19,6 +19,8 @@ struct NowPlayingMetadata: Sendable, Equatable {
     var knownDuration: Double? = nil
     /// Track loudness in dB relative to YouTube's reference, for volume normalization.
     var loudnessDb: Double? = nil
+    /// Precise stream length where playback is cut off; nil leaves the end to AVPlayer.
+    var streamEnd: Double? = nil
 }
 
 @MainActor

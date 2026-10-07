@@ -68,8 +68,14 @@ struct PlayerResponse: Decodable, Sendable {
         let cipher: String?         // older key name
         let audioQuality: String?
         let loudnessDb: Double?
+        /// This stream's length in milliseconds; `lengthSeconds` is whole seconds.
+        let approxDurationMs: String?
 
         var cipherString: String? { signatureCipher ?? cipher }
+
+        var approxDuration: Double? {
+            approxDurationMs.flatMap(Double.init).map { $0 / 1000 }
+        }
 
         var isAudio: Bool { (mimeType ?? "").hasPrefix("audio/") }
 

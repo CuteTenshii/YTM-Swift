@@ -37,6 +37,8 @@ struct ResolvedStream: Sendable {
     var cpn: String? = nil
     /// Track loudness relative to YouTube's reference level, in dB (positive is louder).
     var loudnessDb: Double? = nil
+    /// The stream's millisecond-precise length, when YouTube provides one.
+    var streamEnd: Double? = nil
 }
 
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
@@ -98,9 +100,13 @@ actor StreamResolver: StreamResolving {
             .flatMap { URL(string: $0) }
         let watchtimeURL = response.playbackTracking?.videostatsWatchtimeUrl?.baseUrl
             .flatMap { URL(string: $0) }
-        return ResolvedStream(url: url, duration: response.videoDetails?.duration,
+        let duration = format.approxDuration ?? response.videoDetails?.duration
+        PlaybackLog.note("duration=\(duration.map { String($0) } ?? "nil")s "
+            + "(approxDurationMs=\(format.approxDurationMs ?? "nil"))")
+        return ResolvedStream(url: url, duration: duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
-                              loudnessDb: format.loudnessDb ?? response.playerConfig?.audioConfig?.loudnessDb)
+                              loudnessDb: format.loudnessDb ?? response.playerConfig?.audioConfig?.loudnessDb,
+                              streamEnd: format.approxDuration)
     }
 
     /// Player requests are safe to repeat. A short retry covers transient

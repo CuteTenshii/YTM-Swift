@@ -817,7 +817,8 @@ final class PlayerState {
                 album: nowPlaying?.album ?? "",
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration,
-                loudnessDb: resolved.loudnessDb
+                loudnessDb: resolved.loudnessDb,
+                streamEnd: resolved.streamEnd
             )
             if usedPreloadedStream {
                 audio.loadPreloaded(url: resolved.url, metadata: metadata)
@@ -976,7 +977,8 @@ final class PlayerState {
                 album: nowPlaying?.album ?? "",
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration,
-                loudnessDb: resolved.loudnessDb
+                loudnessDb: resolved.loudnessDb,
+                streamEnd: resolved.streamEnd
             )
             if usedPreloadedStream {
                 audio.crossfadePreloaded(url: resolved.url, metadata: metadata, duration: seconds)
@@ -1020,7 +1022,8 @@ final class PlayerState {
                     album: self.albumContext,
                     artworkURL: track.thumbnailURL,
                     knownDuration: resolved.duration,
-                    loudnessDb: resolved.loudnessDb
+                    loudnessDb: resolved.loudnessDb,
+                streamEnd: resolved.streamEnd
                 )
                 self.preparedVideoId = videoId
                 self.preparedStream = resolved
