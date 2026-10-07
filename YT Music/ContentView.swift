@@ -70,8 +70,7 @@ struct ContentView: View {
     @Environment(Navigator.self) private var navigator
     @Environment(PlaylistCoordinator.self) private var playlists
 
-    /// Shared comments loader: drives both the panel's Comments tab and whether
-    /// the now-playing bar's Comments button is enabled.
+    /// Comments loader for the panel's Comments tab.
     @State private var comments = CommentsViewModel()
     /// Shared by the Library tab and the sidebar's library list.
     @State private var library = LibraryViewModel()
@@ -127,8 +126,7 @@ struct ContentView: View {
                         navigate: navigator.open,
                         showingPanel: $navigator.showingPanel,
                         panelTab: $navigator.panelTab,
-                        showingImmersiveLyrics: $navigator.showingImmersiveLyrics,
-                        comments: comments
+                        showingImmersiveLyrics: $navigator.showingImmersiveLyrics
                     )
                 }
             }
@@ -375,8 +373,6 @@ private struct NowPlayingBar: View {
     @Binding var panelTab: NowPlayingPanelTab
     /// Opens the immersive full-window lyrics view.
     @Binding var showingImmersiveLyrics: Bool
-    /// Comments loader, so the Comments button can disable when there are none.
-    let comments: CommentsViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -408,10 +404,9 @@ private struct NowPlayingBar: View {
                     Spacer(minLength: 0)
                     volumeControl
                         .frame(width: 130)
-                    immersiveLyricsButton
-                    panelButton(.lyrics)
-                    panelButton(.comments)
                     panelButton(.queue)
+                    panelButton(.lyrics)
+                    immersiveLyricsButton
                 }
                 .frame(width: sideWidth, alignment: .trailing)
             }
@@ -451,7 +446,6 @@ private struct NowPlayingBar: View {
                 .foregroundStyle(active ? Color.red : Color.secondary)
         }
         .buttonStyle(.plain)
-        .disabled(tab == .comments && comments.isUnavailable)
         .help(tab.rawValue)
     }
 
