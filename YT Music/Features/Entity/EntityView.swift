@@ -650,8 +650,8 @@ private struct HeaderView: View {
                     editMenu
                 }
 
-                if downloader.isEnabled && !tracks.isEmpty {
-                    downloadButton
+                if downloader.isEnabled && !tracks.isEmpty, let downloadTitle {
+                    downloadButton(downloadTitle)
                 }
             }
             .padding(.top, 6)
@@ -751,8 +751,7 @@ private struct HeaderView: View {
         .disabled(model.isUpdatingSaved)
     }
 
-    @ViewBuilder
-    private var downloadButton: some View {
+    private func downloadButton(_ title: String) -> some View {
         Button {
             downloader.download(
                 tracks,
@@ -761,7 +760,7 @@ private struct HeaderView: View {
                 preferences: settings.streamPreferences
             )
         } label: {
-            Label(downloadLabel, systemImage: "arrow.down.circle")
+            Label(downloadProgress ?? title, systemImage: "arrow.down.circle")
                 .font(.headline)
                 .padding(.horizontal, 8)
         }
@@ -769,11 +768,18 @@ private struct HeaderView: View {
         .disabled(downloader.isBusy)
     }
 
-    /// "Download album" / "Download playlist", or live batch progress.
-    private var downloadLabel: String {
-        if case .running(let progress) = downloader.status, progress.total > 1 {
-            return "Downloading \(progress.index)/\(progress.total)…"
+    /// The download button's title; nil on pages that aren't a collection.
+    private var downloadTitle: String? {
+        switch header.kind {
+        case .album:    "Download album"
+        case .playlist: "Download playlist"
+        default:        nil
         }
-        return header.kind == .playlist ? "Download playlist" : "Download album"
+    }
+
+    /// Live batch progress while a multi-track download runs.
+    private var downloadProgress: String? {
+        guard case .running(let progress) = downloader.status, progress.total > 1 else { return nil }
+        return "Downloading \(progress.index)/\(progress.total)…"
     }
 }
