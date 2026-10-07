@@ -340,6 +340,44 @@ struct EntityPageParserTests {
         #expect(track.albumLink?.name == "Rendez-vous")
     }
 
+    @Test("An uploaded track with no artist tag doesn't show the album name as its artist")
+    func uploadedTrackWithoutArtist() throws {
+        let fixture = """
+        {
+          "header":{"musicDetailHeaderRenderer":{
+            "title":{"runs":[{"text":"Album Name"}]},
+            "subtitle":{"runs":[{"text":"Album"},{"text":" • "},{"text":"2014"}]}
+          }},
+          "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+            {"musicShelfRenderer":{"contents":[
+              {"musicResponsiveListItemRenderer":{
+                "playlistItemData":{"videoId":"vid1"},
+                "flexColumns":[
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Artist - Song Name"}]}}},
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{}}},
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                    {"text":"Album Name","navigationEndpoint":{"browseEndpoint":{
+                      "browseId":"FEmusic_library_privately_owned_release_detailb_po_DUMMY",
+                      "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}
+                    }}}
+                  ]}}}
+                ]
+              }}
+            ]}}
+          ]}}}}]}}
+        }
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let albumDestination = EntityDestination(
+            browseId: "FEmusic_library_privately_owned_release_detailb_po_DUMMY",
+            kind: .album, title: "Album Name", subtitle: "", thumbnailURL: nil
+        )
+        let track = try #require(EntityPageParser.parse(response, fallback: albumDestination).tracks.first)
+        #expect(track.title == "Some Artist - Song Name")
+        #expect(track.subtitle.isEmpty)
+        #expect(track.albumLink?.name == "Album Name")
+    }
+
     /// A real (non-uploaded) album in the newer two-column layout: there is no
     /// top-level `header`; the `musicResponsiveHeaderRenderer` lives inside the
     /// primary tab's section list, and the tracks (with a "plays" byline, no

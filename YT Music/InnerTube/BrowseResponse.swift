@@ -452,9 +452,14 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
     /// Flattened, non-empty text columns (title first, then artist/subtitle).
     var textColumns: [String] {
+        textColumnRuns.map(\.text)
+    }
+
+    /// The non-empty text columns, with their runs (and links).
+    var textColumnRuns: [InnerTubeText] {
         (flexColumns ?? [])
-            .compactMap { $0.musicResponsiveListItemFlexColumnRenderer?.text?.text }
-            .filter { !$0.isEmpty }
+            .compactMap { $0.musicResponsiveListItemFlexColumnRenderer?.text }
+            .filter { !$0.text.isEmpty }
     }
 
     /// Track duration string, if present ("3:45").

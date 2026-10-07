@@ -299,19 +299,22 @@ nonisolated enum EntityPageParser {
             let albumLink = links.first { $0.kind == .album }
             let rowArtists = links.filter { $0.kind == .artist }
 
-            // Default: artists + subtitle come from the row itself.
+            // Default: artists + subtitle come from the row itself. On an album
+            // page, a column linking to an album is the page's own album.
             var artists = rowArtists
-            var subtitle = columns.dropFirst().joined(separator: " • ")
+            var subtitle = row.textColumnRuns.dropFirst()
+                .filter { header.kind != .album || !$0.entityLinks.contains { $0.kind == .album } }
+                .map(\.text)
+                .joined(separator: " • ")
 
             // Album tracks usually omit a per-row artist — it's the album artist,
             // carried only in the header. Adopt the header artist for the links so
             // the context menu / Now Playing resolve correctly. Only overwrite the
-            // visible byline when the row would otherwise be blank or leak the
-            // album name (uploaded albums); real albums put a useful "plays" column
-            // here, so keep it.
+            // visible byline when the row would otherwise be blank; real albums put
+            // a useful "plays" column here, so keep it.
             if rowArtists.isEmpty, header.kind == .album, !header.artists.isEmpty {
                 artists = header.artists
-                if subtitle.isEmpty || subtitle == albumLink?.name {
+                if subtitle.isEmpty {
                     subtitle = header.artists.map(\.name).joined(separator: ", ")
                 }
             }
