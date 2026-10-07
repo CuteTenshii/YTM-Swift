@@ -144,6 +144,28 @@ struct BrowseResponse: Decodable {
         // Real (non-uploaded) albums/playlists put their header inside the body's
         // section list rather than the top-level `header` key.
         let musicResponsiveHeaderRenderer: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?
+        /// Playlists the user owns wrap that header in an editable one.
+        let musicEditablePlaylistDetailHeaderRenderer: EditableHeader?
+
+        struct EditableHeader: Decodable {
+            let header: EntityBrowseResponse.HeaderContainer?
+            let editHeader: EditHeader?
+
+            struct EditHeader: Decodable {
+                let musicPlaylistEditHeaderRenderer: Renderer?
+                /// "PRIVATE" / "UNLISTED" / "PUBLIC".
+                struct Renderer: Decodable { let privacy: String? }
+            }
+
+            var privacy: PlaylistPrivacy? {
+                editHeader?.musicPlaylistEditHeaderRenderer?.privacy.flatMap(PlaylistPrivacy.init(rawValue:))
+            }
+        }
+
+        var responsiveHeader: EntityBrowseResponse.HeaderContainer.ResponsiveHeader? {
+            musicResponsiveHeaderRenderer
+                ?? musicEditablePlaylistDetailHeaderRenderer?.header?.musicResponsiveHeaderRenderer
+        }
 
         var carousel: MusicCarouselShelfRenderer? {
             musicCarouselShelfRenderer ?? musicImmersiveCarouselShelfRenderer
@@ -542,6 +564,10 @@ nonisolated struct RendererMenu: Decodable {
 
     struct NavEndpoint: Decodable {
         let confirmDialogEndpoint: ConfirmDialog?
+        /// "Edit playlist", offered only on the user's own playlists.
+        let playlistEditorEndpoint: PlaylistEditor?
+
+        struct PlaylistEditor: Decodable { let playlistId: String? }
     }
 
     struct ConfirmDialog: Decodable {
@@ -575,6 +601,13 @@ nonisolated struct RendererMenu: Decodable {
         /// presence matters here — the remove request is rebuilt from the
         /// row's `videoId` + `setVideoId`.
         struct PlaylistEditEndpoint: Decodable {}
+    }
+
+    /// The playlist id behind the menu's "Edit playlist" item, if any.
+    var editablePlaylistId: String? {
+        (menuRenderer?.items ?? []).lazy
+            .compactMap { $0.menuNavigationItemRenderer?.navigationEndpoint?.playlistEditorEndpoint?.playlistId }
+            .first
     }
 
     /// The history-removal feedback token, if this menu carries one.
@@ -641,6 +674,10 @@ nonisolated struct InnerTubeText: Decodable {
     struct Run: Decodable {
         let text: String
         let navigationEndpoint: NavigationEndpoint?
+
+        var entityLink: EntityLink? {
+            navigationEndpoint?.browseEndpoint?.entityLink(named: text)
+        }
     }
 
     var text: String {
@@ -650,13 +687,7 @@ nonisolated struct InnerTubeText: Decodable {
     /// Artist/album navigation links carried by individual runs (each run is a
     /// distinct name with its own browse endpoint).
     var entityLinks: [EntityLink] {
-        (runs ?? []).compactMap { run in
-            guard let browse = run.navigationEndpoint?.browseEndpoint,
-                  let browseId = browse.browseId,
-                  let kind = browse.kind,
-                  !run.text.isEmpty else { return nil }
-            return EntityLink(name: run.text, browseId: browseId, kind: kind)
-        }
+        (runs ?? []).compactMap(\.entityLink)
     }
 }
 
@@ -737,6 +768,11 @@ struct NavigationEndpoint: Decodable {
         var pageType: String? {
             browseEndpointContextSupportedConfigs?
                 .browseEndpointContextMusicConfig?.pageType
+        }
+
+        func entityLink(named name: String) -> EntityLink? {
+            guard let browseId, let kind, !name.isEmpty else { return nil }
+            return EntityLink(name: name, browseId: browseId, kind: kind)
         }
 
         /// The domain kind this browse endpoint targets, if it's one we navigate

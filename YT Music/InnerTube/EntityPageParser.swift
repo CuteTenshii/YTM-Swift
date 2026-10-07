@@ -15,8 +15,9 @@ nonisolated enum EntityPageParser {
         let sections = collectSections(response.contents)
         // Non-uploaded albums/playlists carry no top-level `header`; their
         // responsive header sits inside the body's section list instead.
-        let bodyHeader = sections.compactMap(\.musicResponsiveHeaderRenderer).first
-        let header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
+        let bodyHeader = sections.compactMap(\.responsiveHeader).first
+        var header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
+        header.privacy = sections.lazy.compactMap { $0.musicEditablePlaylistDetailHeaderRenderer?.privacy }.first
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
@@ -144,6 +145,27 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Header
 
+    /// An album's strapline artist(s), else a playlist's facepile owner.
+    private static func byline(
+        _ header: EntityBrowseResponse.HeaderContainer.ResponsiveHeader
+    ) -> EntityByline? {
+        if let runs = header.straplineTextOne?.runs, !runs.isEmpty {
+            return EntityByline(
+                runs: runs.map { EntityByline.Run(text: $0.text, link: $0.entityLink) },
+                avatarURL: header.straplineThumbnail?.bestURL
+            )
+        }
+        guard let stack = header.facepile?.avatarStackViewModel,
+              let name = stack.text?.content, !name.isEmpty else { return nil }
+        let link = stack.rendererContext?.commandContext?.onTap?.innertubeCommand?
+            .browseEndpoint?.entityLink(named: name)
+        return EntityByline(
+            runs: [EntityByline.Run(text: name, link: link)],
+            avatarURL: stack.avatars?.first?.avatarViewModel?.image?.sources?.last
+                .flatMap { URL(string: $0.url) }
+        )
+    }
+
     private static func parseHeader(
         _ container: EntityBrowseResponse.HeaderContainer?,
         bodyResponsive: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?,
@@ -158,19 +180,14 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: detail.thumbnail?.croppedSquareThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
-                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist },
-                privacy: PlaylistPrivacy(subtitleText: subtitle)
+                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist }
             )
         }
 
         // The responsive header appears either at the top level or nested in the
         // body (the newer two-column album/playlist layout).
         if let responsive = container?.musicResponsiveHeaderRenderer ?? bodyResponsive {
-            let subtitle = joinNonEmpty(
-                responsive.straplineTextOne?.text,
-                responsive.subtitle?.text,
-                responsive.secondSubtitle?.text
-            )
+            let subtitle = joinNonEmpty(responsive.subtitle?.text, responsive.secondSubtitle?.text)
             let artists = ((responsive.straplineTextOne?.entityLinks ?? [])
                 + (responsive.subtitle?.entityLinks ?? [])).filter { $0.kind == .artist }
             return EntityHeader(
@@ -182,8 +199,8 @@ nonisolated enum EntityPageParser {
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
                 artists: artists,
-                privacy: PlaylistPrivacy(subtitleText: subtitle),
-                isSaved: responsive.isSaved
+                isSaved: responsive.isSaved,
+                byline: byline(responsive)
             )
         }
 

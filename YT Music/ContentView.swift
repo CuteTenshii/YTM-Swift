@@ -669,8 +669,9 @@ private struct NowPlayingBar: View {
 
 /// A single artist/album link in the now-playing bar: secondary text that turns
 /// white and underlines on hover to read as clickable.
-private struct EntityLinkButton: View {
+struct EntityLinkButton: View {
     let link: EntityLink
+    var font: Font = .caption
     let action: () -> Void
 
     @State private var hovering = false
@@ -678,7 +679,7 @@ private struct EntityLinkButton: View {
     var body: some View {
         Button(action: action) {
             Text(link.name)
-                .font(.caption)
+                .font(font)
                 .foregroundStyle(hovering ? Color.primary : Color.secondary)
                 .underline(hovering)
                 .lineLimit(1)

@@ -114,22 +114,6 @@ nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
     case `public` = "PUBLIC"
-
-    /// The visibility as labelled on an owned playlist's header/byline ("Private
-    /// playlist" / "Unlisted playlist" / "Public playlist"), or nil when the
-    /// text doesn't say — saved playlists and albums never do.
-    init?(subtitleText: String) {
-        let lowered = subtitleText.lowercased()
-        if lowered.contains("private playlist") {
-            self = .private
-        } else if lowered.contains("unlisted playlist") {
-            self = .unlisted
-        } else if lowered.contains("public playlist") {
-            self = .public
-        } else {
-            return nil
-        }
-    }
 }
 
 /// The signed-in user's rating of a track, mirroring YT Music's like/dislike UI.

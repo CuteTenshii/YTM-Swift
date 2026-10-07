@@ -418,6 +418,29 @@ private struct HeaderView: View {
         .background(alignment: .top) { artworkGradient }
     }
 
+    /// The album artist(s) or playlist owner: avatar plus linked names.
+    private func bylineRow(_ byline: EntityByline) -> some View {
+        let font = Font.callout.weight(.semibold)
+        return HStack(spacing: 8) {
+            if let avatar = byline.avatarURL {
+                ArtworkView(url: avatar, circular: true, size: 24)
+            }
+            HStack(spacing: 0) {
+                ForEach(byline.runs.indices, id: \.self) { index in
+                    let run = byline.runs[index]
+                    if let link = run.link {
+                        EntityLinkButton(link: link, font: font) { navigator.open(link.destination) }
+                    } else {
+                        Text(run.text)
+                            .font(font)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .lineLimit(1)
+        }
+    }
+
     /// A vertical wash built from the two most prominent cover-art colours,
     /// fading to clear at the bottom so it melts into the page and the
     /// track list below. Fills the header's frame (which the ScrollView extends
@@ -495,6 +518,10 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+
+                if let byline = header.byline {
+                    bylineRow(byline)
+                }
 
                 if !header.subtitle.isEmpty {
                     Text(header.subtitle)

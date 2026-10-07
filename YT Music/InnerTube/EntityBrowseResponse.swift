@@ -127,6 +127,10 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let title: InnerTubeText?
             let subtitle: InnerTubeText?
             let straplineTextOne: InnerTubeText?
+            /// The album artist's avatar, beside `straplineTextOne`.
+            let straplineThumbnail: ThumbnailRendererWrapper?
+            /// A playlist's owner: name, avatar, and channel link.
+            let facepile: Facepile?
             let secondSubtitle: InnerTubeText?
             let thumbnail: ResponsiveThumbnail?
             let description: DescriptionWrapper?
@@ -157,6 +161,31 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
                     .compactMap(\.toggleButtonRenderer)
                     .first { $0.defaultServiceEndpoint?.likeEndpoint?.target?.playlistId != nil }
                     .map { $0.isToggled ?? false }
+            }
+
+            struct Facepile: Decodable {
+                let avatarStackViewModel: AvatarStack?
+
+                struct AvatarStack: Decodable {
+                    let avatars: [Avatar]?
+                    let text: Content?
+                    let rendererContext: RendererContext?
+                }
+
+                struct Avatar: Decodable {
+                    let avatarViewModel: ViewModel?
+                    struct ViewModel: Decodable { let image: Image? }
+                    struct Image: Decodable { let sources: [Source]? }
+                    struct Source: Decodable { let url: String }
+                }
+
+                struct Content: Decodable { let content: String? }
+
+                struct RendererContext: Decodable {
+                    let commandContext: CommandContext?
+                    struct CommandContext: Decodable { let onTap: OnTap? }
+                    struct OnTap: Decodable { let innertubeCommand: NavigationEndpoint? }
+                }
             }
 
             struct ResponsiveThumbnail: Decodable {

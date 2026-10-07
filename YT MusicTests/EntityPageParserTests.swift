@@ -339,6 +339,9 @@ struct EntityPageParserTests {
                 "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
               }}}
             ]},
+            "straplineThumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
+              {"url":"https://img/artist.jpg","width":60,"height":60}
+            ]}}},
             "subtitle":{"runs":[{"text":"Album"},{"text":" • "},{"text":"2024"}]},
             "secondSubtitle":{"runs":[{"text":"12 songs • 45 minutes"}]},
             "thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
@@ -380,6 +383,10 @@ struct EntityPageParserTests {
         #expect(page.header.subtitle.contains("2024"))
         #expect(page.header.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
         #expect(page.header.artists.first?.name == "Some Artist")
+        // The artist is shown as a linked byline, not repeated in the subtitle.
+        #expect(page.header.byline?.runs.first?.link?.browseId == "UCartist")
+        #expect(page.header.byline?.avatarURL?.absoluteString == "https://img/artist.jpg")
+        #expect(!page.header.subtitle.contains("Some Artist"))
 
         let track = try #require(page.tracks.first)
         #expect(track.title == "Until I Die")

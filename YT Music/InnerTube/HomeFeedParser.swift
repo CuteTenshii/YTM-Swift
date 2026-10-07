@@ -152,7 +152,8 @@ nonisolated enum HomeFeedParser {
             artists: links.filter { $0.kind == .artist },
             albumLink: links.first { $0.kind == .album },
             deleteEntityId: row.deleteEntityId,
-            likeStatus: row.likeStatus
+            likeStatus: row.likeStatus,
+            editablePlaylistId: row.menu?.editablePlaylistId
         )
     }
 
@@ -187,7 +188,8 @@ nonisolated enum HomeFeedParser {
             albumLink: links.first { $0.kind == .album },
             deleteEntityId: row.deleteEntityId,
             likeStatus: row.likeStatus,
-            chartRank: row.chartRank
+            chartRank: row.chartRank,
+            editablePlaylistId: row.menu?.editablePlaylistId
         )
     }
 
