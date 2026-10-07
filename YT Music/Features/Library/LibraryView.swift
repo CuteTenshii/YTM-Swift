@@ -75,40 +75,48 @@ struct LibraryView: View {
         }
     }
 
+    private var chipRow: some View {
+        FilterChipRow(chips: model.chips, title: \.title, selection: model.selectedChip) { chip in
+            Task { await model.select(chip) }
+        }
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+    }
+
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FilterChipRow(chips: model.chips, title: \.title, selection: model.selectedChip) { chip in
-                Task { await model.select(chip) }
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-
             switch model.visibleState {
             case .loading, .signedOut:
+                chipRow
                 Spacer()
                 ProgressView()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
                 Spacer()
             case .failed(let message):
+                chipRow
                 errorView(message)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let page) where page.isEmpty:
+                chipRow
                 emptyFilterView
             case .loaded(let page):
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 28) {
-                        ForEach(page.shelves) { shelf in
-                            shelfSection(shelf, showsTitle: page.shelves.count > 1, lastItemID: page.shelves.last?.items.last?.id)
-                        }
-                        if !page.tracks.isEmpty {
-                            TrackListView(tracks: page.tracks, album: "", hasMore: page.continuation != nil) {
-                                Task { await model.loadMoreVisible() }
+                    VStack(alignment: .leading, spacing: 0) {
+                        chipRow
+                        LazyVStack(alignment: .leading, spacing: 28) {
+                            ForEach(page.shelves) { shelf in
+                                shelfSection(shelf, showsTitle: page.shelves.count > 1, lastItemID: page.shelves.last?.items.last?.id)
                             }
-                            .padding(.horizontal, 24)
+                            if !page.tracks.isEmpty {
+                                TrackListView(tracks: page.tracks, album: "", hasMore: page.continuation != nil) {
+                                    Task { await model.loadMoreVisible() }
+                                }
+                                .padding(.horizontal, 24)
+                            }
                         }
+                        .padding(.vertical, 16)
                     }
-                    .padding(.vertical, 16)
                 }
             }
         }
