@@ -106,7 +106,23 @@ struct BrowseResponse: Decodable {
                         let title: String?
                         let selected: Bool?
                         let navigationEndpoint: Endpoint?
+                        /// On playlists the user owns, picking an order edits
+                        /// the playlist instead of reloading it.
+                        let serviceEndpoint: ServiceEndpoint?
+
+                        /// The `playlistVideoOrder` this item sets; 0 is manual.
+                        var playlistVideoOrder: Int? {
+                            serviceEndpoint?.playlistEditEndpoint?.actions?.lazy
+                                .compactMap(\.playlistVideoOrder).first
+                        }
                     }
+
+                    struct ServiceEndpoint: Decodable {
+                        let playlistEditEndpoint: PlaylistEdit?
+                        struct PlaylistEdit: Decodable { let actions: [OrderAction]? }
+                    }
+
+                    struct OrderAction: Decodable { let playlistVideoOrder: Int? }
 
                     /// Resolved through the response's `frameworkUpdates`.
                     struct Endpoint: Decodable {

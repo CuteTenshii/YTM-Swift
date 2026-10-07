@@ -746,6 +746,14 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
+    /// Moves a track within one of the user's playlists to just before the
+    /// track whose `setVideoId` is `successor`, or to the end when nil.
+    func movePlaylistItem(playlistId: String, setVideoId: String, before successor: String?) async throws {
+        var action: [String: Any] = ["action": "ACTION_MOVE_VIDEO_BEFORE", "setVideoId": setVideoId]
+        if let successor { action["movedSetVideoIdSuccessor"] = successor }
+        try await editPlaylist(playlistId: playlistId, actions: [action])
+    }
+
     /// Posts a batch of `edit_playlist` actions against a playlist.
     private func editPlaylist(playlistId: String, actions: [[String: Any]]) async throws {
         let _: EmptyActionResponse = try await post(

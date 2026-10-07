@@ -2,8 +2,8 @@
 //  PlaylistHeaderAndOrderTests.swift
 //  YT MusicTests
 //
-//  Playlist owner bylines, visibility, and ownership, against fixtures shaped
-//  like live `browse` responses.
+//  Playlist owner bylines, the manual-ordering signal, and drag-to-reorder
+//  moves, against fixtures shaped like live `browse` responses.
 //
 
 import Testing
@@ -88,6 +88,13 @@ struct PlaylistHeaderAndOrderTests {
         #expect(byline.avatarURL?.absoluteString == "https://img/owner.jpg")
     }
 
+    @Test("Manual ordering is detected only when selected")
+    func manualOrdering() throws {
+        #expect(try parse(ownedFixture(selectedOrder: 0)).isManuallyOrdered)
+        #expect(try !parse(ownedFixture(selectedOrder: 1)).isManuallyOrdered)
+        #expect(try !parse(otherFixture).isManuallyOrdered)
+    }
+
     @Test("Playlists the user doesn't own have no visibility")
     func otherPrivacy() throws {
         #expect(try parse(otherFixture).header.privacy == nil)
@@ -121,5 +128,51 @@ struct PlaylistHeaderAndOrderTests {
             {"menuNavigationItemRenderer":{"navigationEndpoint":{"shareEntityEndpoint":{}}}}
             """)
         #expect(saved?.editablePlaylistId == nil)
+    }
+
+    // MARK: - Moves
+
+    private func tracks(_ ids: [String?]) -> [Track] {
+        ids.enumerated().map { offset, id in
+            var track = Track(index: offset + 1, title: id ?? "-", subtitle: "", duration: nil,
+                              thumbnailURL: nil, videoId: "v\(offset)")
+            track.playlistSetVideoId = id
+            return track
+        }
+    }
+
+    @Test("Moving down lands before the row at the drop offset")
+    func moveDown() throws {
+        let list = tracks(["a", "b", "c", "d"])
+        let move = try #require(PlaylistMove(tracks: list, from: 0, toOffset: 3, hasMore: false))
+        #expect(move.tracks.map(\.title) == ["b", "c", "a", "d"])
+        #expect(move.tracks.map(\.index) == [1, 2, 3, 4])
+        #expect(move.setVideoId == "a")
+        #expect(move.successor == "d")
+    }
+
+    @Test("Moving up lands before the row at the drop offset")
+    func moveUp() throws {
+        let move = try #require(PlaylistMove(tracks: tracks(["a", "b", "c", "d"]), from: 3, toOffset: 1, hasMore: false))
+        #expect(move.tracks.map(\.title) == ["a", "d", "b", "c"])
+        #expect(move.successor == "b")
+    }
+
+    @Test("Moving past the last row of a fully loaded list moves to the end")
+    func moveToEnd() throws {
+        let move = try #require(PlaylistMove(tracks: tracks(["a", "b", "c"]), from: 0, toOffset: 3, hasMore: false))
+        #expect(move.tracks.map(\.title) == ["b", "c", "a"])
+        #expect(move.successor == nil)
+    }
+
+    @Test("Moves with no known successor, no change, or no setVideoId are rejected")
+    func rejectedMoves() {
+        let list = tracks(["a", "b", "c"])
+        #expect(PlaylistMove(tracks: list, from: 0, toOffset: 3, hasMore: true) == nil)
+        #expect(PlaylistMove(tracks: list, from: 1, toOffset: 1, hasMore: false) == nil)
+        #expect(PlaylistMove(tracks: list, from: 1, toOffset: 2, hasMore: false) == nil)
+        let gaps = tracks(["a", "b", nil, nil])
+        #expect(PlaylistMove(tracks: gaps, from: 0, toOffset: 2, hasMore: false) == nil)
+        #expect(PlaylistMove(tracks: gaps, from: 2, toOffset: 0, hasMore: false) == nil)
     }
 }

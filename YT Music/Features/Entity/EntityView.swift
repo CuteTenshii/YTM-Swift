@@ -115,78 +115,60 @@ struct EntityView: View {
         // Read the titlebar inset, then let the scroll content ignore it so the
         // header gradient bleeds under the (transparent) window toolbar. The
         // header pads itself back down by that inset to clear the back button.
+        // A List rather than a ScrollView so playlist tracks reorder like the queue.
         return GeometryReader { proxy in
             let topInset = proxy.safeAreaInsets.top
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if page.isFeed {
-                        // A bare feed (a shelf's "More"): skip the album-style
-                        // artwork header, just title the page above its shelves,
-                        // whose cards wrap into a grid rather than scrolling.
-                        Text(page.header.title)
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 24)
-                            .padding(.top, topInset + 16)
+            List {
+                if page.isFeed {
+                    // A bare feed (a shelf's "More"): skip the album-style
+                    // artwork header, just title the page above its shelves,
+                    // whose cards wrap into a grid rather than scrolling.
+                    Text(page.header.title)
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 24)
+                        .padding(.top, topInset + 16)
+                        .sectionSpacing()
 
-                        ForEach(page.shelves) { shelf in
-                            ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
-                        }
-                    } else {
-                        HeaderView(header: page.header, tracks: page.tracks,
-                                   album: album, model: model, topInset: topInset)
+                    ForEach(page.shelves) { shelf in
+                        ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
+                            .sectionSpacing()
+                    }
+                } else {
+                    HeaderView(header: page.header, tracks: page.tracks,
+                               album: album, model: model, topInset: topInset)
+                        .sectionSpacing()
 
-                        if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
-                            HStack(spacing: 12) {
-                                if page.filters.isEmpty {
-                                    Spacer()
-                                } else {
-                                    FilterChipRow(chips: page.filters, title: \.title,
-                                                  selection: model.selectedFilter) { filter in
-                                        Task { await model.applyFilter(filter) }
-                                    }
-                                }
-                                if !page.sortOptions.isEmpty {
-                                    sortMenu(page.sortOptions)
-                                        .padding(.trailing, 24)
+                    if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
+                        HStack(spacing: 12) {
+                            if page.filters.isEmpty {
+                                Spacer()
+                            } else {
+                                FilterChipRow(chips: page.filters, title: \.title,
+                                              selection: model.selectedFilter) { filter in
+                                    Task { await model.applyFilter(filter) }
                                 }
                             }
+                            if !page.sortOptions.isEmpty {
+                                sortMenu(page.sortOptions)
+                                    .padding(.trailing, 24)
+                            }
                         }
+                        .sectionSpacing()
+                    }
 
-                        if model.isReloadingTracks && !isSearching {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(maxWidth: .infinity)
-                        } else if !visibleTracks.isEmpty {
-                            TrackListView(
-                                tracks: visibleTracks,
-                                album: album,
-                                hasMore: !isSearching && page.continuationToken != nil,
-                                canRemove: model.editablePlaylistId != nil,
-                                onRemove: removeTrack,
-                                onReachedEnd: { Task { await model.loadMore() } }
-                            )
-                                .padding(.horizontal, 24)
-                        } else if isSearching && !searchCompleted {
-                            ProgressView()
-                                .controlSize(.small)
-                                .padding(.horizontal, 24)
-                        } else if isSearching {
-                            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
-                        } else if let filter = model.selectedFilter {
-                            emptyText("No songs for \"\(filter.title)\"")
-                        } else if page.header.kind == .playlist {
-                            emptyText("This playlist is empty")
-                        }
+                    tracksSection(page, tracks: visibleTracks, album: album, isSearching: isSearching)
 
-                        ForEach(page.shelves) { shelf in
-                            ShelfView(shelf: shelf)
-                        }
+                    ForEach(page.shelves) { shelf in
+                        ShelfView(shelf: shelf)
+                            .sectionSpacing()
                     }
                 }
-                .padding(.bottom, 24)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 0)
             .ignoresSafeArea(.container, edges: .top)
             // Flip the toolbar background once the tinted header has mostly
             // scrolled out of view, animating the transition.
@@ -198,6 +180,64 @@ struct EntityView: View {
         }
     }
 
+    /// The track rows, or the loading / empty state in their place.
+    @ViewBuilder
+    private func tracksSection(_ page: EntityPage, tracks visibleTracks: [Track],
+                               album: String, isSearching: Bool) -> some View {
+        if model.isReloadingTracks && !isSearching {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .sectionSpacing()
+        } else if !visibleTracks.isEmpty {
+            trackRows(visibleTracks, album: album, isSearching: isSearching,
+                      hasMore: !isSearching && page.continuationToken != nil)
+        } else if isSearching && !searchCompleted {
+            ProgressView()
+                .controlSize(.small)
+                .padding(.horizontal, 24)
+                .sectionSpacing()
+        } else if isSearching {
+            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                .sectionSpacing()
+        } else if let filter = model.selectedFilter {
+            emptyText("No songs for \"\(filter.title)\"")
+                .sectionSpacing()
+        } else if page.header.kind == .playlist {
+            emptyText("This playlist is empty")
+                .sectionSpacing()
+        }
+    }
+
+    /// The numbered track rows, draggable to reorder when the playlist allows
+    /// it, followed by a sentinel that loads the next page.
+    @ViewBuilder
+    private func trackRows(_ tracks: [Track], album: String, isSearching: Bool, hasMore: Bool) -> some View {
+        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+            VStack(spacing: 0) {
+                TrackRow(track: track, index: index, tracks: tracks, album: album,
+                         canRemove: model.editablePlaylistId != nil, onRemove: removeTrack)
+                if index < tracks.count - 1 {
+                    Divider().overlay(.primary.opacity(0.08))
+                }
+            }
+            .padding(.horizontal, 24)
+            .plainListRow()
+        }
+        .onMove(perform: moveAction(searching: isSearching))
+
+        if hasMore {
+            Color.clear
+                .frame(height: 1)
+                .id(tracks.count)
+                .onAppear { Task { await model.loadMore() } }
+                .plainListRow()
+        }
+        Color.clear
+            .frame(height: 28)
+            .plainListRow()
+    }
+
     // MARK: - States
 
     /// Removes a playlist row via the model, then drops it from any live search
@@ -207,6 +247,15 @@ struct EntityView: View {
             if await model.removeFromPlaylist(track) {
                 searchResults = searchResults?.filter { $0.id != track.id }
             }
+        }
+    }
+
+    /// Drag-to-reorder for rows, unless the list is a search result or the
+    /// playlist can't be reordered.
+    private func moveAction(searching: Bool) -> ((IndexSet, Int) -> Void)? {
+        guard !searching, model.canReorder else { return nil }
+        return { source, destination in
+            Task { await model.moveTrack(fromOffsets: source, toOffset: destination) }
         }
     }
 
@@ -224,6 +273,23 @@ struct EntityView: View {
         }
         .padding(40)
         .frame(maxWidth: 380)
+    }
+}
+
+private extension View {
+    /// A full-width List row without inset, separator, or background, so the
+    /// page reads like a plain scroll view.
+    func plainListRow() -> some View {
+        // Cancels the macOS table's built-in 17pt cell spacing (8 + 9), which
+        // zero insets and content margins leave in place.
+        listRowInsets(EdgeInsets(top: 0, leading: -8, bottom: 0, trailing: -9))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    /// A page section: a plain List row followed by the gap between sections.
+    func sectionSpacing() -> some View {
+        padding(.bottom, 28).plainListRow()
     }
 }
 
@@ -395,6 +461,10 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(3)
 
+                if let byline = header.byline {
+                    bylineRow(byline)
+                }
+
                 if !header.subtitle.isEmpty {
                     Text(header.subtitle)
                         .font(.callout)
@@ -518,10 +588,6 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
-
-                if let byline = header.byline {
-                    bylineRow(byline)
-                }
 
                 if !header.subtitle.isEmpty {
                     Text(header.subtitle)

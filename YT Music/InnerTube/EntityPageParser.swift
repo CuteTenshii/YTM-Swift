@@ -23,12 +23,14 @@ nonisolated enum EntityPageParser {
         var shelves: [HomeShelf] = []
         var continuationToken = continuationToken(from: response.contents)
         var sortOptions: [PlaylistSortOption] = []
+        var isManuallyOrdered = false
 
         for section in sections {
             if let shelf = section.listShelf {
                 if sortOptions.isEmpty {
                     sortOptions = self.sortOptions(shelf.header, updates: response.frameworkUpdates)
                 }
+                isManuallyOrdered = isManuallyOrdered || self.isManuallyOrdered(shelf.header)
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
                 continuationToken = shelf.continuationToken ?? continuationToken
             } else if let carousel = section.carousel {
@@ -45,6 +47,7 @@ nonisolated enum EntityPageParser {
             tracks: tracks,
             shelves: shelves,
             continuationToken: continuationToken,
+            isManuallyOrdered: isManuallyOrdered,
             shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:)),
             filters: filters(response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?
                 .sectionListRenderer?.header?.chipCloudRenderer),
@@ -63,6 +66,7 @@ nonisolated enum EntityPageParser {
             tracks: parseItems(shelf?.contents ?? [], startIndex: 1, header: header),
             shelves: [],
             continuationToken: shelf?.continuationToken,
+            isManuallyOrdered: isManuallyOrdered(shelf?.header),
             filters: filters(section?.header?.chipCloudRenderer),
             sortOptions: sortOptions(shelf?.header, updates: response.frameworkUpdates)
         )
@@ -91,6 +95,12 @@ nonisolated enum EntityPageParser {
                   let token = updates?.reloadToken(forKey: key) else { return nil }
             return PlaylistSortOption(title: title, token: token, isSelected: item.selected ?? false)
         }
+    }
+
+    private static func isManuallyOrdered(_ header: BrowseResponse.SectionList.Header?) -> Bool {
+        let items = (header?.musicSideAlignedItemRenderer?.startItems ?? [])
+            .flatMap { $0.sortFilterSubMenuRenderer?.subMenuItems ?? [] }
+        return items.contains { item in item.selected == true && item.playlistVideoOrder == 0 }
     }
 
     static func parseContinuation(

@@ -58,6 +58,9 @@ struct EntityPage: Sendable {
     var tracks: [Track]
     var shelves: [HomeShelf]   // artist albums/singles/related, etc.
     var continuationToken: String? = nil
+    /// Whether the playlist's sort menu has "Manual ordering" selected, the
+    /// only order in which its tracks can be rearranged.
+    var isManuallyOrdered = false
     /// The page's official share URL (e.g. an album's `playlist?list=OLAK…`).
     var shareURL: URL? = nil
     /// A playlist's filter chips ("Party", "Chill", …), when it offers them.
@@ -77,6 +80,7 @@ struct EntityPage: Sendable {
             tracks: tracks + next.tracks,
             shelves: shelves,
             continuationToken: next.continuationToken,
+            isManuallyOrdered: isManuallyOrdered,
             shareURL: shareURL,
             filters: filters,
             sortOptions: sortOptions
