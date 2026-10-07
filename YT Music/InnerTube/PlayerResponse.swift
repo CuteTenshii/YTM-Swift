@@ -68,9 +68,8 @@ struct PlayerResponse: Decodable, Sendable {
         let cipher: String?         // older key name
         let audioQuality: String?
         let loudnessDb: Double?
-        /// This stream's own length in milliseconds — more precise than
-        /// `lengthSeconds`, which is rounded to whole seconds.
-        var approxDurationMs: String? = nil
+        /// This stream's length in milliseconds; `lengthSeconds` is whole seconds.
+        let approxDurationMs: String?
 
         var cipherString: String? { signatureCipher ?? cipher }
 

@@ -35,6 +35,7 @@ nonisolated struct StubResolver: StreamResolving {
     var watchtimeURL: URL? = nil
     var cpn: String? = nil
     var loudnessDb: Double? = nil
+    var streamEnd: Double? = nil
     var shouldThrow = false
     let calls = ResolverCalls()
 
@@ -42,7 +43,8 @@ nonisolated struct StubResolver: StreamResolving {
         calls.record(videoId: videoId, playlistId: playlistId)
         if shouldThrow { throw StubError.boom }
         return ResolvedStream(url: url, duration: duration, historyURL: historyURL,
-                              watchtimeURL: watchtimeURL, cpn: cpn, loudnessDb: loudnessDb)
+                              watchtimeURL: watchtimeURL, cpn: cpn, loudnessDb: loudnessDb,
+                              streamEnd: streamEnd)
     }
 }
 
@@ -236,6 +238,17 @@ struct PlayerStateTests {
         await player.loadStream(videoId: "v")
 
         #expect(audio.loadedMetadata?.knownDuration == 200)
+    }
+
+    @Test("Passes the precise stream length through to the audio engine")
+    func passesStreamEnd() async {
+        let audio = FakeAudioOutput()
+        let player = PlayerState(audio: audio, resolver: StubResolver(duration: 200, streamEnd: 199.512))
+        player.play(title: "S", subtitle: "A", thumbnailURL: nil, videoId: "v")
+
+        await player.loadStream(videoId: "v")
+
+        #expect(audio.loadedMetadata?.streamEnd == 199.512)
     }
 
     @Test("Passes the resolver's track loudness to the audio engine")

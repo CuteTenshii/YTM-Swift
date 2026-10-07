@@ -27,9 +27,7 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored private var timeObservers: [(AVPlayer, Any)] = []
     @ObservationIgnored private var timeControlObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var endObserver: NSObjectProtocol?
-    @ObservationIgnored private var failObserver: NSObjectProtocol?
-    /// How far past the authoritative track length the playhead may run before
-    /// the track counts as finished regardless of what AVPlayer reports.
+    /// How far past the known length the playhead may run before the track counts as finished.
     private static let pastKnownEndTolerance: Double = 1.0
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
     /// Bumped on every new crossfade so a just-superseded fade's cleanup can't
@@ -237,12 +235,9 @@ final class AudioPlayer: AudioOutput {
 
     private func activate(item: AVPlayerItem, metadata: NowPlayingMetadata,
                           volume: Float? = nil) {
-        // Without precise timing AVFoundation can badly over-estimate a stream's
-        // duration (seen: about double for itag 140) and would keep playing
-        // silence after the audio ends. Ending the item at the authoritative
-        // length makes AVPlayer post didPlayToEndTime right on time.
-        if let known = metadata.knownDuration, known > 0 {
-            item.forwardPlaybackEndTime = CMTime(seconds: known, preferredTimescale: 1000)
+        // Without precise timing AVPlayer can over-estimate the length and play silence past the end.
+        if let end = metadata.streamEnd, end > 0 {
+            item.forwardPlaybackEndTime = CMTime(seconds: end, preferredTimescale: 1000)
         }
         observeEnd(of: item)
         hasSignalledEnd = false
@@ -480,9 +475,7 @@ final class AudioPlayer: AudioOutput {
            player.timeControlStatus != .playing {
             signalEnd()
         }
-        // Safety net for `forwardPlaybackEndTime` (set in `activate`): if the
-        // playhead still runs clearly past the authoritative length, finish the
-        // track anyway rather than playing silence.
+        // Backstop for a playhead still running past the known length.
         if isPlaying, let known = metadata.knownDuration, known > 0,
            raw >= known + Self.pastKnownEndTolerance {
             signalEnd()
@@ -513,18 +506,6 @@ final class AudioPlayer: AudioOutput {
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         endObserver = NotificationCenter.default.addObserver(
             forName: AVPlayerItem.didPlayToEndTimeNotification,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.signalEnd()
-            }
-        }
-        // A stream that dies mid-way (dropped connection, expired URL) never
-        // reaches its end; move on instead of sitting silent.
-        if let failObserver { NotificationCenter.default.removeObserver(failObserver) }
-        failObserver = NotificationCenter.default.addObserver(
-            forName: AVPlayerItem.failedToPlayToEndTimeNotification,
             object: item,
             queue: .main
         ) { [weak self] _ in
