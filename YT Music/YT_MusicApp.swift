@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Sparkle
+import AppIntents
 
 /// Keeps the process alive when the only window is closed, so playback continues
 /// in the background and the window can be reopened from the Dock.
@@ -41,6 +42,7 @@ struct YT_MusicApp: App {
             settings: settings
         )
         _player = State(initialValue: player)
+        AppDependencyManager.shared.add(dependency: player)
 
         // The plugin registry. Adding a plugin = add one line here.
         let downloader = Downloader()
