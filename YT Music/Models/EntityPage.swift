@@ -58,6 +58,9 @@ struct EntityPage: Sendable {
     var tracks: [Track]
     var shelves: [HomeShelf]   // artist albums/singles/related, etc.
     var continuationToken: String? = nil
+    /// Whether the playlist's sort menu has "Manual ordering" selected, the
+    /// only order in which its tracks can be rearranged.
+    var isManuallyOrdered = false
     /// The page's official share URL (e.g. an album's `playlist?list=OLAK…`).
     var shareURL: URL? = nil
     /// A playlist's filter chips ("Party", "Chill", …), when it offers them.
@@ -77,6 +80,7 @@ struct EntityPage: Sendable {
             tracks: tracks + next.tracks,
             shelves: shelves,
             continuationToken: next.continuationToken,
+            isManuallyOrdered: isManuallyOrdered,
             shareURL: shareURL,
             filters: filters,
             sortOptions: sortOptions
@@ -104,15 +108,27 @@ struct EntityHeader: Sendable {
     var radioPlaylistId: String? = nil
     /// The artist header's "Start radio" playlist id, when present.
     var startRadioPlaylistId: String? = nil
-    /// The playlist's visibility, when the header labels it (owned playlists
-    /// say "Private playlist" / "Unlisted playlist" / "Public playlist" in
-    /// their strapline). Nil when the page didn't say — playlists you don't
-    /// own never do.
+    /// The visibility of one of the user's own playlists, from its edit header.
+    /// Nil for everything else.
     var privacy: PlaylistPrivacy? = nil
     /// Whether the playlist is saved to the library, when the header says.
     var isSaved: Bool? = nil
+    /// An album's artist(s) or a playlist's owner, shown with an avatar.
+    var byline: EntityByline? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
+}
+
+/// Who made an album or playlist: its text runs (linked where the server gave
+/// a destination) and an avatar.
+struct EntityByline: Sendable, Equatable {
+    struct Run: Sendable, Equatable {
+        var text: String
+        var link: EntityLink?
+    }
+
+    var runs: [Run]
+    var avatarURL: URL?
 }
 
 /// The artist subscribe button's state and the InnerTube params needed to toggle
@@ -123,6 +139,8 @@ struct ArtistSubscription: Sendable, Equatable {
     /// Opaque params for the subscribe / unsubscribe service endpoints.
     var subscribeParams: String?
     var unsubscribeParams: String?
+    /// False when the server disables the button (the user's own channel).
+    var isEnabled = true
 }
 
 /// A single playable track in a listing.

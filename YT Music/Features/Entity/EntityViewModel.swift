@@ -17,7 +17,7 @@ final class EntityViewModel {
     private(set) var state: State = .loading
 
     /// The page's title: the destination's at push time, replaced by the
-    /// server's once loaded and updated after a rename, so the window title
+    /// server's once loaded and updated after a rename, so the toolbar title
     /// stays in sync with the page.
     private(set) var title: String
 
@@ -28,6 +28,13 @@ final class EntityViewModel {
     var isEditablePlaylist: Bool {
         guard editablePlaylistId != nil, case .loaded(let page) = state else { return false }
         return page.tracks.contains { $0.canRemoveFromPlaylist }
+    }
+
+    /// Whether rows can be dragged to reorder: an editable playlist shown in
+    /// its manual order, unfiltered.
+    var canReorder: Bool {
+        guard isEditablePlaylist, case .loaded(let page) = state else { return false }
+        return page.isManuallyOrdered && selectedFilter == nil
     }
 
     /// Artist subscribe-button state, mutated optimistically by `toggleSubscription`.
@@ -257,6 +264,29 @@ final class EntityViewModel {
         }
     }
 
+    /// Moves a row within the playlist (drag-to-reorder, with `List.onMove`
+    /// offsets). The list updates immediately and reverts if the request fails.
+    func moveTrack(fromOffsets source: IndexSet, toOffset destination: Int) async {
+        guard let playlistId = editablePlaylistId, canReorder,
+              case .loaded(let page) = state,
+              let from = source.first, source.count == 1,
+              let move = PlaylistMove(tracks: page.tracks, from: from, toOffset: destination,
+                                      hasMore: page.continuationToken != nil)
+        else { return }
+        var updated = page
+        updated.tracks = move.tracks
+        state = .loaded(updated)
+        do {
+            try await client.movePlaylistItem(playlistId: playlistId, setVideoId: move.setVideoId,
+                                              before: move.successor)
+        } catch {
+            guard case .loaded(var current) = state,
+                  current.tracks.map(\.id) == move.tracks.map(\.id) else { return }
+            current.tracks = page.tracks
+            state = .loaded(current)
+        }
+    }
+
     /// Applies metadata edits (name / description / visibility) to the playlist
     /// this page shows, updating the page and its title only once the request
     /// succeeds (so a failed call leaves the page as it was). Only fields that
@@ -304,5 +334,33 @@ final class EntityViewModel {
         } catch {
             return false
         }
+    }
+}
+
+/// A playlist row moved to a new position: the reordered, renumbered list,
+/// the moved row's `setVideoId`, and the `setVideoId` it now sits before (nil
+/// at the very end).
+struct PlaylistMove {
+    let tracks: [Track]
+    let setVideoId: String
+    let successor: String?
+
+    /// `from` and `toOffset` follow `Array.move(fromOffsets:toOffset:)`. Nil
+    /// for a no-op, a row without a `setVideoId`, or a row landing after the
+    /// last loaded track while more remain unloaded (its real successor is
+    /// unknown).
+    init?(tracks: [Track], from: Int, toOffset destination: Int, hasMore: Bool) {
+        guard tracks.indices.contains(from), (0...tracks.count).contains(destination),
+              let setVideoId = tracks[from].playlistSetVideoId else { return nil }
+        let landed = destination > from ? destination - 1 : destination
+        guard landed != from else { return nil }
+        var moved = tracks
+        moved.move(fromOffsets: [from], toOffset: destination)
+        let successor = moved.indices.contains(landed + 1) ? moved[landed + 1].playlistSetVideoId : nil
+        if successor == nil && (hasMore || landed + 1 < moved.count) { return nil }
+        for position in moved.indices { moved[position].index = position + 1 }
+        self.tracks = moved
+        self.setVideoId = setVideoId
+        self.successor = successor
     }
 }

@@ -43,7 +43,7 @@ struct TrackListView: View {
     }
 }
 
-private struct TrackRow: View {
+struct TrackRow: View {
     @Environment(PlayerState.self) private var player
     @Environment(AuthStore.self) private var auth
     let track: Track

@@ -121,24 +121,13 @@ struct HomeItem: Identifiable, Sendable {
     var likeStatus: LikeStatus? = nil
     /// Chart position for rows of a ranked shelf ("Top songs", "Trending").
     var chartRank: ChartRank? = nil
+    /// The playlist id when this card is one of the user's own playlists (its
+    /// menu offers "Edit playlist"), letting cards offer rename/delete with no
+    /// page load.
+    var editablePlaylistId: String? = nil
 
     /// Artists and profiles render as circles; everything else as rounded squares.
     var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
-
-    /// The raw playlist id when this card is one of the user's own (editable)
-    /// playlists — their byline labels the visibility ("Private playlist" /
-    /// "Unlisted playlist" / "Public playlist"), exactly like an owned
-    /// playlist page's strapline — letting cards offer rename/delete with no
-    /// page load. nil for everything else (albums, saved playlists,
-    /// auto-playlists, and the system playlists — "Liked Music", saved
-    /// episodes — which reject edits).
-    var editablePlaylistId: String? {
-        guard kind == .playlist, PlaylistPrivacy(subtitleText: subtitle) != nil else { return nil }
-        if let playlistId, !playlistId.isSystemPlaylistId { return playlistId }
-        guard let browseId else { return nil }
-        let id = browseId.hasPrefix("VL") ? String(browseId.dropFirst(2)) : browseId
-        return id.isSystemPlaylistId ? nil : id
-    }
 
     /// A push destination if this item is a browsable page (album/playlist/
     /// artist/other browse), else nil (songs & videos play instead).

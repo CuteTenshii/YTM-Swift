@@ -39,7 +39,6 @@ struct HistoryView: View {
                     errorView(message)
                 }
             }
-            .navigationTitle("History")
             .toolbar {
                 if model.canClear {
                     ToolbarItem {
@@ -52,6 +51,7 @@ struct HistoryView: View {
                     }
                 }
             }
+            .pageTitle("History")
             .confirmationDialog(
                 "Clear your entire listening history?",
                 isPresented: $confirmingClear,

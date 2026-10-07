@@ -9,41 +9,6 @@
 import SwiftUI
 import AppKit
 
-private struct WindowTitleUpdater: NSViewRepresentable {
-    let title: String
-
-    func makeNSView(context: Context) -> TitleView {
-        TitleView(title: title)
-    }
-
-    func updateNSView(_ nsView: TitleView, context: Context) {
-        nsView.title = title
-        nsView.updateWindowTitle()
-    }
-
-    final class TitleView: NSView {
-        var title: String
-
-        init(title: String) {
-            self.title = title
-            super.init(frame: .zero)
-        }
-
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            updateWindowTitle()
-        }
-
-        func updateWindowTitle() {
-            window?.title = title
-        }
-    }
-}
-
 struct ContentView: View {
     enum Section: String, CaseIterable, Identifiable {
         case home = "Home"
@@ -70,8 +35,7 @@ struct ContentView: View {
     @Environment(Navigator.self) private var navigator
     @Environment(PlaylistCoordinator.self) private var playlists
 
-    /// Shared comments loader: drives both the panel's Comments tab and whether
-    /// the now-playing bar's Comments button is enabled.
+    /// Comments loader for the panel's Comments tab.
     @State private var comments = CommentsViewModel()
     /// Shared by the Library tab and the sidebar's library list.
     @State private var library = LibraryViewModel()
@@ -127,8 +91,7 @@ struct ContentView: View {
                         navigate: navigator.open,
                         showingPanel: $navigator.showingPanel,
                         panelTab: $navigator.panelTab,
-                        showingImmersiveLyrics: $navigator.showingImmersiveLyrics,
-                        comments: comments
+                        showingImmersiveLyrics: $navigator.showingImmersiveLyrics
                     )
                 }
             }
@@ -136,6 +99,8 @@ struct ContentView: View {
             // the titlebar. Hide it while the immersive view is up so nothing
             // floats over the full-window overlay.
             .toolbar(navigator.showingImmersiveLyrics ? .hidden : .automatic, for: .windowToolbar)
+            // Pages draw their own toolbar title (`pageTitle`); the window title is the song.
+            .toolbar(removing: .title)
 
             // The immersive view is a sibling layer (not an `.overlay` on the
             // inset content) so `.ignoresSafeArea()` can bleed it edge-to-edge —
@@ -162,19 +127,8 @@ struct ContentView: View {
                 AddToPlaylistSheet(add: add) { playlists.dismiss() }
             }
         }
-        .background(WindowTitleUpdater(title: windowTitle))
         .task(id: auth.generation) { await library.load(isSignedIn: auth.isSignedIn) }
         .task(id: auth.account?.avatarURL) { avatar = await AvatarBadge.load(auth.account?.avatarURL) }
-    }
-
-    private var windowTitle: String {
-        guard let nowPlaying = player.nowPlaying else { return "YouTube Music" }
-
-        let artist = nowPlaying.artists.map(\.name).joined(separator: ", ")
-        let fallbackArtist = PlayerState.withoutTypeLabel(nowPlaying.subtitle)
-            .components(separatedBy: " • ").first ?? ""
-        let artistName = artist.isEmpty ? fallbackArtist : artist
-        return artistName.isEmpty ? nowPlaying.title : "\(artistName) - \(nowPlaying.title)"
     }
 
     /// Presents the "Add to Playlist" picker while the coordinator has a pending
@@ -375,8 +329,6 @@ private struct NowPlayingBar: View {
     @Binding var panelTab: NowPlayingPanelTab
     /// Opens the immersive full-window lyrics view.
     @Binding var showingImmersiveLyrics: Bool
-    /// Comments loader, so the Comments button can disable when there are none.
-    let comments: CommentsViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -408,10 +360,9 @@ private struct NowPlayingBar: View {
                     Spacer(minLength: 0)
                     volumeControl
                         .frame(width: 130)
-                    immersiveLyricsButton
-                    panelButton(.lyrics)
-                    panelButton(.comments)
                     panelButton(.queue)
+                    panelButton(.lyrics)
+                    immersiveLyricsButton
                 }
                 .frame(width: sideWidth, alignment: .trailing)
             }
@@ -451,7 +402,6 @@ private struct NowPlayingBar: View {
                 .foregroundStyle(active ? Color.red : Color.secondary)
         }
         .buttonStyle(.plain)
-        .disabled(tab == .comments && comments.isUnavailable)
         .help(tab.rawValue)
     }
 
@@ -675,8 +625,9 @@ private struct NowPlayingBar: View {
 
 /// A single artist/album link in the now-playing bar: secondary text that turns
 /// white and underlines on hover to read as clickable.
-private struct EntityLinkButton: View {
+struct EntityLinkButton: View {
     let link: EntityLink
+    var font: Font = .caption
     let action: () -> Void
 
     @State private var hovering = false
@@ -684,7 +635,7 @@ private struct EntityLinkButton: View {
     var body: some View {
         Button(action: action) {
             Text(link.name)
-                .font(.caption)
+                .font(font)
                 .foregroundStyle(hovering ? Color.primary : Color.secondary)
                 .underline(hovering)
                 .lineLimit(1)

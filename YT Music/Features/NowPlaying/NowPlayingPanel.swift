@@ -20,7 +20,7 @@ enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .queue:    "list.bullet"
-        case .lyrics:   "quote.bubble"
+        case .lyrics:   "music.mic"
         case .related:  "square.stack"
         case .comments: "text.bubble"
         }

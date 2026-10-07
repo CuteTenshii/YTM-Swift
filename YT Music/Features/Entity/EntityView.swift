@@ -12,9 +12,6 @@ import AppKit
 struct EntityView: View {
     @Environment(AuthStore.self) private var auth
     @State private var model: EntityViewModel
-    /// True once the header has scrolled up under the titlebar — flips the
-    /// window toolbar from transparent (immersive) to its blurred background.
-    @State private var scrolledUnderBar = false
     @State private var searchText = ""
     @State private var searchResults: [Track]?
     @State private var searchCompleted = false
@@ -38,13 +35,7 @@ struct EntityView: View {
                 errorView(message)
             }
         }
-        .navigationTitle(model.title)
-        // Let the artwork gradient bleed up under the window titlebar while the
-        // header is in view; once scrolled past it, restore the blurred bar so
-        // the back button + title stay legible over the track list. Dark scheme
-        // keeps those controls light in both states.
-        .toolbarBackground(scrolledUnderBar ? .visible : .hidden, for: .windowToolbar)
-        .toolbarColorScheme(.dark, for: .windowToolbar)
+        .pageTitle(model.title)
         .task { await model.loadIfNeeded() }
         .task(id: searchText) {
             searchResults = nil
@@ -115,87 +106,120 @@ struct EntityView: View {
         // Read the titlebar inset, then let the scroll content ignore it so the
         // header gradient bleeds under the (transparent) window toolbar. The
         // header pads itself back down by that inset to clear the back button.
+        // A List rather than a ScrollView so playlist tracks reorder like the queue.
         return GeometryReader { proxy in
             let topInset = proxy.safeAreaInsets.top
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if page.isFeed {
-                        // A bare feed (a shelf's "More"): skip the album-style
-                        // artwork header, just title the page above its shelves,
-                        // whose cards wrap into a grid rather than scrolling.
-                        Text(page.header.title)
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 24)
-                            .padding(.top, topInset + 16)
+            List {
+                if page.isFeed {
+                    // A bare feed (a shelf's "More"): skip the album-style
+                    // artwork header, just title the page above its shelves,
+                    // whose cards wrap into a grid rather than scrolling.
+                    Text(page.header.title)
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 24)
+                        .padding(.top, topInset + 16)
+                        .sectionSpacing()
 
-                        ForEach(page.shelves) { shelf in
-                            ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
-                        }
-                    } else {
-                        HeaderView(header: page.header, tracks: page.tracks,
-                                   album: album, model: model, topInset: topInset)
+                    ForEach(page.shelves) { shelf in
+                        ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
+                            .sectionSpacing()
+                    }
+                } else {
+                    HeaderView(header: page.header, tracks: page.tracks,
+                               album: album, model: model, topInset: topInset)
+                        .sectionSpacing()
 
-                        if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
-                            HStack(spacing: 12) {
-                                if page.filters.isEmpty {
-                                    Spacer()
-                                } else {
-                                    FilterChipRow(chips: page.filters, title: \.title,
-                                                  selection: model.selectedFilter) { filter in
-                                        Task { await model.applyFilter(filter) }
-                                    }
-                                }
-                                if !page.sortOptions.isEmpty {
-                                    sortMenu(page.sortOptions)
-                                        .padding(.trailing, 24)
+                    if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
+                        HStack(spacing: 12) {
+                            if page.filters.isEmpty {
+                                Spacer()
+                            } else {
+                                FilterChipRow(chips: page.filters, title: \.title,
+                                              selection: model.selectedFilter) { filter in
+                                    Task { await model.applyFilter(filter) }
                                 }
                             }
+                            if !page.sortOptions.isEmpty {
+                                sortMenu(page.sortOptions)
+                                    .padding(.trailing, 24)
+                            }
                         }
+                        .sectionSpacing()
+                    }
 
-                        if model.isReloadingTracks && !isSearching {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(maxWidth: .infinity)
-                        } else if !visibleTracks.isEmpty {
-                            TrackListView(
-                                tracks: visibleTracks,
-                                album: album,
-                                hasMore: !isSearching && page.continuationToken != nil,
-                                canRemove: model.editablePlaylistId != nil,
-                                onRemove: removeTrack,
-                                onReachedEnd: { Task { await model.loadMore() } }
-                            )
-                                .padding(.horizontal, 24)
-                        } else if isSearching && !searchCompleted {
-                            ProgressView()
-                                .controlSize(.small)
-                                .padding(.horizontal, 24)
-                        } else if isSearching {
-                            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
-                        } else if let filter = model.selectedFilter {
-                            emptyText("No songs for \"\(filter.title)\"")
-                        } else if page.header.kind == .playlist {
-                            emptyText("This playlist is empty")
-                        }
+                    tracksSection(page, tracks: visibleTracks, album: album, isSearching: isSearching)
 
-                        ForEach(page.shelves) { shelf in
-                            ShelfView(shelf: shelf)
-                        }
+                    ForEach(page.shelves) { shelf in
+                        ShelfView(shelf: shelf)
+                            .sectionSpacing()
                     }
                 }
-                .padding(.bottom, 24)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 0)
             .ignoresSafeArea(.container, edges: .top)
-            // Flip the toolbar background once the tinted header has mostly
-            // scrolled out of view, animating the transition.
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y > topInset + 140
-            } action: { _, past in
-                withAnimation(.easeInOut(duration: 0.25)) { scrolledUnderBar = past }
-            }
         }
+    }
+
+    /// The track rows, or the loading / empty state in their place.
+    @ViewBuilder
+    private func tracksSection(_ page: EntityPage, tracks visibleTracks: [Track],
+                               album: String, isSearching: Bool) -> some View {
+        if model.isReloadingTracks && !isSearching {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .sectionSpacing()
+        } else if !visibleTracks.isEmpty {
+            trackRows(visibleTracks, album: album, isSearching: isSearching,
+                      hasMore: !isSearching && page.continuationToken != nil)
+        } else if isSearching && !searchCompleted {
+            ProgressView()
+                .controlSize(.small)
+                .padding(.horizontal, 24)
+                .sectionSpacing()
+        } else if isSearching {
+            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                .sectionSpacing()
+        } else if let filter = model.selectedFilter {
+            emptyText("No songs for \"\(filter.title)\"")
+                .sectionSpacing()
+        } else if page.header.kind == .playlist {
+            emptyText("This playlist is empty")
+                .sectionSpacing()
+        }
+    }
+
+    /// The numbered track rows, draggable to reorder when the playlist allows
+    /// it, followed by a sentinel that loads the next page.
+    @ViewBuilder
+    private func trackRows(_ tracks: [Track], album: String, isSearching: Bool, hasMore: Bool) -> some View {
+        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+            VStack(spacing: 0) {
+                TrackRow(track: track, index: index, tracks: tracks, album: album,
+                         canRemove: model.editablePlaylistId != nil, onRemove: removeTrack)
+                if index < tracks.count - 1 {
+                    Divider().overlay(.primary.opacity(0.08))
+                }
+            }
+            .padding(.horizontal, 24)
+            .plainListRow()
+        }
+        .onMove(perform: moveAction(searching: isSearching))
+
+        if hasMore {
+            Color.clear
+                .frame(height: 1)
+                .id(tracks.count)
+                .onAppear { Task { await model.loadMore() } }
+                .plainListRow()
+        }
+        Color.clear
+            .frame(height: 28)
+            .plainListRow()
     }
 
     // MARK: - States
@@ -207,6 +231,15 @@ struct EntityView: View {
             if await model.removeFromPlaylist(track) {
                 searchResults = searchResults?.filter { $0.id != track.id }
             }
+        }
+    }
+
+    /// Drag-to-reorder for rows, unless the list is a search result or the
+    /// playlist can't be reordered.
+    private func moveAction(searching: Bool) -> ((IndexSet, Int) -> Void)? {
+        guard !searching, model.canReorder else { return nil }
+        return { source, destination in
+            Task { await model.moveTrack(fromOffsets: source, toOffset: destination) }
         }
     }
 
@@ -224,6 +257,23 @@ struct EntityView: View {
         }
         .padding(40)
         .frame(maxWidth: 380)
+    }
+}
+
+private extension View {
+    /// A full-width List row without inset, separator, or background, so the
+    /// page reads like a plain scroll view.
+    func plainListRow() -> some View {
+        // Cancels the macOS table's built-in 17pt cell spacing (8 + 9), which
+        // zero insets and content margins leave in place.
+        listRowInsets(EdgeInsets(top: 0, leading: -8, bottom: 0, trailing: -9))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    /// A page section: a plain List row followed by the gap between sections.
+    func sectionSpacing() -> some View {
+        padding(.bottom, 28).plainListRow()
     }
 }
 
@@ -395,6 +445,10 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(3)
 
+                if let byline = header.byline {
+                    bylineRow(byline)
+                }
+
                 if !header.subtitle.isEmpty {
                     Text(header.subtitle)
                         .font(.callout)
@@ -416,6 +470,29 @@ private struct HeaderView: View {
         .padding(.top, topInset + 16)
         .padding(.bottom, 20)
         .background(alignment: .top) { artworkGradient }
+    }
+
+    /// The album artist(s) or playlist owner: avatar plus linked names.
+    private func bylineRow(_ byline: EntityByline) -> some View {
+        let font = Font.callout.weight(.semibold)
+        return HStack(spacing: 8) {
+            if let avatar = byline.avatarURL {
+                ArtworkView(url: avatar, circular: true, size: 24)
+            }
+            HStack(spacing: 0) {
+                ForEach(byline.runs.indices, id: \.self) { index in
+                    let run = byline.runs[index]
+                    if let link = run.link {
+                        EntityLinkButton(link: link, font: font) { navigator.open(link.destination) }
+                    } else {
+                        Text(run.text)
+                            .font(font)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .lineLimit(1)
+        }
     }
 
     /// A vertical wash built from the two most prominent cover-art colours,
@@ -557,23 +634,24 @@ private struct HeaderView: View {
                     editMenu
                 }
 
-                if downloader.isEnabled && !tracks.isEmpty {
-                    downloadButton
+                if downloader.isEnabled && !tracks.isEmpty, let downloadTitle {
+                    downloadButton(downloadTitle)
                 }
             }
             .padding(.top, 6)
         }
     }
 
-    /// Whether to offer the subscribe toggle: artist pages, signed in, with a
-    /// subscribe button parsed from the header.
+    /// Whether to offer the subscribe toggle: artist pages, signed in, with an
+    /// enabled subscribe button (disabled on the user's own channel).
     private var showsSubscribe: Bool {
-        header.kind == .artist && auth.isSignedIn && model.subscription != nil
+        header.kind == .artist && auth.isSignedIn && model.subscription?.isEnabled == true
     }
 
-    /// Whether to offer the "Save to library" toggle: playlist pages, signed in.
+    /// Whether to offer the "Save to library" toggle: only when the header has
+    /// one (playlists the user owns don't).
     private var showsSave: Bool {
-        auth.isSignedIn && model.savablePlaylistId != nil
+        auth.isSignedIn && model.savablePlaylistId != nil && header.isSaved != nil
     }
 
     /// Whether to offer playlist editing (rename / delete): one of the signed-in
@@ -658,8 +736,7 @@ private struct HeaderView: View {
         .disabled(model.isUpdatingSaved)
     }
 
-    @ViewBuilder
-    private var downloadButton: some View {
+    private func downloadButton(_ title: String) -> some View {
         Button {
             downloader.download(
                 tracks,
@@ -668,7 +745,7 @@ private struct HeaderView: View {
                 preferences: settings.streamPreferences
             )
         } label: {
-            Label(downloadLabel, systemImage: "arrow.down.circle")
+            Label(downloadProgress ?? title, systemImage: "arrow.down.circle")
                 .font(.headline)
                 .padding(.horizontal, 8)
         }
@@ -676,11 +753,18 @@ private struct HeaderView: View {
         .disabled(downloader.isBusy)
     }
 
-    /// "Download album" / "Download playlist", or live batch progress.
-    private var downloadLabel: String {
-        if case .running(let progress) = downloader.status, progress.total > 1 {
-            return "Downloading \(progress.index)/\(progress.total)…"
+    /// The download button's title; nil on pages that aren't a collection.
+    private var downloadTitle: String? {
+        switch header.kind {
+        case .album:    "Download album"
+        case .playlist: "Download playlist"
+        default:        nil
         }
-        return header.kind == .playlist ? "Download playlist" : "Download album"
+    }
+
+    /// Live batch progress while a multi-track download runs.
+    private var downloadProgress: String? {
+        guard case .running(let progress) = downloader.status, progress.total > 1 else { return nil }
+        return "Downloading \(progress.index)/\(progress.total)…"
     }
 }

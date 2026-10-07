@@ -15,19 +15,22 @@ nonisolated enum EntityPageParser {
         let sections = collectSections(response.contents)
         // Non-uploaded albums/playlists carry no top-level `header`; their
         // responsive header sits inside the body's section list instead.
-        let bodyHeader = sections.compactMap(\.musicResponsiveHeaderRenderer).first
-        let header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
+        let bodyHeader = sections.compactMap(\.responsiveHeader).first
+        var header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
+        header.privacy = sections.lazy.compactMap { $0.musicEditablePlaylistDetailHeaderRenderer?.privacy }.first
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
         var continuationToken = continuationToken(from: response.contents)
         var sortOptions: [PlaylistSortOption] = []
+        var isManuallyOrdered = false
 
         for section in sections {
             if let shelf = section.listShelf {
                 if sortOptions.isEmpty {
                     sortOptions = self.sortOptions(shelf.header, updates: response.frameworkUpdates)
                 }
+                isManuallyOrdered = isManuallyOrdered || self.isManuallyOrdered(shelf.header)
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
                 continuationToken = shelf.continuationToken ?? continuationToken
             } else if let carousel = section.carousel {
@@ -44,6 +47,7 @@ nonisolated enum EntityPageParser {
             tracks: tracks,
             shelves: shelves,
             continuationToken: continuationToken,
+            isManuallyOrdered: isManuallyOrdered,
             shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:)),
             filters: filters(response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?
                 .sectionListRenderer?.header?.chipCloudRenderer),
@@ -62,6 +66,7 @@ nonisolated enum EntityPageParser {
             tracks: parseItems(shelf?.contents ?? [], startIndex: 1, header: header),
             shelves: [],
             continuationToken: shelf?.continuationToken,
+            isManuallyOrdered: isManuallyOrdered(shelf?.header),
             filters: filters(section?.header?.chipCloudRenderer),
             sortOptions: sortOptions(shelf?.header, updates: response.frameworkUpdates)
         )
@@ -90,6 +95,12 @@ nonisolated enum EntityPageParser {
                   let token = updates?.reloadToken(forKey: key) else { return nil }
             return PlaylistSortOption(title: title, token: token, isSelected: item.selected ?? false)
         }
+    }
+
+    private static func isManuallyOrdered(_ header: BrowseResponse.SectionList.Header?) -> Bool {
+        let items = (header?.musicSideAlignedItemRenderer?.startItems ?? [])
+            .flatMap { $0.sortFilterSubMenuRenderer?.subMenuItems ?? [] }
+        return items.contains { item in item.selected == true && item.playlistVideoOrder == 0 }
     }
 
     static func parseContinuation(
@@ -144,6 +155,27 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Header
 
+    /// An album's strapline artist(s), else a playlist's facepile owner.
+    private static func byline(
+        _ header: EntityBrowseResponse.HeaderContainer.ResponsiveHeader
+    ) -> EntityByline? {
+        if let runs = header.straplineTextOne?.runs, !runs.isEmpty {
+            return EntityByline(
+                runs: runs.map { EntityByline.Run(text: $0.text, link: $0.entityLink) },
+                avatarURL: header.straplineThumbnail?.bestURL
+            )
+        }
+        guard let stack = header.facepile?.avatarStackViewModel,
+              let name = stack.text?.content, !name.isEmpty else { return nil }
+        let link = stack.rendererContext?.commandContext?.onTap?.innertubeCommand?
+            .browseEndpoint?.entityLink(named: name)
+        return EntityByline(
+            runs: [EntityByline.Run(text: name, link: link)],
+            avatarURL: stack.avatars?.first?.avatarViewModel?.image?.sources?.last
+                .flatMap { URL(string: $0.url) }
+        )
+    }
+
     private static func parseHeader(
         _ container: EntityBrowseResponse.HeaderContainer?,
         bodyResponsive: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?,
@@ -158,19 +190,14 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: detail.thumbnail?.croppedSquareThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
-                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist },
-                privacy: PlaylistPrivacy(subtitleText: subtitle)
+                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist }
             )
         }
 
         // The responsive header appears either at the top level or nested in the
         // body (the newer two-column album/playlist layout).
         if let responsive = container?.musicResponsiveHeaderRenderer ?? bodyResponsive {
-            let subtitle = joinNonEmpty(
-                responsive.straplineTextOne?.text,
-                responsive.subtitle?.text,
-                responsive.secondSubtitle?.text
-            )
+            let subtitle = joinNonEmpty(responsive.subtitle?.text, responsive.secondSubtitle?.text)
             let artists = ((responsive.straplineTextOne?.entityLinks ?? [])
                 + (responsive.subtitle?.entityLinks ?? [])).filter { $0.kind == .artist }
             return EntityHeader(
@@ -182,8 +209,8 @@ nonisolated enum EntityPageParser {
                     ?? fallback.thumbnailURL,
                 kind: fallback.kind,
                 artists: artists,
-                privacy: PlaylistPrivacy(subtitleText: subtitle),
-                isSaved: responsive.isSaved
+                isSaved: responsive.isSaved,
+                byline: byline(responsive)
             )
         }
 
@@ -272,19 +299,22 @@ nonisolated enum EntityPageParser {
             let albumLink = links.first { $0.kind == .album }
             let rowArtists = links.filter { $0.kind == .artist }
 
-            // Default: artists + subtitle come from the row itself.
+            // Default: artists + subtitle come from the row itself. On an album
+            // page, a column linking to an album is the page's own album.
             var artists = rowArtists
-            var subtitle = columns.dropFirst().joined(separator: " • ")
+            var subtitle = row.textColumnRuns.dropFirst()
+                .filter { header.kind != .album || !$0.entityLinks.contains { $0.kind == .album } }
+                .map(\.text)
+                .joined(separator: " • ")
 
             // Album tracks usually omit a per-row artist — it's the album artist,
             // carried only in the header. Adopt the header artist for the links so
             // the context menu / Now Playing resolve correctly. Only overwrite the
-            // visible byline when the row would otherwise be blank or leak the
-            // album name (uploaded albums); real albums put a useful "plays" column
-            // here, so keep it.
+            // visible byline when the row would otherwise be blank; real albums put
+            // a useful "plays" column here, so keep it.
             if rowArtists.isEmpty, header.kind == .album, !header.artists.isEmpty {
                 artists = header.artists
-                if subtitle.isEmpty || subtitle == albumLink?.name {
+                if subtitle.isEmpty {
                     subtitle = header.artists.map(\.name).joined(separator: ", ")
                 }
             }
@@ -336,7 +366,8 @@ nonisolated enum EntityPageParser {
             channelId: channelId,
             isSubscribed: renderer.subscribed ?? false,
             subscribeParams: subscribeParams,
-            unsubscribeParams: unsubscribeParams
+            unsubscribeParams: unsubscribeParams,
+            isEnabled: renderer.enabled ?? true
         )
     }
 

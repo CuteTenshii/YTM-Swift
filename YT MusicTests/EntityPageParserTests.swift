@@ -239,6 +239,23 @@ struct EntityPageParserTests {
         #expect(page.header.subscription?.channelId == "UCchan")
         #expect(page.header.subscription?.isSubscribed == false)
         #expect(page.header.subscription?.subscribeParams == "SUB")
+        #expect(page.header.subscription?.isEnabled == true)
+    }
+
+    @Test("The user's own channel has its subscribe button disabled")
+    func ownChannelSubscriptionDisabled() throws {
+        let fixture = """
+        {"header":{"musicVisualHeaderRenderer":{
+          "title":{"runs":[{"text":"Me"}]},
+          "subscriptionButton":{"subscribeButtonRenderer":{
+            "channelId":"UCme","subscribed":false,"enabled":false
+          }}
+        }}}
+        """
+        let destination = EntityDestination(browseId: "UCme", kind: .artist, title: "Me", subtitle: "", thumbnailURL: nil)
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let page = EntityPageParser.parse(response, fallback: destination)
+        #expect(page.header.subscription?.isEnabled == false)
     }
 
     @Test("A feed page parses its grid into a shelf and reads as a feed")
@@ -323,6 +340,44 @@ struct EntityPageParserTests {
         #expect(track.albumLink?.name == "Rendez-vous")
     }
 
+    @Test("An uploaded track with no artist tag doesn't show the album name as its artist")
+    func uploadedTrackWithoutArtist() throws {
+        let fixture = """
+        {
+          "header":{"musicDetailHeaderRenderer":{
+            "title":{"runs":[{"text":"Album Name"}]},
+            "subtitle":{"runs":[{"text":"Album"},{"text":" • "},{"text":"2014"}]}
+          }},
+          "contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+            {"musicShelfRenderer":{"contents":[
+              {"musicResponsiveListItemRenderer":{
+                "playlistItemData":{"videoId":"vid1"},
+                "flexColumns":[
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Some Artist - Song Name"}]}}},
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{}}},
+                  {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                    {"text":"Album Name","navigationEndpoint":{"browseEndpoint":{
+                      "browseId":"FEmusic_library_privately_owned_release_detailb_po_DUMMY",
+                      "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}
+                    }}}
+                  ]}}}
+                ]
+              }}
+            ]}}
+          ]}}}}]}}
+        }
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
+        let albumDestination = EntityDestination(
+            browseId: "FEmusic_library_privately_owned_release_detailb_po_DUMMY",
+            kind: .album, title: "Album Name", subtitle: "", thumbnailURL: nil
+        )
+        let track = try #require(EntityPageParser.parse(response, fallback: albumDestination).tracks.first)
+        #expect(track.title == "Some Artist - Song Name")
+        #expect(track.subtitle.isEmpty)
+        #expect(track.albumLink?.name == "Album Name")
+    }
+
     /// A real (non-uploaded) album in the newer two-column layout: there is no
     /// top-level `header`; the `musicResponsiveHeaderRenderer` lives inside the
     /// primary tab's section list, and the tracks (with a "plays" byline, no
@@ -339,6 +394,9 @@ struct EntityPageParserTests {
                 "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
               }}}
             ]},
+            "straplineThumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
+              {"url":"https://img/artist.jpg","width":60,"height":60}
+            ]}}},
             "subtitle":{"runs":[{"text":"Album"},{"text":" • "},{"text":"2024"}]},
             "secondSubtitle":{"runs":[{"text":"12 songs • 45 minutes"}]},
             "thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
@@ -380,6 +438,10 @@ struct EntityPageParserTests {
         #expect(page.header.subtitle.contains("2024"))
         #expect(page.header.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
         #expect(page.header.artists.first?.name == "Some Artist")
+        // The artist is shown as a linked byline, not repeated in the subtitle.
+        #expect(page.header.byline?.runs.first?.link?.browseId == "UCartist")
+        #expect(page.header.byline?.avatarURL?.absoluteString == "https://img/artist.jpg")
+        #expect(!page.header.subtitle.contains("Some Artist"))
 
         let track = try #require(page.tracks.first)
         #expect(track.title == "Until I Die")
