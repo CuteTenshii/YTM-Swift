@@ -136,6 +136,7 @@ final class PlayerState {
     private let historyReporter: WatchHistoryReporting
     private let store: PlaybackStore?
     private let settings: AppSettings?
+    private let handoff = Handoff()
     private var loadTask: Task<Void, Never>?
     private var radioTask: Task<Void, Never>?
     private var likeFetchTask: Task<Void, Never>?
@@ -1054,7 +1055,9 @@ final class PlayerState {
     }
 
     private func emitPlaybackChange() {
-        onPlaybackChange?(currentSnapshot)
+        let snapshot = currentSnapshot
+        handoff.update(snapshot)
+        onPlaybackChange?(snapshot)
     }
 
     /// The display artist for the current track (structured links if known, else
