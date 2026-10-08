@@ -127,6 +127,9 @@ struct ContentView: View {
                 AddToPlaylistSheet(add: add) { playlists.dismiss() }
             }
         }
+        .sheet(item: $navigator.creditsRequest) { request in
+            SongCreditsSheet(request: request) { navigator.creditsRequest = nil }
+        }
         .task(id: auth.generation) { await library.load(isSignedIn: auth.isSignedIn) }
         .task(id: auth.account?.avatarURL) { avatar = await AvatarBadge.load(auth.account?.avatarURL) }
     }

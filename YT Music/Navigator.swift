@@ -34,6 +34,8 @@ final class Navigator {
     var panelTab: NowPlayingPanelTab = .queue
     /// Whether the immersive full-window lyrics view is showing.
     var showingImmersiveLyrics = false
+    /// The track whose credits sheet is showing, if any.
+    var creditsRequest: SongCreditsRequest?
 
     /// Pushes an artist/album page onto the stack of the tab currently on screen,
     /// so navigation triggered from outside/below the stacks — the now-playing

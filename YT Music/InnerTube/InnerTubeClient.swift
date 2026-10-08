@@ -553,6 +553,13 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return LyricsParser.parse(response)
     }
 
+    /// Fetches a track's credits (performers, writers, producers). Empty when
+    /// the server has none, as for music videos.
+    func credits(videoId: String) async throws -> [CreditSection] {
+        let response: CreditsResponse = try await post("browse", body: ["browseId": "MPTC" + videoId])
+        return CreditsParser.parse(response)
+    }
+
     /// Fetches a track's related-music shelves. Two steps, mirroring the web
     /// client: the `next` response carries a "Related" tab whose browse id (an
     /// `MPTRt…`) is then browsed for the shelves. Empty when the track has no

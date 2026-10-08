@@ -496,6 +496,14 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         Label("Add to Playlist…", systemImage: "text.badge.plus")
                     }
                 }
+
+                Button {
+                    navigator.creditsRequest = SongCreditsRequest(
+                        videoId: videoId, title: title, subtitle: subtitle, thumbnailURL: thumbnailURL
+                    )
+                } label: {
+                    Label("View Song Credits", systemImage: "person.2")
+                }
             } else if let entityDestination {
                 entityActions(entityDestination)
             }
