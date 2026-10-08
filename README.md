@@ -24,14 +24,18 @@ integrations.
 
 ## Features
 
-- Playback with crossfade, queue controls, media-key support, and a 10-band equalizer
+- Playback with crossfade, volume normalization, queue controls, media-key support, and a 10-band equalizer
+- Plays signed out and on accounts without Premium; Premium accounts keep YouTube Music's higher-quality streams
 - Home, Explore, Search, album, artist, playlist, and entity pages
 - Personal library, likes, listening history, and uploads
 - Playlist creation and editing, including adding and removing tracks
 - Upload, browse, and delete support for your own music files
-- Timed lyrics from YouTube Music, LRCLIB, and Musixmatch
+- Timed lyrics from YouTube Music, LRCLIB, and Musixmatch, plus a full-window lyrics view
 - Queue, lyrics, related tracks, and comments in the now-playing inspector
+- Spectrum and MilkDrop-style visualizers
+- On-device song explanations from the lyrics with Apple Intelligence
 - Radio and autoplay that continue the queue after a track ends
+- Handoff of the playing track to another device's browser
 - Menu-bar commands and keyboard shortcuts
 - Plugins for Discord Rich Presence, track notifications, Last.fm scrobbling, and downloads
 
