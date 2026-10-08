@@ -281,7 +281,7 @@ struct ImmersiveLyricsView: View {
     @ViewBuilder
     private var playButton: some View {
         if player.isLoading {
-            ProgressView().controlSize(.small).tint(.white).frame(width: 44, height: 44)
+            LoadingPlayButton(size: 44, color: .white)
         } else {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")

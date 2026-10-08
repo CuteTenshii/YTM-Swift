@@ -561,9 +561,7 @@ private struct NowPlayingBar: View {
     @ViewBuilder
     private var playButton: some View {
         if player.isLoading {
-            ProgressView()
-                .controlSize(.small)
-                .frame(width: 36, height: 36)
+            LoadingPlayButton(size: 36)
         } else {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")

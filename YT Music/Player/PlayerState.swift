@@ -92,6 +92,9 @@ final class PlayerState {
 
     private(set) var nowPlaying: NowPlaying?
     private(set) var isLoading = false
+    /// The stream is with the audio engine but not yet audible; `isLoading`
+    /// stays up until it starts or the user pauses.
+    private var awaitingAudio = false
     private(set) var loadError: String?
     private(set) var repeatMode: RepeatMode = .off
     /// Whether the queue is currently playing in shuffled order.
@@ -192,7 +195,7 @@ final class PlayerState {
         self.audio.onNext = { [weak self] in self?.next() }
         self.audio.onPrevious = { [weak self] in self?.previous() }
         self.audio.onTogglePlayPause = { [weak self] in self?.togglePlayPause() }
-        self.audio.onPlaybackStart = { [weak self] in self?.emitPlaybackChange() }
+        self.audio.onPlaybackStart = { [weak self] in self?.handlePlaybackStart() }
         self.audio.onProgress = { [weak self] current, duration in
             self?.handleProgress(current: current, duration: duration)
         }
@@ -477,7 +480,19 @@ final class PlayerState {
             return
         }
         audio.togglePlayPause()
+        if awaitingAudio, !audio.isPlaying {
+            awaitingAudio = false
+            isLoading = false
+        }
         persist()
+        emitPlaybackChange()
+    }
+
+    private func handlePlaybackStart() {
+        if awaitingAudio {
+            awaitingAudio = false
+            isLoading = false
+        }
         emitPlaybackChange()
     }
     func seek(to seconds: Double) {
@@ -779,6 +794,7 @@ final class PlayerState {
         )
         loadError = nil
         isLoading = true
+        awaitingAudio = false
         if preparedVideoId != videoId {
             preloadTask?.cancel()
             preloadTask = nil
@@ -825,8 +841,8 @@ final class PlayerState {
             } else {
                 audio.load(url: resolved.url, metadata: metadata)
             }
+            awaitingAudio = true
             if let position { audio.seek(to: position) }
-            isLoading = false
             emitPlaybackChange()
             // Don't ping history yet — the real client reports a live position once
             // the listener is actually into the track. Arm it; handleProgress fires.

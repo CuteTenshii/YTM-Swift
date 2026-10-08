@@ -107,6 +107,9 @@ final class FakeAudioOutput: AudioOutput {
     var onNext: (() -> Void)?
     var onPrevious: (() -> Void)?
     var onProgress: ((Double, Double) -> Void)?
+    var onPlaybackStart: (() -> Void)?
+    /// Whether a loaded stream becomes audible at once, or waits for `startAudio()`.
+    var startsImmediately = true
     private(set) var loadedURL: URL?
     private(set) var loadedMetadata: NowPlayingMetadata?
     private(set) var loadCount = 0
@@ -124,7 +127,9 @@ final class FakeAudioOutput: AudioOutput {
         loadedMetadata = metadata
         loadCount += 1
         isPlaying = true
+        if startsImmediately { onPlaybackStart?() }
     }
+    func startAudio() { onPlaybackStart?() }
     func preload(url: URL, metadata: NowPlayingMetadata) {
         preloadedURL = url
     }
@@ -212,6 +217,32 @@ struct PlayerStateTests {
 
         #expect(audio.loadedURL == url)
         #expect(player.loadError == nil)
+        #expect(!player.isLoading)
+    }
+
+    @Test("Loading stays up while the stream buffers, until audio starts")
+    func loadingLastsUntilAudioStarts() async {
+        let audio = FakeAudioOutput()
+        audio.startsImmediately = false
+        let player = PlayerState(audio: audio, resolver: StubResolver())
+        player.play(title: "S", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        await player.loadStream(videoId: "vid")
+        #expect(player.isLoading)
+
+        audio.startAudio()
+        #expect(!player.isLoading)
+    }
+
+    @Test("Pausing while the stream buffers clears loading")
+    func pauseWhileBufferingClearsLoading() async {
+        let audio = FakeAudioOutput()
+        audio.startsImmediately = false
+        let player = PlayerState(audio: audio, resolver: StubResolver())
+        player.play(title: "S", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        await player.loadStream(videoId: "vid")
+        player.togglePlayPause()
         #expect(!player.isLoading)
     }
 
