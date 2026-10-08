@@ -112,7 +112,41 @@ final class EntityViewModel {
 
     func applySort(_ option: PlaylistSortOption) async {
         guard !option.isSelected else { return }
-        await reloadTracks(option.token)
+        switch option.action {
+        case .reload(let token):
+            await reloadTracks(token)
+        case .edit(let edit):
+            guard let playlistId = editablePlaylistId else { return }
+            isReloadingTracks = true
+            defer { isReloadingTracks = false }
+            guard (try? await client.sortPlaylist(playlistId: playlistId, by: edit)) != nil else { return }
+            await refreshPage()
+        }
+    }
+
+    /// Re-fetches the page after an edit that changes its rows (order, voting).
+    private func refreshPage() async {
+        guard let page = try? await client.entity(destination) else { return }
+        state = .loaded(page)
+    }
+
+    /// Moves a row's vote toward `target`, showing it at once and reverting if
+    /// the request fails.
+    func vote(_ track: Track, _ target: PlaylistItemVote.Status) async {
+        guard case .loaded(var page) = state,
+              let position = page.tracks.firstIndex(where: { $0.id == track.id }),
+              let vote = page.tracks[position].vote,
+              let token = vote.token(toward: target) else { return }
+        page.tracks[position].vote?.status = target
+        state = .loaded(page)
+        do {
+            try await client.votePlaylistItem(token: token)
+        } catch {
+            guard case .loaded(var current) = state,
+                  let index = current.tracks.firstIndex(where: { $0.id == track.id }) else { return }
+            current.tracks[index].vote = vote
+            state = .loaded(current)
+        }
     }
 
     /// Replaces the track list (and the filters / sort options, which carry the
@@ -294,7 +328,8 @@ final class EntityViewModel {
     /// alone" (also the case when the header didn't say). Returns whether the
     /// edits were applied.
     @discardableResult
-    func editPlaylist(name: String, description: String, privacy: PlaylistPrivacy?) async -> Bool {
+    func editPlaylist(name: String, description: String, privacy: PlaylistPrivacy?,
+                      votePermission: Int?) async -> Bool {
         let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let playlistId = editablePlaylistId, !title.isEmpty,
               case .loaded(var page) = state else { return false }
@@ -302,15 +337,23 @@ final class EntityViewModel {
         let newName = title != page.header.title ? title : nil
         let newDescription = description != page.header.description ? description : nil
         let newPrivacy = privacy != page.header.privacy ? privacy : nil
-        guard newName != nil || newDescription != nil || newPrivacy != nil else { return true }
+        let currentVotePermission = page.header.voteOptions.first(where: \.isSelected)?.value
+        let newVotePermission = votePermission != currentVotePermission ? votePermission : nil
+        guard newName != nil || newDescription != nil || newPrivacy != nil || newVotePermission != nil
+        else { return true }
 
         do {
             try await client.updatePlaylist(
                 playlistId: playlistId,
                 title: newName,
                 description: newDescription,
-                privacy: newPrivacy
+                privacy: newPrivacy,
+                votePermission: newVotePermission
             )
+            // Voting adds or removes the rows' vote buttons and can change the order.
+            if newVotePermission != nil, let fresh = try? await client.entity(destination) {
+                page = fresh
+            }
             page.header.title = title
             page.header.description = description
             if let newPrivacy { page.header.privacy = newPrivacy }

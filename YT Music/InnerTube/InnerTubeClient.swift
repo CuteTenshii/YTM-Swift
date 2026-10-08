@@ -695,14 +695,15 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         ])
     }
 
-    /// Applies metadata edits (name / description / visibility) to one of the
-    /// user's playlists as one `edit_playlist` batch. Nil fields produce no
-    /// action, so callers send just what changed. Requires auth.
+    /// Applies metadata edits (name / description / visibility / voting) to one
+    /// of the user's playlists as one `edit_playlist` batch. Nil fields produce
+    /// no action, so callers send just what changed. Requires auth.
     func updatePlaylist(
         playlistId: String,
         title: String? = nil,
         description: String? = nil,
-        privacy: PlaylistPrivacy? = nil
+        privacy: PlaylistPrivacy? = nil,
+        votePermission: Int? = nil
     ) async throws {
         var actions: [[String: Any]] = []
         if let title {
@@ -719,6 +720,9 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
                 "action": "ACTION_SET_PLAYLIST_PRIVACY",
                 "playlistPrivacy": privacy.rawValue,
             ])
+        }
+        if let votePermission {
+            actions.append(["action": "ACTION_SET_ALLOW_ITEM_VOTE", "itemVotePermission": votePermission])
         }
         try await editPlaylist(playlistId: playlistId, actions: actions)
     }
@@ -793,12 +797,25 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         ])
     }
 
-    /// Posts a batch of `edit_playlist` actions against a playlist.
-    private func editPlaylist(playlistId: String, actions: [[String: Any]]) async throws {
-        let _: EmptyActionResponse = try await post(
-            "browse/edit_playlist",
-            body: ["playlistId": playlistId, "actions": actions]
+    /// Changes one of the user's playlists' saved order.
+    func sortPlaylist(playlistId: String, by edit: PlaylistSortEdit) async throws {
+        try await editPlaylist(
+            playlistId: playlistId,
+            actions: [["action": edit.action, edit.field: edit.value]],
+            params: edit.params
         )
+    }
+
+    /// Casts, changes, or removes a vote on a playlist row via its feedback token.
+    func votePlaylistItem(token: String) async throws {
+        let _: EmptyActionResponse = try await post("feedback", body: ["feedbackTokens": [token]])
+    }
+
+    /// Posts a batch of `edit_playlist` actions against a playlist.
+    private func editPlaylist(playlistId: String, actions: [[String: Any]], params: String? = nil) async throws {
+        var body: [String: Any] = ["playlistId": playlistId, "actions": actions]
+        if let params { body["params"] = params }
+        let _: EmptyActionResponse = try await post("browse/edit_playlist", body: body)
     }
 
     // MARK: - History / uploads editing

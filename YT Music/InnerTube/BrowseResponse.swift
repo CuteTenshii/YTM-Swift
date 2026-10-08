@@ -115,14 +115,37 @@ struct BrowseResponse: Decodable {
                             serviceEndpoint?.playlistEditEndpoint?.actions?.lazy
                                 .compactMap(\.playlistVideoOrder).first
                         }
+
+                        var sortEdit: PlaylistSortEdit? {
+                            guard let endpoint = serviceEndpoint?.playlistEditEndpoint,
+                                  let order = endpoint.actions?.first,
+                                  let action = order.action else { return nil }
+                            if let value = order.playlistVideoOrder {
+                                return PlaylistSortEdit(action: action, field: "playlistVideoOrder",
+                                                        value: value, params: endpoint.params)
+                            }
+                            if let value = order.playlistDynamicSortPreference {
+                                return PlaylistSortEdit(action: action, field: "playlistDynamicSortPreference",
+                                                        value: value, params: endpoint.params)
+                            }
+                            return nil
+                        }
                     }
 
                     struct ServiceEndpoint: Decodable {
                         let playlistEditEndpoint: PlaylistEdit?
-                        struct PlaylistEdit: Decodable { let actions: [OrderAction]? }
+
+                        struct PlaylistEdit: Decodable {
+                            let actions: [OrderAction]?
+                            let params: String?
+                        }
                     }
 
-                    struct OrderAction: Decodable { let playlistVideoOrder: Int? }
+                    struct OrderAction: Decodable {
+                        let action: String?
+                        let playlistVideoOrder: Int?
+                        let playlistDynamicSortPreference: Int?
+                    }
 
                     /// Resolved through the response's `frameworkUpdates`.
                     struct Endpoint: Decodable {
@@ -173,9 +196,39 @@ struct BrowseResponse: Decodable {
                 struct Renderer: Decodable {
                     /// "PRIVATE" / "UNLISTED" / "PUBLIC".
                     let privacy: String?
+                    let voteDropdown: VoteDropdown?
                     /// True for private playlists, which can't be collaborative.
                     let collaborationSettingsDisabled: Bool?
                     let collaborationSettingsCommand: CollaborationCommand?
+                }
+
+                struct VoteDropdown: Decodable {
+                    let dropdownRenderer: Renderer?
+
+                    struct Renderer: Decodable { let entries: [Entry]? }
+                    struct Entry: Decodable { let dropdownItemRenderer: Item? }
+
+                    struct Item: Decodable {
+                        let label: InnerTubeText?
+                        let descriptionText: InnerTubeText?
+                        let int32Value: Int?
+                        let isSelected: Bool?
+                        let disabled: Bool?
+                    }
+
+                    var options: [PlaylistVoteOption] {
+                        (dropdownRenderer?.entries ?? []).compactMap { entry in
+                            guard let item = entry.dropdownItemRenderer, let value = item.int32Value,
+                                  let title = item.label?.text, !title.isEmpty else { return nil }
+                            return PlaylistVoteOption(
+                                value: value,
+                                title: title,
+                                detail: item.descriptionText?.text ?? "",
+                                isDisabled: item.disabled ?? false,
+                                isSelected: item.isSelected ?? false
+                            )
+                        }
+                    }
                 }
 
                 struct CollaborationCommand: Decodable {
@@ -193,6 +246,10 @@ struct BrowseResponse: Decodable {
 
             var privacy: PlaylistPrivacy? {
                 editHeader?.musicPlaylistEditHeaderRenderer?.privacy.flatMap(PlaylistPrivacy.init(rawValue:))
+            }
+
+            var voteOptions: [PlaylistVoteOption] {
+                editHeader?.musicPlaylistEditHeaderRenderer?.voteDropdown?.options ?? []
             }
 
             var collaborationPanel: CollaborationPanelRef? {
@@ -421,6 +478,8 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let playlistItemData: PlaylistItemData?
     let menu: RendererMenu?
     let customIndexColumn: CustomIndexColumn?
+    /// Up/down vote buttons, on playlists with voting turned on.
+    let engagementBar: EngagementBar?
 
     struct FlexColumn: Decodable {
         let musicResponsiveListItemFlexColumnRenderer: FlexRenderer?
@@ -436,6 +495,73 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
         struct FixedRenderer: Decodable {
             let text: InnerTubeText?
+        }
+    }
+
+    /// `engagementBarViewModel.actions[].votingViewModel`: each vote button
+    /// toggles, with a feedback token to cast the vote and one to undo it.
+    struct EngagementBar: Decodable {
+        let engagementBarViewModel: ViewModel?
+
+        struct ViewModel: Decodable { let actions: [Action]? }
+        struct Action: Decodable { let votingViewModel: Voting? }
+
+        struct Voting: Decodable {
+            let upvoteButton: VoteButton?
+            let downvoteButton: VoteButton?
+            let initialState: InitialState?
+        }
+
+        struct InitialState: Decodable {
+            let compactVotes: String?
+            let compactVotesUpvoted: String?
+            let compactVotesDownvoted: String?
+        }
+
+        struct VoteButton: Decodable {
+            let toggleButtonViewModel: Toggle?
+
+            struct Toggle: Decodable {
+                let defaultButtonViewModel: ButtonWrapper?
+                let toggledButtonViewModel: ButtonWrapper?
+                let isToggled: Bool?
+            }
+
+            struct ButtonWrapper: Decodable {
+                let buttonViewModel: Button?
+
+                var feedbackToken: String? {
+                    buttonViewModel?.onTap?.innertubeCommand?.feedbackEndpoint?.feedbackToken
+                }
+            }
+
+            struct Button: Decodable { let onTap: OnTap? }
+            struct OnTap: Decodable { let innertubeCommand: Command? }
+            struct Command: Decodable { let feedbackEndpoint: Feedback? }
+            struct Feedback: Decodable { let feedbackToken: String? }
+        }
+
+        var vote: PlaylistItemVote? {
+            guard let voting = engagementBarViewModel?.actions?.lazy.compactMap(\.votingViewModel).first,
+                  let up = voting.upvoteButton?.toggleButtonViewModel,
+                  let down = voting.downvoteButton?.toggleButtonViewModel,
+                  let state = voting.initialState,
+                  let upvote = up.defaultButtonViewModel?.feedbackToken,
+                  let undoUpvote = up.toggledButtonViewModel?.feedbackToken,
+                  let downvote = down.defaultButtonViewModel?.feedbackToken,
+                  let undoDownvote = down.toggledButtonViewModel?.feedbackToken else { return nil }
+            let status: PlaylistItemVote.Status =
+                up.isToggled == true ? .up : down.isToggled == true ? .down : .none
+            return PlaylistItemVote(
+                status: status,
+                neutralCount: state.compactVotes ?? "0",
+                upvotedCount: state.compactVotesUpvoted ?? "1",
+                downvotedCount: state.compactVotesDownvoted ?? "-1",
+                upvoteToken: upvote,
+                undoUpvoteToken: undoUpvote,
+                downvoteToken: downvote,
+                undoDownvoteToken: undoDownvote
+            )
         }
     }
 

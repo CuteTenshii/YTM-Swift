@@ -15,24 +15,31 @@ import SwiftUI
 
 struct EditPlaylistSheet: View {
     /// Applies the edits; returns whether they were applied.
-    private let save: (_ name: String, _ description: String, _ privacy: PlaylistPrivacy?) async -> Bool
+    private let save: (_ name: String, _ description: String, _ privacy: PlaylistPrivacy?,
+                       _ votePermission: Int?) async -> Bool
+    private let voteOptions: [PlaylistVoteOption]
     /// Dismisses the sheet (called on cancel or after a successful save).
     private let onFinish: () -> Void
 
     @State private var name: String
     @State private var description: String
     @State private var privacy: PlaylistPrivacy?
+    @State private var votePermission: Int?
     @State private var isSaving = false
     @State private var failed = false
 
     init(name: String,
          description: String,
          privacy: PlaylistPrivacy?,
-         save: @escaping (_ name: String, _ description: String, _ privacy: PlaylistPrivacy?) async -> Bool,
+         voteOptions: [PlaylistVoteOption],
+         save: @escaping (_ name: String, _ description: String, _ privacy: PlaylistPrivacy?,
+                          _ votePermission: Int?) async -> Bool,
          onFinish: @escaping () -> Void) {
         _name = State(initialValue: name)
         _description = State(initialValue: description)
         _privacy = State(initialValue: privacy)
+        _votePermission = State(initialValue: voteOptions.first(where: \.isSelected)?.value)
+        self.voteOptions = voteOptions
         self.save = save
         self.onFinish = onFinish
     }
@@ -57,6 +64,28 @@ struct EditPlaylistSheet: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .frame(maxWidth: 220, alignment: .leading)
+            }
+
+            if !voteOptions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    fieldLabel("Voting")
+                    Picker("Voting", selection: $votePermission) {
+                        ForEach(voteOptions) { option in
+                            Text(option.title)
+                                .tag(Optional(option.value))
+                                .selectionDisabled(option.isDisabled)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(maxWidth: 220, alignment: .leading)
+                    if let detail = voteOptions.first(where: { $0.value == votePermission })?.detail,
+                       !detail.isEmpty {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -98,7 +127,7 @@ struct EditPlaylistSheet: View {
             }
         }
         .padding(16)
-        .frame(width: 460, height: 380)
+        .frame(width: 460, height: voteOptions.isEmpty ? 380 : 460)
     }
 
     private func fieldLabel(_ text: String) -> some View {
@@ -131,7 +160,7 @@ struct EditPlaylistSheet: View {
         isSaving = true
         failed = false
         Task {
-            let applied = await save(name, description, privacy)
+            let applied = await save(name, description, privacy, votePermission)
             isSaving = false
             if applied {
                 onFinish()

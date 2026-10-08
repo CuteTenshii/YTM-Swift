@@ -43,12 +43,18 @@ struct PlaylistFilter: Identifiable, Hashable, Sendable {
     var isSelected = false
 }
 
-/// A playlist sort order ("Newest first", "Title", …). Selecting it reloads
-/// the track list from `token`.
+/// A playlist sort order ("Newest first", "Title", …).
 struct PlaylistSortOption: Identifiable, Hashable, Sendable {
+    enum Action: Hashable, Sendable {
+        /// Reloads the track list from a continuation token.
+        case reload(String)
+        /// Changes an owned playlist's saved order.
+        case edit(PlaylistSortEdit)
+    }
+
     var id: String { title }
     var title: String
-    var token: String
+    var action: Action
     var isSelected = false
 }
 
@@ -114,6 +120,8 @@ struct EntityHeader: Sendable {
     /// Where to load one of the user's own playlists' collaboration settings.
     /// Nil when it can't be collaborative (private) or isn't the user's.
     var collaborationPanel: CollaborationPanelRef? = nil
+    /// The choices for one of the user's playlists' "Voting" setting.
+    var voteOptions: [PlaylistVoteOption] = []
     /// Whether the playlist is saved to the library, when the header says.
     var isSaved: Bool? = nil
     /// An album's artist(s) or a playlist's owner, shown with an avatar.
@@ -176,4 +184,6 @@ struct Track: Identifiable, Sendable {
     /// menu when available (signed in). `.indifferent` when unknown — enough for
     /// a context menu to show the right "Like" / "Remove from Likes" label.
     var likeStatus: LikeStatus = .indifferent
+    /// Up/down votes, on playlists with voting turned on.
+    var vote: PlaylistItemVote? = nil
 }

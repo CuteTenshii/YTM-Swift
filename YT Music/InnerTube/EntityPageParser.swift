@@ -20,6 +20,7 @@ nonisolated enum EntityPageParser {
         let editableHeader = sections.lazy.compactMap(\.musicEditablePlaylistDetailHeaderRenderer).first
         header.privacy = editableHeader?.privacy
         header.collaborationPanel = editableHeader?.collaborationPanel
+        header.voteOptions = editableHeader?.voteOptions ?? []
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
@@ -92,10 +93,17 @@ nonisolated enum EntityPageParser {
         let items = (header?.musicSideAlignedItemRenderer?.startItems ?? [])
             .flatMap { $0.sortFilterSubMenuRenderer?.subMenuItems ?? [] }
         return items.compactMap { item in
-            guard let title = item.title, !title.isEmpty,
-                  let key = item.navigationEndpoint?.executeEntityCommand?.commandEntityKey,
-                  let token = updates?.reloadToken(forKey: key) else { return nil }
-            return PlaylistSortOption(title: title, token: token, isSelected: item.selected ?? false)
+            guard let title = item.title, !title.isEmpty else { return nil }
+            let action: PlaylistSortOption.Action
+            if let edit = item.sortEdit {
+                action = .edit(edit)
+            } else if let key = item.navigationEndpoint?.executeEntityCommand?.commandEntityKey,
+                      let token = updates?.reloadToken(forKey: key) {
+                action = .reload(token)
+            } else {
+                return nil
+            }
+            return PlaylistSortOption(title: title, action: action, isSelected: item.selected ?? false)
         }
     }
 
@@ -334,7 +342,8 @@ nonisolated enum EntityPageParser {
                 albumLink: albumLink,
                 playlistSetVideoId: row.playlistSetVideoId,
                 canRemoveFromPlaylist: row.offersPlaylistRemoval,
-                likeStatus: row.likeStatus ?? .indifferent
+                likeStatus: row.likeStatus ?? .indifferent,
+                vote: row.engagementBar?.vote
             )
         }
     }

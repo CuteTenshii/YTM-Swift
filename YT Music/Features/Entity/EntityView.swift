@@ -200,7 +200,8 @@ struct EntityView: View {
         ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
             VStack(spacing: 0) {
                 TrackRow(track: track, index: index, tracks: tracks, album: album,
-                         canRemove: model.editablePlaylistId != nil, onRemove: removeTrack)
+                         canRemove: model.editablePlaylistId != nil, onRemove: removeTrack,
+                         onVote: isSearching ? nil : { track, target in Task { await model.vote(track, target) } })
                 if index < tracks.count - 1 {
                     Divider().overlay(.primary.opacity(0.08))
                 }
@@ -412,8 +413,10 @@ private struct HeaderView: View {
                 name: header.title,
                 description: header.description,
                 privacy: header.privacy,
-                save: { name, description, privacy in
-                    await model.editPlaylist(name: name, description: description, privacy: privacy)
+                voteOptions: header.voteOptions,
+                save: { name, description, privacy, votePermission in
+                    await model.editPlaylist(name: name, description: description, privacy: privacy,
+                                             votePermission: votePermission)
                 },
                 onFinish: { editingPlaylist = false }
             )

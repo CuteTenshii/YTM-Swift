@@ -154,8 +154,8 @@ struct EntityPageParserTests {
         #expect(reload.continuationToken == "NEXT")
         #expect(reload.filters.map(\.isSelected) == [true])
         #expect(reload.sortOptions == [
-            PlaylistSortOption(title: "Newest first", token: "NEWEST", isSelected: true),
-            PlaylistSortOption(title: "Title", token: "TITLE"),
+            PlaylistSortOption(title: "Newest first", action: .reload("NEWEST"), isSelected: true),
+            PlaylistSortOption(title: "Title", action: .reload("TITLE")),
         ])
     }
 

@@ -52,6 +52,8 @@ struct TrackRow: View {
     let album: String
     let canRemove: Bool
     let onRemove: (Track) -> Void
+    /// Shows the row's vote buttons, on playlists with voting turned on.
+    var onVote: ((Track, PlaylistItemVote.Status) -> Void)?
 
     @State private var hovering = false
 
@@ -105,6 +107,10 @@ struct TrackRow: View {
 
             Spacer(minLength: 8)
 
+            if auth.isSignedIn, let onVote, let vote = track.vote {
+                voteButtons(vote, onVote: onVote)
+            }
+
             if let duration = track.duration {
                 Text(duration)
                     .font(.callout.monospacedDigit())
@@ -137,5 +143,30 @@ struct TrackRow: View {
                 }
             }
         }
+    }
+
+    private func voteButtons(_ vote: PlaylistItemVote,
+                             onVote: @escaping (Track, PlaylistItemVote.Status) -> Void) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                onVote(track, vote.status == .up ? .none : .up)
+            } label: {
+                Image(systemName: vote.status == .up ? "arrowshape.up.fill" : "arrowshape.up")
+            }
+            .accessibilityLabel(vote.status == .up ? "Remove upvote" : "Upvote")
+
+            Text(vote.count)
+                .font(.callout.monospacedDigit())
+                .frame(minWidth: 20)
+
+            Button {
+                onVote(track, vote.status == .down ? .none : .down)
+            } label: {
+                Image(systemName: vote.status == .down ? "arrowshape.down.fill" : "arrowshape.down")
+            }
+            .accessibilityLabel(vote.status == .down ? "Remove downvote" : "Downvote")
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
     }
 }
