@@ -108,6 +108,23 @@ private actor WatchNextStore {
     }
 }
 
+private actor EntitlementStore {
+    private(set) var value: Bool?
+    func store(_ value: Bool) { self.value = value }
+    func clear() { value = nil }
+}
+
+private nonisolated struct TrackingParamsResponse: Decodable {
+    let responseContext: Context?
+
+    struct Context: Decodable { let serviceTrackingParams: [Service]? }
+    struct Service: Decodable { let params: [Param]? }
+    struct Param: Decodable {
+        let key: String?
+        let value: String?
+    }
+}
+
 private actor VisitorStore {
     private(set) var value: String?
     func store(_ value: String) { self.value = value }
@@ -199,6 +216,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// like-status paths (see `watchNextInfo(for:)`).
     private let watchNextCache = WatchNextStore()
     private let visitor = VisitorStore()
+    private let entitlement = EntitlementStore()
 
     init(session: URLSession? = nil) {
         self.session = session ?? NetworkSession.make()
@@ -206,8 +224,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         // so drop the whole cache whenever the session changes.
         NotificationCenter.default.addObserver(
             forName: .ytmCredentialsChanged, object: nil, queue: nil
-        ) { [watchNextCache] _ in
-            Task { await watchNextCache.clear() }
+        ) { [watchNextCache, entitlement] _ in
+            Task {
+                await watchNextCache.clear()
+                await entitlement.clear()
+            }
         }
     }
 
@@ -507,6 +528,26 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             authenticated: false,
             visitorData: try await visitorData()
         )
+    }
+
+    /// Whether the signed-in account has YouTube Music Premium. Read from browse
+    /// responses as they arrive (see `postData`); browses Home when none has yet.
+    func hasPremium() async -> Bool {
+        if let known = await entitlement.value { return known }
+        _ = try? await postData("browse", body: ["browseId": "FEmusic_home"])
+        let premium = await entitlement.value ?? false
+        await entitlement.store(premium)
+        return premium
+    }
+
+    /// `has_unlimited_entitlement` in a signed-in YT Music response's tracking
+    /// params: "True" with Premium, absent without. Nil when not signed in.
+    static func premiumEntitlement(in data: Data) -> Bool? {
+        guard let response = try? JSONDecoder().decode(TrackingParamsResponse.self, from: data) else { return nil }
+        let params = (response.responseContext?.serviceTrackingParams ?? [])
+            .flatMap { $0.params ?? [] }
+        guard params.contains(where: { $0.key == "logged_in" && $0.value == "1" }) else { return nil }
+        return params.contains { $0.key == "has_unlimited_entitlement" && $0.value == "True" }
     }
 
     /// An anonymous visitor id from `visitor_id`, fetched once per launch.
@@ -1065,6 +1106,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
         guard !data.isEmpty else { throw InnerTubeError.emptyResponse }
 
+        if didAttachCredentials, endpoint == "browse", profile.clientName == clientName,
+           await entitlement.value == nil, let premium = Self.premiumEntitlement(in: data) {
+            await entitlement.store(premium)
+        }
         return data
     }
 

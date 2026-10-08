@@ -70,8 +70,31 @@ actor StreamResolver: StreamResolving {
 
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
         let signedIn = await CredentialStore.shared.isSignedIn
-        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") signedIn=\(signedIn)")
-        let response = try await playerResponse(videoId: videoId, playlistId: playlistId, signedIn: signedIn)
+        let premium = signedIn ? await client.hasPremium() : false
+        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") "
+            + "signedIn=\(signedIn) premium=\(premium)")
+
+        // YT Music's own streams stop loading after the first chunk without a PO
+        // token unless the account has Premium, so others stream from visionOS.
+        // Signed in, the YT Music response still drives playability and history.
+        let response: PlayerResponse
+        let streamSource: PlayerResponse
+        if !signedIn {
+            response = try await playerResponse(videoId: videoId, playlistId: nil, fromMusic: false)
+            streamSource = response
+        } else if premium {
+            response = try await playerResponse(videoId: videoId, playlistId: playlistId, fromMusic: true)
+            streamSource = response
+        } else {
+            async let vision = try? playerResponse(videoId: videoId, playlistId: nil, fromMusic: false)
+            response = try await playerResponse(videoId: videoId, playlistId: playlistId, fromMusic: true)
+            if let playable = playableStream(await vision, preferences: preferences) {
+                streamSource = playable
+            } else {
+                PlaybackLog.note("visionOS can't play this track; streaming from WEB_REMIX")
+                streamSource = response
+            }
+        }
 
         let status = response.playabilityStatus?.status ?? "nil"
         let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
@@ -82,7 +105,7 @@ actor StreamResolver: StreamResolving {
 
         try checkPlayability(response)
 
-        let format = try selectAudioFormat(response, preferences: preferences)
+        let format = try selectAudioFormat(streamSource, preferences: preferences)
         PlaybackLog.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
 
         // One content-playback nonce tags the media we fetch and the history
@@ -101,24 +124,29 @@ actor StreamResolver: StreamResolving {
             + "(approxDurationMs=\(format.approxDurationMs ?? "nil"))")
         return ResolvedStream(url: url, duration: duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
-                              loudnessDb: format.loudnessDb ?? response.playerConfig?.audioConfig?.loudnessDb,
+                              loudnessDb: format.loudnessDb ?? streamSource.playerConfig?.audioConfig?.loudnessDb,
                               streamEnd: format.approxDuration)
+    }
+
+    /// `response` when it's playable with a compatible audio stream. A visionOS
+    /// response isn't for the user's own uploads, which only exist for their account.
+    nonisolated func playableStream(_ response: PlayerResponse?, preferences: StreamPreferences) -> PlayerResponse? {
+        guard let response, (try? checkPlayability(response)) != nil,
+              (try? selectAudioFormat(response, preferences: preferences)) != nil else { return nil }
+        return response
     }
 
     /// Player requests are safe to repeat. A short retry covers transient
     /// connection resets and server errors without retrying auth or playability
     /// failures that will not change on their own.
-    /// Signed out, it comes from the visionOS client: YT Music's own streams
-    /// refuse to load past the first chunk without a PO token unless the
-    /// account has Premium.
-    private func playerResponse(videoId: String, playlistId: String?, signedIn: Bool) async throws -> PlayerResponse {
+    private func playerResponse(videoId: String, playlistId: String?, fromMusic: Bool) async throws -> PlayerResponse {
         let delays: [UInt64] = [0, 300_000_000, 1_000_000_000]
         var lastError: Error?
 
         for (attempt, delay) in delays.enumerated() {
             if delay > 0 { try await Task.sleep(nanoseconds: delay) }
             do {
-                guard signedIn else { return try await client.signedOutPlayer(videoId: videoId) }
+                guard fromMusic else { return try await client.signedOutPlayer(videoId: videoId) }
                 return try await client.player(
                     videoId: videoId,
                     signatureTimestamp: try await decipher.signatureTimestamp(),
