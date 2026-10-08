@@ -440,7 +440,7 @@ struct EntityPageParserTests {
         #expect(page.header.artists.first?.name == "Some Artist")
         // The artist is shown as a linked byline, not repeated in the subtitle.
         #expect(page.header.byline?.runs.first?.link?.browseId == "UCartist")
-        #expect(page.header.byline?.avatarURL?.absoluteString == "https://img/artist.jpg")
+        #expect(page.header.byline?.avatarURLs.map(\.absoluteString) == ["https://img/artist.jpg"])
         #expect(!page.header.subtitle.contains("Some Artist"))
 
         let track = try #require(page.tracks.first)

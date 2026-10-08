@@ -490,7 +490,9 @@ private struct HeaderView: View {
     private func bylineRow(_ byline: EntityByline) -> some View {
         let font = Font.callout.weight(.semibold)
         return HStack(spacing: 8) {
-            if let avatar = byline.avatarURL {
+            if byline.avatarURLs.count > 1 {
+                avatarPill(byline.avatarURLs)
+            } else if let avatar = byline.avatarURLs.first {
                 ArtworkView(url: avatar, circular: true, size: 24)
             }
             HStack(spacing: 0) {
@@ -507,6 +509,18 @@ private struct HeaderView: View {
             }
             .lineLimit(1)
         }
+    }
+
+    /// Overlapping avatars for a playlist with several collaborators.
+    private func avatarPill(_ urls: [URL]) -> some View {
+        HStack(spacing: -8) {
+            ForEach(urls, id: \.self) { url in
+                ArtworkView(url: url, circular: true, size: 24)
+                    .overlay(Circle().strokeBorder(.background, lineWidth: 2))
+            }
+        }
+        .padding(3)
+        .background(.quaternary, in: .capsule)
     }
 
     /// A vertical wash built from the two most prominent cover-art colours,

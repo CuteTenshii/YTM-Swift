@@ -172,7 +172,7 @@ nonisolated enum EntityPageParser {
         if let runs = header.straplineTextOne?.runs, !runs.isEmpty {
             return EntityByline(
                 runs: runs.map { EntityByline.Run(text: $0.text, link: $0.entityLink) },
-                avatarURL: header.straplineThumbnail?.bestURL
+                avatarURLs: [header.straplineThumbnail?.bestURL].compactMap { $0 }
             )
         }
         guard let stack = header.facepile?.avatarStackViewModel,
@@ -181,8 +181,9 @@ nonisolated enum EntityPageParser {
             .browseEndpoint?.entityLink(named: name)
         return EntityByline(
             runs: [EntityByline.Run(text: name, link: link)],
-            avatarURL: stack.avatars?.first?.avatarViewModel?.image?.sources?.last
-                .flatMap { URL(string: $0.url) }
+            avatarURLs: (stack.avatars ?? []).prefix(3).compactMap { avatar in
+                avatar.avatarViewModel?.image?.sources?.last.flatMap { URL(string: $0.url) }
+            }
         )
     }
 

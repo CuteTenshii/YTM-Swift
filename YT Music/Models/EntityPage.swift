@@ -131,7 +131,7 @@ struct EntityHeader: Sendable {
 }
 
 /// Who made an album or playlist: its text runs (linked where the server gave
-/// a destination) and an avatar.
+/// a destination) and avatars: a playlist's collaborators can bring up to three.
 struct EntityByline: Sendable, Equatable {
     struct Run: Sendable, Equatable {
         var text: String
@@ -139,7 +139,7 @@ struct EntityByline: Sendable, Equatable {
     }
 
     var runs: [Run]
-    var avatarURL: URL?
+    var avatarURLs: [URL] = []
 }
 
 /// The artist subscribe button's state and the InnerTube params needed to toggle
