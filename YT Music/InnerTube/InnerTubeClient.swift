@@ -108,6 +108,16 @@ private actor WatchNextStore {
     }
 }
 
+private actor VisitorStore {
+    private(set) var value: String?
+    func store(_ value: String) { self.value = value }
+}
+
+private nonisolated struct VisitorResponse: Decodable {
+    let responseContext: Context?
+    struct Context: Decodable { let visitorData: String? }
+}
+
 /// Visibility of one of the user's playlists, as sent by `playlist/create`
 /// and the `edit_playlist` set-privacy action.
 nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
@@ -188,6 +198,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// Shares one `next(videoId)` round-trip across the lyrics, related, and
     /// like-status paths (see `watchNextInfo(for:)`).
     private let watchNextCache = WatchNextStore()
+    private let visitor = VisitorStore()
 
     init(session: URLSession? = nil) {
         self.session = session ?? NetworkSession.make()
@@ -484,6 +495,27 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             ]
         }
         return try await post("player", body: body)
+    }
+
+    /// The player response for signed-out playback, from the visionOS client
+    /// (see `visionOS`).
+    func signedOutPlayer(videoId: String) async throws -> PlayerResponse {
+        try await post(
+            "player",
+            body: ["videoId": videoId, "contentCheckOk": true, "racyCheckOk": true],
+            client: visionOS,
+            authenticated: false,
+            visitorData: try await visitorData()
+        )
+    }
+
+    /// An anonymous visitor id from `visitor_id`, fetched once per launch.
+    private func visitorData() async throws -> String {
+        if let cached = await visitor.value { return cached }
+        let response: VisitorResponse = try await post("visitor_id", body: [:], client: web, authenticated: false)
+        guard let value = response.responseContext?.visitorData else { throw InnerTubeError.emptyResponse }
+        await visitor.store(value)
+        return value
     }
 
     /// Fetches a radio's first batch (~50 tracks) seeded from a video (the
@@ -913,7 +945,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         let clientVersion: String
         let clientNameHeader: String  // X-YouTube-Client-Name
         let origin: String
-        let apiKey: String
+        let apiKey: String?
+        var userAgent: String?
+        /// Device fields added to `context.client`.
+        var device: [String: String] = [:]
     }
 
     private var webRemix: ClientProfile {
@@ -930,6 +965,29 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         clientNameHeader: "1",
         origin: "https://www.youtube.com",
         apiKey: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+    )
+
+    /// The visionOS app client, used for signed-out playback: WEB_REMIX streams
+    /// need a PO token unless the account has Premium, and these don't. Its
+    /// stream URLs come unciphered. Needs a visitor id, else it asks to sign in.
+    private static let visionOSUserAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 "
+            + "(KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+    private let visionOS = ClientProfile(
+        baseURL: URL(string: "https://www.youtube.com/youtubei/v1/")!,
+        clientName: "VISIONOS",
+        clientVersion: "1.02",
+        clientNameHeader: "101",
+        origin: "https://www.youtube.com",
+        apiKey: nil,
+        userAgent: InnerTubeClient.visionOSUserAgent,
+        device: [
+            "deviceMake": "Apple",
+            "deviceModel": "RealityDevice17,1",
+            "userAgent": InnerTubeClient.visionOSUserAgent,
+            "osName": "visionOS",
+            "osVersion": "26.5.23O471",
+        ]
     )
 
     /// POSTs to an InnerTube endpoint as `client` (default: YT Music WEB_REMIX),
@@ -963,10 +1021,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             url: profile.baseURL.appendingPathComponent(endpoint),
             resolvingAgainstBaseURL: false
         )!
-        components.queryItems = [
-            URLQueryItem(name: "key", value: profile.apiKey),
-            URLQueryItem(name: "prettyPrint", value: "false"),
-        ]
+        components.queryItems = [URLQueryItem(name: "prettyPrint", value: "false")]
+        if let apiKey = profile.apiKey {
+            components.queryItems?.append(URLQueryItem(name: "key", value: apiKey))
+        }
 
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
@@ -1019,7 +1077,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         request.setValue("1", forHTTPHeaderField: "X-Goog-Api-Format-Version")
         request.setValue(profile.clientVersion, forHTTPHeaderField: "X-YouTube-Client-Version")
         request.setValue(profile.clientNameHeader, forHTTPHeaderField: "X-YouTube-Client-Name")
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(profile.userAgent ?? userAgent, forHTTPHeaderField: "User-Agent")
     }
 
     /// The InnerTube `context.client` block identifying the impersonated client.
@@ -1031,6 +1089,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             "hl": "en",
             "gl": "US",
         ]
+        clientContext.merge(profile.device) { current, _ in current }
         if let visitorData { clientContext["visitorData"] = visitorData }
         return ["client": clientContext, "user": [:]]
     }

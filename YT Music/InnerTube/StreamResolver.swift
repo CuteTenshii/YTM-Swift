@@ -69,13 +69,9 @@ actor StreamResolver: StreamResolving {
     private let decipher = SignatureDecipher.shared
 
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
-        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—")")
-        let signatureTimestamp = try await decipher.signatureTimestamp()
-        let response = try await playerResponse(
-            videoId: videoId,
-            signatureTimestamp: signatureTimestamp,
-            playlistId: playlistId
-        )
+        let signedIn = await CredentialStore.shared.isSignedIn
+        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") signedIn=\(signedIn)")
+        let response = try await playerResponse(videoId: videoId, playlistId: playlistId, signedIn: signedIn)
 
         let status = response.playabilityStatus?.status ?? "nil"
         let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
@@ -112,16 +108,20 @@ actor StreamResolver: StreamResolving {
     /// Player requests are safe to repeat. A short retry covers transient
     /// connection resets and server errors without retrying auth or playability
     /// failures that will not change on their own.
-    private func playerResponse(videoId: String, signatureTimestamp: String?, playlistId: String?) async throws -> PlayerResponse {
+    /// Signed out, it comes from the visionOS client: YT Music's own streams
+    /// refuse to load past the first chunk without a PO token unless the
+    /// account has Premium.
+    private func playerResponse(videoId: String, playlistId: String?, signedIn: Bool) async throws -> PlayerResponse {
         let delays: [UInt64] = [0, 300_000_000, 1_000_000_000]
         var lastError: Error?
 
         for (attempt, delay) in delays.enumerated() {
             if delay > 0 { try await Task.sleep(nanoseconds: delay) }
             do {
+                guard signedIn else { return try await client.signedOutPlayer(videoId: videoId) }
                 return try await client.player(
                     videoId: videoId,
-                    signatureTimestamp: signatureTimestamp,
+                    signatureTimestamp: try await decipher.signatureTimestamp(),
                     playlistId: playlistId
                 )
             } catch {
