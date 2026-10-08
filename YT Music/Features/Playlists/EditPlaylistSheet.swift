@@ -56,35 +56,24 @@ struct EditPlaylistSheet: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 fieldLabel("Visibility")
-                Picker("Visibility", selection: displayedPrivacy) {
-                    ForEach(PlaylistPrivacy.allCases, id: \.self) { level in
-                        Text(visibilityLabel(level)).tag(level)
+                DescribedMenu(
+                    selection: displayedPrivacy,
+                    choices: PlaylistPrivacy.allCases.map {
+                        .init(value: $0, title: visibilityLabel($0), detail: visibilityDetail($0))
                     }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(maxWidth: 220, alignment: .leading)
+                )
             }
 
             if !voteOptions.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     fieldLabel("Voting")
-                    Picker("Voting", selection: $votePermission) {
-                        ForEach(voteOptions) { option in
-                            Text(option.title)
-                                .tag(Optional(option.value))
-                                .selectionDisabled(option.isDisabled)
+                    DescribedMenu(
+                        selection: $votePermission,
+                        choices: voteOptions.map {
+                            .init(value: Optional($0.value), title: $0.title, detail: $0.detail,
+                                  isDisabled: $0.isDisabled)
                         }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .frame(maxWidth: 220, alignment: .leading)
-                    if let detail = voteOptions.first(where: { $0.value == votePermission })?.detail,
-                       !detail.isEmpty {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    )
                 }
             }
 
@@ -127,7 +116,7 @@ struct EditPlaylistSheet: View {
             }
         }
         .padding(16)
-        .frame(width: 460, height: voteOptions.isEmpty ? 380 : 460)
+        .frame(width: 460, height: voteOptions.isEmpty ? 380 : 440)
     }
 
     private func fieldLabel(_ text: String) -> some View {
@@ -155,6 +144,14 @@ struct EditPlaylistSheet: View {
         }
     }
 
+    private func visibilityDetail(_ level: PlaylistPrivacy) -> String {
+        switch level {
+        case .private: return "Only you can view"
+        case .unlisted: return "Anyone with the link can view"
+        case .public: return "Anyone can search for and view"
+        }
+    }
+
     private func saveEdits() {
         guard !isSaving else { return }
         isSaving = true
@@ -168,5 +165,37 @@ struct EditPlaylistSheet: View {
                 failed = true
             }
         }
+    }
+}
+
+/// A menu of choices with a sublabel under each, which a menu-style `Picker`
+/// doesn't show.
+private struct DescribedMenu<Value: Hashable>: View {
+    struct Choice {
+        var value: Value
+        var title: String
+        var detail: String
+        var isDisabled = false
+    }
+
+    @Binding var selection: Value
+    let choices: [Choice]
+
+    var body: some View {
+        Menu {
+            ForEach(choices, id: \.value) { choice in
+                Toggle(isOn: Binding(
+                    get: { selection == choice.value },
+                    set: { if $0 { selection = choice.value } }
+                )) {
+                    Text(choice.title)
+                    Text(choice.detail)
+                }
+                .disabled(choice.isDisabled)
+            }
+        } label: {
+            Text(choices.first { $0.value == selection }?.title ?? "")
+        }
+        .fixedSize()
     }
 }
