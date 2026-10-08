@@ -111,6 +111,9 @@ struct EntityHeader: Sendable {
     /// The visibility of one of the user's own playlists, from its edit header.
     /// Nil for everything else.
     var privacy: PlaylistPrivacy? = nil
+    /// Where to load one of the user's own playlists' collaboration settings.
+    /// Nil when it can't be collaborative (private) or isn't the user's.
+    var collaborationPanel: CollaborationPanelRef? = nil
     /// Whether the playlist is saved to the library, when the header says.
     var isSaved: Bool? = nil
     /// An album's artist(s) or a playlist's owner, shown with an avatar.

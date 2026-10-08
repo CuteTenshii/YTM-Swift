@@ -17,7 +17,9 @@ nonisolated enum EntityPageParser {
         // responsive header sits inside the body's section list instead.
         let bodyHeader = sections.compactMap(\.responsiveHeader).first
         var header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
-        header.privacy = sections.lazy.compactMap { $0.musicEditablePlaylistDetailHeaderRenderer?.privacy }.first
+        let editableHeader = sections.lazy.compactMap(\.musicEditablePlaylistDetailHeaderRenderer).first
+        header.privacy = editableHeader?.privacy
+        header.collaborationPanel = editableHeader?.collaborationPanel
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []

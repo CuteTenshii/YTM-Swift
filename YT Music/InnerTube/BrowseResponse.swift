@@ -169,12 +169,39 @@ struct BrowseResponse: Decodable {
 
             struct EditHeader: Decodable {
                 let musicPlaylistEditHeaderRenderer: Renderer?
-                /// "PRIVATE" / "UNLISTED" / "PUBLIC".
-                struct Renderer: Decodable { let privacy: String? }
+
+                struct Renderer: Decodable {
+                    /// "PRIVATE" / "UNLISTED" / "PUBLIC".
+                    let privacy: String?
+                    /// True for private playlists, which can't be collaborative.
+                    let collaborationSettingsDisabled: Bool?
+                    let collaborationSettingsCommand: CollaborationCommand?
+                }
+
+                struct CollaborationCommand: Decodable {
+                    let showEngagementPanelEndpoint: PanelEndpoint?
+
+                    struct PanelEndpoint: Decodable {
+                        let identifier: Identifier?
+                        let globalConfiguration: GlobalConfiguration?
+
+                        struct Identifier: Decodable { let tag: String? }
+                        struct GlobalConfiguration: Decodable { let params: String? }
+                    }
+                }
             }
 
             var privacy: PlaylistPrivacy? {
                 editHeader?.musicPlaylistEditHeaderRenderer?.privacy.flatMap(PlaylistPrivacy.init(rawValue:))
+            }
+
+            var collaborationPanel: CollaborationPanelRef? {
+                guard let renderer = editHeader?.musicPlaylistEditHeaderRenderer,
+                      renderer.collaborationSettingsDisabled != true,
+                      let endpoint = renderer.collaborationSettingsCommand?.showEngagementPanelEndpoint,
+                      let panelId = endpoint.identifier?.tag,
+                      let params = endpoint.globalConfiguration?.params else { return nil }
+                return CollaborationPanelRef(panelId: panelId, params: params)
             }
         }
 

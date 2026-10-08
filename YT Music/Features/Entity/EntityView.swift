@@ -380,6 +380,7 @@ private struct HeaderView: View {
     /// Edit-sheet / delete-confirmation state for the edit menu.
     @State private var editingPlaylist = false
     @State private var confirmingDelete = false
+    @State private var collaborating = false
 
     var body: some View {
         Group {
@@ -416,6 +417,16 @@ private struct HeaderView: View {
                 },
                 onFinish: { editingPlaylist = false }
             )
+        }
+        .sheet(isPresented: $collaborating) {
+            if let playlistId = model.editablePlaylistId {
+                CollaborationSheet(
+                    playlistId: playlistId,
+                    title: header.title,
+                    destination: model.destination,
+                    onFinish: { collaborating = false }
+                )
+            }
         }
         .alert("Delete Playlist", isPresented: $confirmingDelete) {
             Button("Cancel", role: .cancel) {}
@@ -690,6 +701,11 @@ private struct HeaderView: View {
             editingPlaylist = true
         } label: {
             Label("Edit Playlist…", systemImage: "square.and.pencil")
+        }
+        Button {
+            collaborating = true
+        } label: {
+            Label("Collaborate…", systemImage: "person.2.badge.plus")
         }
         Button(role: .destructive) {
             confirmingDelete = true

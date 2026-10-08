@@ -761,6 +761,38 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         try await editPlaylist(playlistId: playlistId, actions: [action])
     }
 
+    // MARK: - Playlist collaboration
+
+    /// Loads one of the user's playlists' collaboration settings. Each load
+    /// issues a fresh invite link while new collaborators are allowed.
+    func collaboration(panel: CollaborationPanelRef) async throws -> PlaylistCollaboration {
+        let response: CollaborationPanelResponse = try await post(
+            "get_panel",
+            body: ["panelId": panel.panelId, "params": panel.params]
+        )
+        guard let collaboration = CollaborationPanelParser.parse(response) else {
+            throw InnerTubeError.emptyResponse
+        }
+        return collaboration
+    }
+
+    /// Turns collaboration on (creating an invite link) or off, which removes
+    /// collaborators but keeps the tracks they added.
+    func setCollaborationEnabled(playlistId: String, _ enabled: Bool) async throws {
+        try await editPlaylist(playlistId: playlistId, actions: [
+            enabled
+                ? ["action": "ACTION_CREATE_COLLABORATION_INVITE_LINK"]
+                : ["action": "ACTION_SET_CLOSED_TO_CONTRIBUTIONS", "closedToContributions": true],
+        ])
+    }
+
+    /// Re-opens or revokes invite links, leaving existing collaborators in place.
+    func setAllowsNewCollaborators(playlistId: String, _ allowed: Bool) async throws {
+        try await editPlaylist(playlistId: playlistId, actions: [
+            ["action": allowed ? "ACTION_CREATE_COLLABORATION_INVITE_LINK" : "ACTION_REVOKE_COLLABORATION_TOKENS"],
+        ])
+    }
+
     /// Posts a batch of `edit_playlist` actions against a playlist.
     private func editPlaylist(playlistId: String, actions: [[String: Any]]) async throws {
         let _: EmptyActionResponse = try await post(
