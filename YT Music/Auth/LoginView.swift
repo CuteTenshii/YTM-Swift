@@ -22,7 +22,22 @@ struct LoginView: View {
     @State private var capturing = false
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Sign in to YouTube Music").font(.headline)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(.cancelAction)
+                .help("Close")
+                .accessibilityLabel("Close")
+            }
+            .padding(16)
+            Divider()
             LoginWebView(webView: webView) { cookies in
                 Task {
                     capturing = true
@@ -35,16 +50,6 @@ struct LoginView: View {
                     ProgressView("Signing in…")
                         .padding(20)
                         .background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
-                }
-            }
-            .navigationTitle("Sign in to YouTube Music")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    // Manual fallback if auto-detection doesn't fire.
-                    Button("Done") { webView.captureCookies() }
                 }
             }
         }
