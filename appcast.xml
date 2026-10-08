@@ -6,6 +6,39 @@
         <description>Updates for YouTube Music, a native macOS client.</description>
         <language>en</language>
         <item>
+            <title>1.1.0</title>
+            <link>https://git.tenshii.moe/Tenshii/YTM-Swift/releases/tag/v1.1.0</link>
+            <sparkle:fullReleaseNotesLink>https://git.tenshii.moe/Tenshii/YTM-Swift/raw/branch/master/CHANGELOG.md</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[
+### New
+
+- Collaborative playlists: turn on collaboration, share the invite link, and see up to three collaborator avatars
+- Voting on your own playlists: choose who can vote, upvote or downvote tracks, and sort by Top voted
+- Drag to reorder tracks in your own playlists
+- Song credits from a track's context menu
+- App Intents and Siri shortcuts for playback
+- Handoff for the playing track
+- Artist and owner bylines on album and playlist pages
+- Reordered playback bar buttons, with a mic icon for lyrics
+
+### Fixes
+
+- Playback works signed out and on accounts without Premium, instead of stalling after a few seconds
+- Tracks advance at the end instead of playing silence
+- The loading indicator stays until audio starts
+- The sign-in sheet closes from an X at the top
+- Page names show in the toolbar, with the song as the window title
+- Album tracks no longer list the album's name as their artist
+- Library filter chips scroll with the content
+- Save to library, subscribe, and download only appear where they apply
+]]></description>
+            <pubDate>Thu, 08 Oct 2026 17:40:18 +0200</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://git.tenshii.moe/Tenshii/YTM-Swift/releases/download/v1.1.0/YouTube%20Music%201.1.0.dmg" length="4375607" type="application/octet-stream" sparkle:edSignature="fwCvMPnlPKGS5eU/Bu5v0Xb6nr1S3lsJRJu0FGlJhWCeqgP0neNmi/rMq8LUNQDn4ENIH0jMfDfUQY5atiFlAg=="/>
+        </item>
+        <item>
             <title>1.0.0</title>
             <link>https://git.tenshii.moe/Tenshii/YTM-Swift/releases/tag/v1.0.0</link>
             <sparkle:fullReleaseNotesLink>https://git.tenshii.moe/Tenshii/YTM-Swift/raw/branch/master/CHANGELOG.md</sparkle:fullReleaseNotesLink>

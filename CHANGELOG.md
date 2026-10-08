@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 - 2026-10-08
+
+### New
+
+- Collaborative playlists: turn on collaboration, share the invite link, and see up to three collaborator avatars
+- Voting on your own playlists: choose who can vote, upvote or downvote tracks, and sort by Top voted
+- Drag to reorder tracks in your own playlists
+- Song credits from a track's context menu
+- App Intents and Siri shortcuts for playback
+- Handoff for the playing track
+- Artist and owner bylines on album and playlist pages
+- Reordered playback bar buttons, with a mic icon for lyrics
+
+### Fixes
+
+- Playback works signed out and on accounts without Premium, instead of stalling after a few seconds
+- Tracks advance at the end instead of playing silence
+- The loading indicator stays until audio starts
+- The sign-in sheet closes from an X at the top
+- Page names show in the toolbar, with the song as the window title
+- Album tracks no longer list the album's name as their artist
+- Library filter chips scroll with the content
+- Save to library, subscribe, and download only appear where they apply
+
 ## 1.0.0 - 2026-10-07
 
 First release of a native macOS client for YouTube Music.
