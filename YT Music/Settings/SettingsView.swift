@@ -78,7 +78,7 @@ private struct GeneralSettingsTab: View {
     }
 }
 
-/// Audio quality, crossfade, autoplay, and lyrics-source preferences.
+/// Audio quality, crossfade, autoplay, track-click, and lyrics-source preferences.
 private struct PlaybackSettingsTab: View {
     @Environment(AppSettings.self) private var settings
 
@@ -145,6 +145,17 @@ private struct PlaybackSettingsTab: View {
                 }
                 .disabled(settings.nextTrackPreloadSeconds == 0)
                 Text("Start buffering the next track before the current one ends. This can reduce gaps on a slow connection.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Track lists") {
+                Picker("Play a track with", selection: $settings.playClick) {
+                    ForEach(PlayClick.allCases) { click in
+                        Text(click.label).tag(click)
+                    }
+                }
+                Text("How album, playlist, and history rows start playing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

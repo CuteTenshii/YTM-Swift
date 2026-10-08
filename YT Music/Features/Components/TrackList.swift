@@ -5,8 +5,8 @@
 
 import SwiftUI
 
-/// A numbered track listing (album / playlist style rows). Double-click plays
-/// from that row with the whole list as the queue.
+/// A numbered track listing (album / playlist style rows). Clicking a row (once
+/// or twice, per `AppSettings.playClick`) plays from it with the whole list as the queue.
 struct TrackListView: View {
     let tracks: [Track]
     let album: String
@@ -45,6 +45,7 @@ struct TrackListView: View {
 
 struct TrackRow: View {
     @Environment(PlayerState.self) private var player
+    @Environment(AppSettings.self) private var settings
     @Environment(AuthStore.self) private var auth
     let track: Track
     let index: Int
@@ -123,7 +124,7 @@ struct TrackRow: View {
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
-        .onTapGesture(count: 2) { player.play(tracks, startAt: index, album: album) }
+        .onTapGesture(count: settings.playClick.count) { player.play(tracks, startAt: index, album: album) }
         .musicContextMenu(
             title: track.title,
             subtitle: track.subtitle,

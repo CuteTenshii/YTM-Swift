@@ -31,6 +31,28 @@ nonisolated enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifi
     }
 }
 
+/// How many clicks on a track row start playback from it.
+nonisolated enum PlayClick: String, Codable, CaseIterable, Sendable, Identifiable {
+    case single
+    case double
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .single: "Single click"
+        case .double: "Double click"
+        }
+    }
+
+    var count: Int {
+        switch self {
+        case .single: 1
+        case .double: 2
+        }
+    }
+}
+
 /// The subset of settings the (nonisolated) stream resolver needs. A plain
 /// Sendable value so it can be passed across the actor boundary on each resolve.
 nonisolated struct StreamPreferences: Sendable, Equatable {
@@ -73,6 +95,13 @@ final class AppSettings {
     /// Leave blank to use the system network configuration.
     var proxyURL: String {
         didSet { store(proxyURL.isEmpty ? nil : proxyURL, for: .proxyURL) }
+    }
+
+    // MARK: Track lists
+
+    /// Whether a single or a double click on a track row plays it.
+    var playClick: PlayClick {
+        didSet { store(playClick.rawValue, for: .playClick) }
     }
 
     // MARK: Lyrics
@@ -177,6 +206,8 @@ final class AppSettings {
         self.volumeNormalization = defaults.bool(forKey: Key.volumeNormalization.rawValue)
         self.autoplay = defaults.object(forKey: Key.autoplay.rawValue) as? Bool ?? true
         self.proxyURL = defaults.string(forKey: Key.proxyURL.rawValue) ?? ""
+        self.playClick = (defaults.string(forKey: Key.playClick.rawValue)
+            .flatMap(PlayClick.init)) ?? .double
         self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
             .flatMap(LyricsProvider.init)) ?? .youtubeMusic
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
@@ -239,6 +270,7 @@ final class AppSettings {
         case volumeNormalization = "settings.volumeNormalization"
         case autoplay            = "settings.autoplay"
         case proxyURL            = "settings.proxyURL"
+        case playClick           = "settings.playClick"
         case lyricsProvider      = "settings.lyricsProvider"
         case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
