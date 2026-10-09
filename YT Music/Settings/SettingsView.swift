@@ -150,20 +150,25 @@ private struct PlaybackSettingsTab: View {
             }
 
             Section("Lyrics") {
-                Picker("Lyrics source", selection: $settings.lyricsProvider) {
-                    ForEach(LyricsProvider.allCases) { provider in
-                        Text(provider.label).tag(provider)
-                    }
+                LabeledContent("Lyrics source") {
+                    DescribedMenu(
+                        selection: $settings.lyricsProvider,
+                        choices: LyricsProvider.allCases.map {
+                            .init(value: $0, title: $0.label, detail: lyricsDetail($0))
+                        }
+                    )
                 }
-                Text("YouTube Music matches the playing track exactly; LRCLIB is a free open database "
-                    + "matched by title and artist, with wider coverage and synced (karaoke) lyrics. "
-                    + "Musixmatch adds word-by-word timing where available, via an unofficial endpoint "
-                    + "that can be less reliable.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func lyricsDetail(_ provider: LyricsProvider) -> String {
+        switch provider {
+        case .youtubeMusic: "Matches the playing track exactly"
+        case .lrclib: "Open database with wider coverage and synced lyrics"
+        case .musixmatch: "Word-by-word timing, but less reliable"
+        }
     }
 }
 
