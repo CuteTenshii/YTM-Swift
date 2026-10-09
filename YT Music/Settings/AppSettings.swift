@@ -75,6 +75,16 @@ final class AppSettings {
         didSet { store(proxyURL.isEmpty ? nil : proxyURL, for: .proxyURL) }
     }
 
+    // MARK: Track lists
+
+    /// Play a track row on a single click instead of a double click.
+    var playOnSingleClick: Bool {
+        didSet { store(playOnSingleClick, for: .playOnSingleClick) }
+    }
+
+    /// Clicks on a track row needed to start playback from it.
+    var playClickCount: Int { playOnSingleClick ? 1 : 2 }
+
     // MARK: Lyrics
 
     /// Where the lyrics panel fetches from.
@@ -177,6 +187,7 @@ final class AppSettings {
         self.volumeNormalization = defaults.bool(forKey: Key.volumeNormalization.rawValue)
         self.autoplay = defaults.object(forKey: Key.autoplay.rawValue) as? Bool ?? true
         self.proxyURL = defaults.string(forKey: Key.proxyURL.rawValue) ?? ""
+        self.playOnSingleClick = defaults.bool(forKey: Key.playOnSingleClick.rawValue)
         self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
             .flatMap(LyricsProvider.init)) ?? .youtubeMusic
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
@@ -239,6 +250,7 @@ final class AppSettings {
         case volumeNormalization = "settings.volumeNormalization"
         case autoplay            = "settings.autoplay"
         case proxyURL            = "settings.proxyURL"
+        case playOnSingleClick   = "settings.playOnSingleClick"
         case lyricsProvider      = "settings.lyricsProvider"
         case volume              = "settings.volume"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
