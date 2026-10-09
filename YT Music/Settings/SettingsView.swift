@@ -150,12 +150,8 @@ private struct PlaybackSettingsTab: View {
             }
 
             Section("Track lists") {
-                Picker("Play a track with", selection: $settings.playClick) {
-                    ForEach(PlayClick.allCases) { click in
-                        Text(click.label).tag(click)
-                    }
-                }
-                Text("How album, playlist, and history rows start playing.")
+                Toggle("Play tracks with a single click", isOn: $settings.playOnSingleClick)
+                Text("Start album, playlist, and history rows with one click instead of a double click.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

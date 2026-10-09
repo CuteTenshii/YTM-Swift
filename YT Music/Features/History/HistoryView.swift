@@ -146,7 +146,7 @@ private struct HistorySectionView: View {
     }
 }
 
-/// A single history entry. Clicking it (once or twice, per `AppSettings.playClick`)
+/// A single history entry. Clicking it (once or twice, per `AppSettings.playOnSingleClick`)
 /// plays this date bucket as the queue, starting at the tapped track.
 private struct HistoryTrackRow: View {
     @Environment(PlayerState.self) private var player
@@ -205,7 +205,7 @@ private struct HistoryTrackRow: View {
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
-        .onTapGesture(count: settings.playClick.count) { player.play(tracks, startAt: index, album: "") }
+        .onTapGesture(count: settings.playClickCount) { player.play(tracks, startAt: index, album: "") }
         .musicContextMenu(
             title: track.title,
             subtitle: track.subtitle,
