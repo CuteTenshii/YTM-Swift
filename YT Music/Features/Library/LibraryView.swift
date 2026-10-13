@@ -219,5 +219,6 @@ struct LibraryView: View {
     LibraryView(model: LibraryViewModel())
         .environment(PlayerState())
         .environment(AuthStore())
+        .environment(AppSettings())
         .frame(width: 900, height: 600)
 }
