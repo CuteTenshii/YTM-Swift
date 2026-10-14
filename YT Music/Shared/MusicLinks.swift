@@ -32,4 +32,37 @@ enum MusicLinks {
         }
         return nil
     }
+
+    /// What a YouTube / YT Music link points at, when the app can open it itself.
+    enum Target: Equatable {
+        case handle(String)
+        case entity(EntityLink)
+        case watch(videoId: String, playlistId: String?)
+    }
+
+    static func target(for url: URL) -> Target? {
+        guard let host = url.host?.lowercased(),
+              host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
+        let parts = url.pathComponents.filter { $0 != "/" }
+        guard let first = parts.first else { return nil }
+        let id = parts.dropFirst().first
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        func query(_ name: String) -> String? { items?.first { $0.name == name }?.value }
+        if first.hasPrefix("@") { return .handle(first) }
+        switch (first, id) {
+        case ("channel", let id?):
+            return .entity(EntityLink(name: "", browseId: id, kind: .artist))
+        case ("browse", let id?):
+            let kind: HomeItem.Kind = id.hasPrefix("MPRE") ? .album : id.hasPrefix("UC") ? .artist : .unknown
+            return .entity(EntityLink(name: "", browseId: id, kind: kind))
+        case ("watch", _):
+            guard let videoId = query("v") else { return nil }
+            return .watch(videoId: videoId, playlistId: query("list"))
+        case ("playlist", _):
+            guard let list = query("list") else { return nil }
+            return .entity(EntityLink(name: "", browseId: "VL" + list, kind: .playlist))
+        default:
+            return nil
+        }
+    }
 }

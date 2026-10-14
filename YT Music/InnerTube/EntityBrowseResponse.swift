@@ -202,6 +202,8 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let title: InnerTubeText?
             let subtitle: InnerTubeText?
             let description: InnerTubeText?
+            let monthlyListenerCount: InnerTubeText?
+            let pronouns: InnerTubeText?
             let thumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let foregroundThumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let subscriptionButton: SubscriptionButton?

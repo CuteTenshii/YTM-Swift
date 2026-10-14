@@ -470,10 +470,7 @@ private struct HeaderView: View {
                 }
 
                 if !header.description.isEmpty {
-                    Text(header.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    DescriptionText(text: header.description)
                 }
 
                 actions
@@ -574,7 +571,36 @@ private struct HeaderView: View {
     /// Full-bleed artist banner: the wide artwork fills the width, fading into
     /// the page at the bottom, with the title and actions overlaid.
     private func bannerHeader(_ url: URL) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(header.title)
+                .font(.system(size: 52, weight: .bold))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+
+            if !header.subtitle.isEmpty {
+                Text(header.subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.primary.opacity(0.85))
+            }
+
+            let meta = [header.monthlyAudience, header.pronouns].compactMap(\.self)
+            if !meta.isEmpty {
+                Text(meta.joined(separator: " • "))
+                    .font(.callout)
+                    .foregroundStyle(.primary.opacity(0.85))
+            }
+
+            if !header.description.isEmpty {
+                DescriptionText(text: header.description, style: AnyShapeStyle(.primary.opacity(0.75)))
+            }
+
+            actions
+        }
+        .padding(24)
+        .padding(.top, topInset)
+        .frame(maxWidth: .infinity, minHeight: 360, alignment: .bottomLeading)
+        .background {
             CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -583,49 +609,28 @@ private struct HeaderView: View {
                     Color.primary.opacity(0.06)
                 }
             }
-            .frame(height: 360)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
             .overlay(
                 LinearGradient(
-                    colors: [.clear, Color.appBackground.opacity(0.35), Color.appBackground],
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black.opacity(0.55), location: 0.55),
+                        .init(color: Color.appBackground, location: 1),
+                    ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text(header.title)
-                    .font(.system(size: 52, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
-
-                if !header.subtitle.isEmpty {
-                    Text(header.subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.primary.opacity(0.85))
-                }
-
-                if !header.description.isEmpty {
-                    Text(header.description)
-                        .font(.caption)
-                        .foregroundStyle(.primary.opacity(0.75))
-                        .lineLimit(3)
-                }
-
-                actions
-            }
-            .padding(24)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The action-button row (play / subscribe / save / download), shared by
     /// both header layouts.
     @ViewBuilder
     private var actions: some View {
-        if !tracks.isEmpty || showsSubscribe || showsSave || header.radioPlaylistId != nil {
+        if !tracks.isEmpty || showsSubscribe || showsSave || header.radioPlaylistId != nil
+            || header.startRadioPlaylistId != nil {
             HStack(spacing: 12) {
                 if !tracks.isEmpty {
                     Button {
@@ -644,6 +649,17 @@ private struct HeaderView: View {
                         player.playAll(videoId: nil, playlistId: radioPlaylistId)
                     } label: {
                         Label("Shuffle", systemImage: "shuffle")
+                            .font(.headline)
+                            .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let mixId = header.startRadioPlaylistId, mixId != header.radioPlaylistId {
+                    Button {
+                        player.playAll(videoId: nil, playlistId: mixId)
+                    } label: {
+                        Label("Mix", systemImage: "dot.radiowaves.left.and.right")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }

@@ -103,6 +103,9 @@ struct EntityHeader: Sendable {
     /// background image). Nil for albums/playlists and artists without one.
     var bannerURL: URL? = nil
     var kind: HomeItem.Kind
+    /// "35.3M monthly audience" on artist pages.
+    var monthlyAudience: String? = nil
+    var pronouns: String? = nil
     /// Navigable artist link(s) parsed from the header subtitle. For an album,
     /// these are the album's artist(s) — inherited by tracks that carry none.
     var artists: [EntityLink] = []

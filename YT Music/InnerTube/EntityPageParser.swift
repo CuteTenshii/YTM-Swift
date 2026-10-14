@@ -230,9 +230,9 @@ nonisolated enum EntityPageParser {
             // artist banner. `foregroundThumbnail`, when present, is the circular
             // artist portrait; otherwise the banner doubles as the avatar.
             let radioPlaylistId = immersive.playButton?.buttonRenderer?.navigationEndpoint?
-                .watchPlaylistEndpoint?.playlistId
+                .playlistId
                 ?? immersive.startRadioButton?.buttonRenderer?.navigationEndpoint?
-                .watchPlaylistEndpoint?.playlistId
+                .playlistId
             return EntityHeader(
                 title: immersive.title?.text ?? fallback.title,
                 subtitle: immersive.subtitle?.text ?? fallback.subtitle,
@@ -242,10 +242,12 @@ nonisolated enum EntityPageParser {
                     ?? fallback.thumbnailURL,
                 bannerURL: immersive.thumbnail?.musicThumbnailRenderer?.bestURL,
                 kind: fallback.kind,
+                monthlyAudience: immersive.monthlyListenerCount?.text,
+                pronouns: immersive.pronouns?.text,
                 subscription: parseSubscription(immersive.subscriptionButton),
                 radioPlaylistId: radioPlaylistId,
                 startRadioPlaylistId: immersive.startRadioButton?.buttonRenderer?.navigationEndpoint?
-                    .watchPlaylistEndpoint?.playlistId
+                    .playlistId
             )
         }
 

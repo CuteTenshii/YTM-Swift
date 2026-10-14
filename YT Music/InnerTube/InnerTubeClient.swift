@@ -653,6 +653,20 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// videoId response carries a comments engagement panel with a continuation
     /// token, which is then loaded for the first page. Empty when the track has
     /// no comments.
+    /// Resolves a channel handle (`@name`, with or without the `@`) to its page.
+    func resolveHandle(_ handle: String) async throws -> EntityLink? {
+        let name = handle.hasPrefix("@") ? handle : "@" + handle
+        let data = try await postData(
+            "navigation/resolve_url",
+            body: ["url": "https://www.youtube.com/\(name)"],
+            client: web, authenticated: false)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let endpoint = json["endpoint"] as? [String: Any],
+              let browse = endpoint["browseEndpoint"] as? [String: Any],
+              let browseId = browse["browseId"] as? String else { return nil }
+        return EntityLink(name: name, browseId: browseId, kind: .artist)
+    }
+
     func comments(for videoId: String) async throws -> CommentPage {
         let token: CommentsTokenResponse = try await post(
             "next", body: ["videoId": videoId], client: web, authenticated: false)

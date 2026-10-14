@@ -896,6 +896,8 @@ nonisolated struct ThumbnailRendererWrapper: Decodable {
 }
 
 struct NavigationEndpoint: Decodable {
+    /// The playlist id of a watch or bare-playlist endpoint.
+    var playlistId: String? { watchPlaylistEndpoint?.playlistId ?? watchEndpoint?.playlistId }
     let watchEndpoint: WatchEndpoint?
     let browseEndpoint: BrowseEndpoint?
     /// Used by header-level "Shuffle"/"Start radio" buttons: a bare playlist id
