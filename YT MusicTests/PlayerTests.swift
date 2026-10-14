@@ -387,6 +387,20 @@ struct PlayerStateTests {
         player.seek(to: 42)
         #expect(audio.seekedTo == 42)
     }
+
+    @Test("Forwards playhead ticks to the progress observer")
+    func forwardsProgress() {
+        let audio = FakeAudioOutput()
+        let player = PlayerState(audio: audio, resolver: StubResolver())
+        var ticks: [(Double, Double)] = []
+        player.onPlaybackProgress = { ticks.append(($0, $1)) }
+
+        audio.onProgress?(5, 200)
+        audio.onProgress?(5.5, 200)
+
+        #expect(ticks.map(\.0) == [5, 5.5])
+        #expect(ticks.map(\.1) == [200, 200])
+    }
 }
 
 // MARK: - Queue, transport & repeat

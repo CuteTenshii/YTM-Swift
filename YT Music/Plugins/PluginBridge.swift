@@ -16,6 +16,7 @@ private struct PluginBridge: ViewModifier {
     func body(content: Content) -> some View {
         content.onAppear {
             player.onPlaybackChange = { host.playbackDidChange($0) }
+            player.onPlaybackProgress = { host.playbackDidProgress(currentTime: $0, duration: $1) }
             host.playbackDidChange(player.currentSnapshot)
         }
     }

@@ -158,7 +158,7 @@ final class PlayerState {
     private var crossfadeArmed = false
     /// True between arming a crossfade and the incoming track actually taking
     /// over, so the outgoing track's natural end doesn't double-advance.
-    private var crossfadeLoading = false
+    private(set) var crossfadeLoading = false
     private var preparedVideoId: String?
     private var preparedStream: ResolvedStream?
     private var preloadTask: Task<Void, Never>?
@@ -175,6 +175,8 @@ final class PlayerState {
     /// plugins (Discord Rich Presence, etc.) can mirror it. Carries nil when
     /// playback stops.
     var onPlaybackChange: ((PlaybackSnapshot?) -> Void)?
+    /// Notified on every playhead tick (~0.5s) with (currentTime, duration).
+    var onPlaybackProgress: ((Double, Double) -> Void)?
 
     /// Live audio spectrum for the immersive visualizer (nil under a test fake).
     var spectrum: SpectrumAnalyzer? { audio.spectrum }
@@ -907,6 +909,7 @@ final class PlayerState {
     private func handleProgress(current: Double, duration: Double) {
         // History beacons fire from real progress regardless of crossfade settings.
         reportHistoryProgress(current: current, duration: duration)
+        onPlaybackProgress?(current, duration)
 
         if abs(current - lastPersistedPosition) >= 5 {
             lastPersistedPosition = current

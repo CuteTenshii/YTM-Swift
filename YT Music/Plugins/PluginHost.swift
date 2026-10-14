@@ -42,4 +42,10 @@ final class PluginHost {
             plugin.playbackDidChange(snapshot)
         }
     }
+
+    func playbackDidProgress(currentTime: Double, duration: Double) {
+        for plugin in plugins where enabledIDs.contains(plugin.id) {
+            plugin.playbackDidProgress(currentTime: currentTime, duration: duration)
+        }
+    }
 }

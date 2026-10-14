@@ -25,6 +25,8 @@ protocol Plugin: AnyObject, Identifiable {
     func setActive(_ active: Bool)
     /// Called on every track / play-pause change (nil = playback stopped).
     func playbackDidChange(_ snapshot: PlaybackSnapshot?)
+    /// Called on every playhead tick (~0.5s) of the playing track.
+    func playbackDidProgress(currentTime: Double, duration: Double)
     /// Optional configuration UI, shown under the toggle while enabled.
     var configuration: AnyView? { get }
 }
@@ -32,5 +34,6 @@ protocol Plugin: AnyObject, Identifiable {
 extension Plugin {
     func setActive(_ active: Bool) {}
     func playbackDidChange(_ snapshot: PlaybackSnapshot?) {}
+    func playbackDidProgress(currentTime: Double, duration: Double) {}
     var configuration: AnyView? { nil }
 }
