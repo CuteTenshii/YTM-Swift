@@ -90,6 +90,7 @@ struct HomeItem: Identifiable, Sendable {
         case playlist
         case artist
         case profile       // a user's channel
+        case podcast       // a podcast show
         case unknown
     }
 

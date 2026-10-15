@@ -111,6 +111,7 @@ struct EntityHeader: Sendable {
         case profile(ArtistPageInfo)
         case album(CollectionInfo)
         case playlist(CollectionInfo)
+        case podcast(PodcastInfo)
         /// A bare feed page with no entity of its own.
         case feed
     }
@@ -121,6 +122,7 @@ struct EntityHeader: Sendable {
         case .profile: .profile
         case .album: .album
         case .playlist: .playlist
+        case .podcast: .podcast
         case .feed: .unknown
         }
     }
@@ -128,7 +130,25 @@ struct EntityHeader: Sendable {
     var artistPage: ArtistPageInfo? {
         switch content {
         case .artist(let info), .profile(let info): info
-        case .album, .playlist, .feed: nil
+        case .album, .playlist, .podcast, .feed: nil
+        }
+    }
+
+    /// An album's artist(s), or the owner of a playlist or podcast show.
+    var byline: EntityByline? {
+        switch content {
+        case .album(let info), .playlist(let info): info.byline
+        case .podcast(let info): info.byline
+        case .artist, .profile, .feed: nil
+        }
+    }
+
+    /// Whether a playlist or show is saved to the library, when the header says.
+    var isSaved: Bool? {
+        switch content {
+        case .album(let info), .playlist(let info): info.isSaved
+        case .podcast(let info): info.isSaved
+        case .artist, .profile, .feed: nil
         }
     }
 
@@ -136,7 +156,7 @@ struct EntityHeader: Sendable {
         get {
             switch content {
             case .album(let info), .playlist(let info): info
-            case .artist, .profile, .feed: nil
+            case .artist, .profile, .podcast, .feed: nil
             }
         }
         set {
@@ -144,7 +164,7 @@ struct EntityHeader: Sendable {
             switch content {
             case .album: content = .album(newValue)
             case .playlist: content = .playlist(newValue)
-            case .artist, .profile, .feed: break
+            case .artist, .profile, .podcast, .feed: break
             }
         }
     }
@@ -182,6 +202,13 @@ struct CollectionInfo: Sendable {
     /// Whether the playlist is saved to the library, when the header says.
     var isSaved: Bool? = nil
     /// An album's artist(s) or a playlist's owner, shown with an avatar.
+    var byline: EntityByline? = nil
+}
+
+/// Header fields specific to podcast show pages.
+struct PodcastInfo: Sendable {
+    var isSaved: Bool? = nil
+    /// The publisher, with its avatar.
     var byline: EntityByline? = nil
 }
 

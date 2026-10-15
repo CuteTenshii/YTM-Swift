@@ -297,6 +297,34 @@ nonisolated struct ChipCloudRenderer: Decodable {
         let commandExecutorCommand: CommandExecutor?
         /// Playlist filter chips reload the track section from a continuation.
         let browseSectionListReloadEndpoint: ReloadEndpoint?
+        /// A sort chip opens a menu of orders, each reloading the section.
+        let openPopupAction: OpenPopupAction?
+
+        struct OpenPopupAction: Decodable {
+            let popup: Popup?
+
+            struct Popup: Decodable {
+                let menuPopupRenderer: MenuPopup?
+            }
+
+            struct MenuPopup: Decodable {
+                let items: [Item]?
+            }
+
+            struct Item: Decodable {
+                let menuNavigationItemRenderer: Renderer?
+            }
+
+            struct Renderer: Decodable {
+                let text: InnerTubeText?
+                let icon: Icon?
+                let navigationEndpoint: Endpoint?
+            }
+
+            struct Icon: Decodable {
+                let iconType: String?
+            }
+        }
 
         struct ReloadEndpoint: Decodable {
             let continuation: Continuation?
@@ -425,6 +453,7 @@ nonisolated struct ButtonRenderer: Decodable {
 struct CarouselItem: Decodable {
     let musicTwoRowItemRenderer: MusicTwoRowItemRenderer?
     let musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?
+    let musicMultiRowListItemRenderer: MusicMultiRowListItemRenderer?
     let continuationItemRenderer: ContinuationItemRenderer?
 }
 
@@ -465,6 +494,34 @@ nonisolated final class MusicTwoRowItemRenderer: Decodable, @unchecked Sendable 
     /// The track's current like rating from its menu, if signed in and present
     /// (song/video cards carry it; albums/playlists don't).
     var likeStatus: LikeStatus? { menu?.likeStatus }
+}
+
+/// A podcast episode row: title, "views • date" subtitle, and a playback
+/// progress block that carries the duration.
+nonisolated final class MusicMultiRowListItemRenderer: Decodable, @unchecked Sendable {
+    let title: InnerTubeText?
+    let subtitle: InnerTubeText?
+    let thumbnail: ThumbnailRendererWrapper?
+    let onTap: NavigationEndpoint?
+    let menu: RendererMenu?
+    let playbackProgress: PlaybackProgress?
+
+    struct PlaybackProgress: Decodable {
+        let musicPlaybackProgressRenderer: Renderer?
+
+        struct Renderer: Decodable {
+            let durationText: InnerTubeText?
+        }
+    }
+
+    var videoId: String? { onTap?.watchEndpoint?.videoId }
+
+    /// "5 min 58 sec", without the leading bullet separator run.
+    var durationText: String? {
+        let text = (playbackProgress?.musicPlaybackProgressRenderer?.durationText?.runs ?? [])
+            .map(\.text).filter { $0 != " • " }.joined()
+        return text.isEmpty ? nil : text
+    }
 }
 
 /// The compact list rows used in shelves like "Quick picks" and in album /
@@ -844,6 +901,8 @@ nonisolated struct RendererMenu: Decodable {
 /// YouTube wraps almost all display text in `{ "runs": [{ "text": ... }] }`.
 nonisolated struct InnerTubeText: Decodable {
     let runs: [Run]?
+    /// Some labels (chips, popup menu items) arrive flat instead of as runs.
+    let simpleText: String?
 
     struct Run: Decodable {
         let text: String
@@ -855,7 +914,7 @@ nonisolated struct InnerTubeText: Decodable {
     }
 
     var text: String {
-        (runs ?? []).map(\.text).joined()
+        simpleText ?? (runs ?? []).map(\.text).joined()
     }
 
     /// Artist/album navigation links carried by individual runs (each run is a

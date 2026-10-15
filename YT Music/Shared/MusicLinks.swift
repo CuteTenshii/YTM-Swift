@@ -53,7 +53,9 @@ enum MusicLinks {
         case ("channel", let id?):
             return .entity(EntityLink(name: "", browseId: id, kind: .artist))
         case ("browse", let id?):
-            let kind: HomeItem.Kind = id.hasPrefix("MPRE") ? .album : id.hasPrefix("UC") ? .artist : .unknown
+            let kind: HomeItem.Kind = id.hasPrefix("MPRE") ? .album
+                : id.hasPrefix("UC") ? .artist
+                : id.hasPrefix("MPSP") ? .podcast : .unknown
             return .entity(EntityLink(name: "", browseId: id, kind: kind))
         case ("watch", _):
             guard let videoId = query("v") else { return nil }

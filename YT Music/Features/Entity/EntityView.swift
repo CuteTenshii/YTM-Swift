@@ -459,7 +459,7 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(3)
 
-                if let byline = header.collection?.byline {
+                if let byline = header.byline {
                     bylineRow(byline)
                 }
 
@@ -695,7 +695,7 @@ private struct HeaderView: View {
     /// Whether to offer the "Save to library" toggle: only when the header has
     /// one (playlists the user owns don't).
     private var showsSave: Bool {
-        auth.isSignedIn && model.savablePlaylistId != nil && header.collection?.isSaved != nil
+        auth.isSignedIn && model.savablePlaylistId != nil && header.isSaved != nil
     }
 
     /// Whether to offer playlist editing (rename / delete): one of the signed-in

@@ -45,6 +45,8 @@ nonisolated enum EntityPageParser {
             }
         }
 
+        let chipCloud = response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?
+            .sectionListRenderer?.header?.chipCloudRenderer
         return EntityPage(
             header: header,
             tracks: tracks,
@@ -52,9 +54,8 @@ nonisolated enum EntityPageParser {
             continuationToken: continuationToken,
             isManuallyOrdered: isManuallyOrdered,
             shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:)),
-            filters: filters(response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?
-                .sectionListRenderer?.header?.chipCloudRenderer),
-            sortOptions: sortOptions
+            filters: filters(chipCloud),
+            sortOptions: sortOptions.isEmpty ? popupSortOptions(chipCloud) : sortOptions
         )
     }
 
@@ -64,6 +65,8 @@ nonisolated enum EntityPageParser {
     static func parseTrackReload(_ response: EntityBrowseResponse, header: EntityHeader) -> EntityPage {
         let section = response.continuationContents?.sectionListContinuation
         let shelf = section?.contents?.lazy.compactMap(\.listShelf).first
+            ?? response.continuationContents?.shelf
+        let shelfSort = sortOptions(shelf?.header, updates: response.frameworkUpdates)
         return EntityPage(
             header: header,
             tracks: parseItems(shelf?.contents ?? [], startIndex: 1, header: header),
@@ -71,8 +74,24 @@ nonisolated enum EntityPageParser {
             continuationToken: shelf?.continuationToken,
             isManuallyOrdered: isManuallyOrdered(shelf?.header),
             filters: filters(section?.header?.chipCloudRenderer),
-            sortOptions: sortOptions(shelf?.header, updates: response.frameworkUpdates)
+            sortOptions: shelfSort.isEmpty ? popupSortOptions(section?.header?.chipCloudRenderer) : shelfSort
         )
+    }
+
+    /// A podcast show's sort chip: its popup menu lists the orders, the current
+    /// one marked with a check icon.
+    private static func popupSortOptions(_ cloud: ChipCloudRenderer?) -> [PlaylistSortOption] {
+        let items = (cloud?.chips ?? [])
+            .compactMap { $0.chipCloudChipRenderer?.navigationEndpoint?.openPopupAction?.popup?
+                .menuPopupRenderer?.items }
+            .first ?? []
+        return items.compactMap { item in
+            guard let renderer = item.menuNavigationItemRenderer,
+                  let title = renderer.text?.text, !title.isEmpty,
+                  let token = renderer.navigationEndpoint?.reloadToken else { return nil }
+            return PlaylistSortOption(title: title, action: .reload(token),
+                                      isSelected: renderer.icon?.iconType == "CHECK")
+        }
     }
 
     private static func filters(_ cloud: ChipCloudRenderer?) -> [PlaylistFilter] {
@@ -287,6 +306,7 @@ nonisolated enum EntityPageParser {
         switch kind {
         case .album: .album(info)
         case .playlist: .playlist(info)
+        case .podcast: .podcast(PodcastInfo(isSaved: info.isSaved, byline: info.byline))
         case .artist: .artist(ArtistPageInfo())
         case .profile: .profile(ArtistPageInfo())
         default: .feed
@@ -318,6 +338,19 @@ nonisolated enum EntityPageParser {
     ) -> [Track] {
         var index = startIndex
         return items.compactMap { item in
+            if let episode = item.musicMultiRowListItemRenderer {
+                defer { index += 1 }
+                return Track(
+                    index: index,
+                    title: episode.title?.text ?? "",
+                    subtitle: episode.subtitle?.text ?? "",
+                    duration: episode.durationText,
+                    thumbnailURL: episode.thumbnail?.bestURL ?? header.thumbnailURL,
+                    videoId: episode.videoId,
+                    artists: header.byline?.runs.compactMap(\.link) ?? [],
+                    likeStatus: episode.menu?.likeStatus ?? .indifferent
+                )
+            }
             guard let row = item.musicResponsiveListItemRenderer else { return nil }
             let columns = row.textColumns
             guard let title = columns.first else { return nil }

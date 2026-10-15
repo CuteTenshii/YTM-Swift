@@ -54,12 +54,15 @@ final class EntityViewModel {
     private var playlistSearchIndex: [Track]?
 
     /// The playlist id this page can save, derived from the browse id
-    /// (`VL<playlistId>`). Only playlists are savable this way — nil for
+    /// (`VL<playlistId>`, or `MPSP<playlistId>` for a podcast show). Nil for
     /// albums/artists.
     var savablePlaylistId: String? {
-        guard destination.kind == .playlist else { return nil }
         let id = destination.browseId
-        return id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
+        switch destination.kind {
+        case .playlist: return id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
+        case .podcast: return id.hasPrefix("MPSP") ? String(id.dropFirst(4)) : nil
+        default: return nil
+        }
     }
 
     /// The id of one of the user's own, *editable* playlists when this page is
@@ -90,7 +93,7 @@ final class EntityViewModel {
         do {
             let page = try await client.entity(destination)
             subscription = page.header.artistPage?.subscription
-            isSaved = page.header.collection?.isSaved ?? false
+            isSaved = page.header.isSaved ?? false
             title = page.header.title
             state = .loaded(page)
         } catch {
