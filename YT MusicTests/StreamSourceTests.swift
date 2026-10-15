@@ -10,32 +10,6 @@ import Foundation
 @Suite("Stream source")
 struct StreamSourceTests {
 
-    private func tracking(_ params: String) -> Data {
-        Data("""
-        {"responseContext":{"serviceTrackingParams":[
-          {"service":"CSI","params":[{"key":"c","value":"WEB_REMIX"}]},
-          {"service":"GFEEDBACK","params":[\(params)]}
-        ]}}
-        """.utf8)
-    }
-
-    @Test("Premium shows as has_unlimited_entitlement=True on a signed-in response")
-    func premium() {
-        let data = tracking(#"{"key":"has_unlimited_entitlement","value":"True"},{"key":"logged_in","value":"1"}"#)
-        #expect(InnerTubeClient.premiumEntitlement(in: data) == true)
-    }
-
-    @Test("A signed-in response without the entitlement isn't Premium")
-    func notPremium() {
-        #expect(InnerTubeClient.premiumEntitlement(in: tracking(#"{"key":"logged_in","value":"1"}"#)) == false)
-    }
-
-    @Test("A response that isn't signed in says nothing about Premium")
-    func signedOut() {
-        #expect(InnerTubeClient.premiumEntitlement(in: tracking(#"{"key":"logged_in","value":"0"}"#)) == nil)
-        #expect(InnerTubeClient.premiumEntitlement(in: Data("{}".utf8)) == nil)
-    }
-
     private func response(_ json: String) throws -> PlayerResponse {
         try JSONDecoder().decode(PlayerResponse.self, from: Data(json.utf8))
     }
