@@ -121,7 +121,7 @@ struct VotingTests {
             "descriptionText":{"runs":[{"text":"No one can vote"}]}}}
         ]}}}
         """
-        #expect(try page(rowExtras: "", editHeader: header).header.voteOptions == [
+        #expect(try page(rowExtras: "", editHeader: header).header.collection?.voteOptions == [
             PlaylistVoteOption(value: 1, title: "Everyone", detail: "Anyone can vote", isDisabled: false, isSelected: false),
             PlaylistVoteOption(value: 2, title: "Collaborators only", detail: "Only collaborators can vote",
                                isDisabled: true, isSelected: false),

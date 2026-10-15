@@ -576,8 +576,8 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
         Task {
             guard let header = try? await InnerTubeClient.shared.entity(destination).header,
                   let mixId = radio
-                    ? header.startRadioPlaylistId ?? header.radioPlaylistId
-                    : header.radioPlaylistId
+                    ? header.artistPage?.startRadioPlaylistId ?? header.artistPage?.radioPlaylistId
+                    : header.artistPage?.radioPlaylistId
             else { return }
             player.playAll(videoId: nil, playlistId: mixId)
         }

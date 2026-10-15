@@ -63,7 +63,7 @@ nonisolated enum LibraryParser {
 
     /// Song rows parsed like a playlist's tracks, numbered from 1.
     private static func songs(_ contents: [CarouselItem]?) -> [Track] {
-        let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, kind: .unknown)
+        let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, content: .feed)
         return EntityPageParser.parseItems(contents ?? [], startIndex: 1, header: header)
             .filter { $0.videoId != nil }
             .enumerated()

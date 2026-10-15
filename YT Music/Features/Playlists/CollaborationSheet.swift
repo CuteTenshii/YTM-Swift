@@ -203,7 +203,7 @@ struct CollaborationSheet: View {
     private func load() async {
         do {
             if panel == nil {
-                panel = try await InnerTubeClient.shared.entity(destination).header.collaborationPanel
+                panel = try await InnerTubeClient.shared.entity(destination).header.collection?.collaborationPanel
             }
             guard let panel else {
                 state = .unavailable

@@ -89,8 +89,8 @@ final class EntityViewModel {
         state = .loading
         do {
             let page = try await client.entity(destination)
-            subscription = page.header.subscription
-            isSaved = page.header.isSaved ?? false
+            subscription = page.header.artistPage?.subscription
+            isSaved = page.header.collection?.isSaved ?? false
             title = page.header.title
             state = .loaded(page)
         } catch {
@@ -248,7 +248,7 @@ final class EntityViewModel {
     func revalidateSubscription() async {
         guard destination.kind == .artist, case .loaded = state else { return }
         guard let page = try? await client.entity(destination) else { return }
-        if let fresh = page.header.subscription, !isUpdatingSubscription {
+        if let fresh = page.header.artistPage?.subscription, !isUpdatingSubscription {
             subscription = fresh
         }
     }
@@ -336,8 +336,8 @@ final class EntityViewModel {
 
         let newName = title != page.header.title ? title : nil
         let newDescription = description != page.header.description ? description : nil
-        let newPrivacy = privacy != page.header.privacy ? privacy : nil
-        let currentVotePermission = page.header.voteOptions.first(where: \.isSelected)?.value
+        let newPrivacy = privacy != page.header.collection?.privacy ? privacy : nil
+        let currentVotePermission = page.header.collection?.voteOptions.first(where: \.isSelected)?.value
         let newVotePermission = votePermission != currentVotePermission ? votePermission : nil
         guard newName != nil || newDescription != nil || newPrivacy != nil || newVotePermission != nil
         else { return true }
@@ -356,7 +356,7 @@ final class EntityViewModel {
             }
             page.header.title = title
             page.header.description = description
-            if let newPrivacy { page.header.privacy = newPrivacy }
+            if let newPrivacy { page.header.collection?.privacy = newPrivacy }
             state = .loaded(page)
             self.title = title
             return true

@@ -45,7 +45,7 @@ struct EntityPageParserTests {
         )
         let page = EntityPageParser.parse(response, fallback: artistDestination)
 
-        let subscription = try #require(page.header.subscription)
+        let subscription = try #require(page.header.artistPage?.subscription)
         #expect(subscription.channelId == "UCabc")
         #expect(subscription.isSubscribed == true)
         #expect(subscription.subscribeParams == "SUB")
@@ -61,7 +61,7 @@ struct EntityPageParserTests {
             EntityBrowseResponse.self, from: Data(fixture.utf8)
         )
         let page = EntityPageParser.parse(response, fallback: artistDestination)
-        #expect(page.header.subscription == nil)
+        #expect(page.header.artistPage?.subscription == nil)
     }
 
     @Test("Parses the artist header's Shuffle and Start radio mix ids separately")
@@ -77,8 +77,8 @@ struct EntityPageParserTests {
             EntityBrowseResponse.self, from: Data(fixture.utf8)
         )
         let page = EntityPageParser.parse(response, fallback: artistDestination)
-        #expect(page.header.radioPlaylistId == "RDAOshuffle")
-        #expect(page.header.startRadioPlaylistId == "RDEMradio")
+        #expect(page.header.artistPage?.radioPlaylistId == "RDAOshuffle")
+        #expect(page.header.artistPage?.startRadioPlaylistId == "RDEMradio")
     }
 
     @Test("Reads the page's canonical share URL from its microformat")
@@ -147,7 +147,7 @@ struct EntityPageParserTests {
         ]}}}
         """
         let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
-        let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, kind: .playlist)
+        let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, content: .playlist(CollectionInfo()))
         let reload = EntityPageParser.parseTrackReload(response, header: header)
         #expect(reload.tracks.map(\.videoId) == ["vid1"])
         #expect(reload.tracks.map(\.index) == [1])
@@ -181,7 +181,7 @@ struct EntityPageParserTests {
             EntityBrowseResponse.self, from: Data(headerFixture(saved: saved).utf8)
         )
         let page = EntityPageParser.parse(response, fallback: playlistDestination)
-        #expect(page.header.isSaved == saved)
+        #expect(page.header.collection?.isSaved == saved)
     }
 
     @Test("A header without the save toggle leaves the saved state unknown")
@@ -192,7 +192,7 @@ struct EntityPageParserTests {
         ]}}}}]}}}
         """
         let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
-        #expect(EntityPageParser.parse(response, fallback: playlistDestination).header.isSaved == nil)
+        #expect(EntityPageParser.parse(response, fallback: playlistDestination).header.collection?.isSaved == nil)
     }
 
     /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
@@ -236,10 +236,10 @@ struct EntityPageParserTests {
         #expect(page.header.title == "Camille Bonzon")
         #expect(page.header.subtitle == "79 subscribers")
         #expect(page.header.thumbnailURL?.absoluteString == "https://example.com/avatar.jpg")
-        #expect(page.header.subscription?.channelId == "UCchan")
-        #expect(page.header.subscription?.isSubscribed == false)
-        #expect(page.header.subscription?.subscribeParams == "SUB")
-        #expect(page.header.subscription?.isEnabled == true)
+        #expect(page.header.artistPage?.subscription?.channelId == "UCchan")
+        #expect(page.header.artistPage?.subscription?.isSubscribed == false)
+        #expect(page.header.artistPage?.subscription?.subscribeParams == "SUB")
+        #expect(page.header.artistPage?.subscription?.isEnabled == true)
     }
 
     @Test("The user's own channel has its subscribe button disabled")
@@ -255,7 +255,7 @@ struct EntityPageParserTests {
         let destination = EntityDestination(browseId: "UCme", kind: .artist, title: "Me", subtitle: "", thumbnailURL: nil)
         let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(fixture.utf8))
         let page = EntityPageParser.parse(response, fallback: destination)
-        #expect(page.header.subscription?.isEnabled == false)
+        #expect(page.header.artistPage?.subscription?.isEnabled == false)
     }
 
     @Test("A feed page parses its grid into a shelf and reads as a feed")
@@ -439,8 +439,8 @@ struct EntityPageParserTests {
         #expect(page.header.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
         #expect(page.header.artists.first?.name == "Some Artist")
         // The artist is shown as a linked byline, not repeated in the subtitle.
-        #expect(page.header.byline?.runs.first?.link?.browseId == "UCartist")
-        #expect(page.header.byline?.avatarURLs.map(\.absoluteString) == ["https://img/artist.jpg"])
+        #expect(page.header.collection?.byline?.runs.first?.link?.browseId == "UCartist")
+        #expect(page.header.collection?.byline?.avatarURLs.map(\.absoluteString) == ["https://img/artist.jpg"])
         #expect(!page.header.subtitle.contains("Some Artist"))
 
         let track = try #require(page.tracks.first)

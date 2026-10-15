@@ -18,9 +18,9 @@ nonisolated enum EntityPageParser {
         let bodyHeader = sections.compactMap(\.responsiveHeader).first
         var header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
         let editableHeader = sections.lazy.compactMap(\.musicEditablePlaylistDetailHeaderRenderer).first
-        header.privacy = editableHeader?.privacy
-        header.collaborationPanel = editableHeader?.collaborationPanel
-        header.voteOptions = editableHeader?.voteOptions ?? []
+        header.collection?.privacy = editableHeader?.privacy
+        header.collection?.collaborationPanel = editableHeader?.collaborationPanel
+        header.collection?.voteOptions = editableHeader?.voteOptions ?? []
 
         var tracks: [Track] = []
         var shelves: [HomeShelf] = []
@@ -200,8 +200,8 @@ nonisolated enum EntityPageParser {
                 description: detail.description?.text ?? "",
                 thumbnailURL: detail.thumbnail?.croppedSquareThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind,
-                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist }
+                artists: (detail.subtitle?.entityLinks ?? []).filter { $0.kind == .artist },
+                content: collectionContent(fallback.kind, CollectionInfo())
             )
         }
 
@@ -218,10 +218,11 @@ nonisolated enum EntityPageParser {
                     .description?.text ?? "",
                 thumbnailURL: responsive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind,
                 artists: artists,
-                isSaved: responsive.isSaved,
-                byline: byline(responsive)
+                content: collectionContent(
+                    fallback.kind,
+                    CollectionInfo(isSaved: responsive.isSaved, byline: byline(responsive))
+                )
             )
         }
 
@@ -240,14 +241,15 @@ nonisolated enum EntityPageParser {
                 thumbnailURL: immersive.foregroundThumbnail?.musicThumbnailRenderer?.bestURL
                     ?? immersive.thumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                bannerURL: immersive.thumbnail?.musicThumbnailRenderer?.bestURL,
-                kind: fallback.kind,
-                monthlyAudience: immersive.monthlyListenerCount?.text,
-                pronouns: immersive.pronouns?.text,
-                subscription: parseSubscription(immersive.subscriptionButton),
-                radioPlaylistId: radioPlaylistId,
-                startRadioPlaylistId: immersive.startRadioButton?.buttonRenderer?.navigationEndpoint?
-                    .playlistId
+                content: .artist(ArtistPageInfo(
+                    bannerURL: immersive.thumbnail?.musicThumbnailRenderer?.bestURL,
+                    monthlyAudience: immersive.monthlyListenerCount?.text,
+                    pronouns: immersive.pronouns?.text,
+                    subscription: parseSubscription(immersive.subscriptionButton),
+                    radioPlaylistId: radioPlaylistId,
+                    startRadioPlaylistId: immersive.startRadioButton?.buttonRenderer?
+                        .navigationEndpoint?.playlistId
+                ))
             )
         }
 
@@ -263,8 +265,7 @@ nonisolated enum EntityPageParser {
                 description: "",
                 thumbnailURL: visual.foregroundThumbnail?.musicThumbnailRenderer?.bestURL
                     ?? fallback.thumbnailURL,
-                kind: fallback.kind,
-                subscription: parseSubscription(visual.subscriptionButton)
+                content: .profile(ArtistPageInfo(subscription: parseSubscription(visual.subscriptionButton)))
             )
         }
 
@@ -274,8 +275,22 @@ nonisolated enum EntityPageParser {
             subtitle: fallback.subtitle,
             description: "",
             thumbnailURL: fallback.thumbnailURL,
-            kind: fallback.kind
+            content: collectionContent(fallback.kind, CollectionInfo())
         )
+    }
+
+    /// The content for a kind when the response had no matching header renderer; songs, videos and unknown are a bare feed page.
+    private static func collectionContent(
+        _ kind: HomeItem.Kind,
+        _ info: CollectionInfo
+    ) -> EntityHeader.Content {
+        switch kind {
+        case .album: .album(info)
+        case .playlist: .playlist(info)
+        case .artist: .artist(ArtistPageInfo())
+        case .profile: .profile(ArtistPageInfo())
+        default: .feed
+        }
     }
 
     /// Formats a subscriber count for display. YouTube sometimes returns just the

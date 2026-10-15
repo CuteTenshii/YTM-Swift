@@ -81,8 +81,8 @@ struct PlaylistHeaderAndOrderTests {
     func ownedHeader() throws {
         let page = try parse(ownedFixture(selectedOrder: 0))
         #expect(page.header.title == "Fire")
-        #expect(page.header.privacy == .unlisted)
-        let byline = try #require(page.header.byline)
+        #expect(page.header.collection?.privacy == .unlisted)
+        let byline = try #require(page.header.collection?.byline)
         #expect(byline.runs.map(\.text) == ["Tenshii"])
         #expect(byline.runs.first?.link?.browseId == "UCowner")
         #expect(byline.avatarURLs.map(\.absoluteString) == ["https://img/owner.jpg"])
@@ -97,7 +97,7 @@ struct PlaylistHeaderAndOrderTests {
 
     @Test("Playlists the user doesn't own have no visibility")
     func otherPrivacy() throws {
-        #expect(try parse(otherFixture).header.privacy == nil)
+        #expect(try parse(otherFixture).header.collection?.privacy == nil)
     }
 
     @Test("A facepile with several collaborators keeps at most three avatars")
@@ -109,13 +109,13 @@ struct PlaylistHeaderAndOrderTests {
             "facepile":{"avatarStackViewModel":{"avatars":[\(avatars.joined(separator: ","))],"text":{"content":"Tenshii"}}}}}
         ]}}}}]}}}
         """
-        let byline = try #require(try parse(json).header.byline)
+        let byline = try #require(try parse(json).header.collection?.byline)
         #expect(byline.avatarURLs.map(\.absoluteString) == ["https://img/1.jpg", "https://img/2.jpg", "https://img/3.jpg"])
     }
 
     @Test("An owner without a channel link is shown as plain text")
     func unlinkedOwner() throws {
-        let byline = try #require(try parse(otherFixture).header.byline)
+        let byline = try #require(try parse(otherFixture).header.collection?.byline)
         #expect(byline.runs.map(\.text) == ["YouTube Music"])
         #expect(byline.runs.first?.link == nil)
         #expect(byline.avatarURLs.isEmpty)

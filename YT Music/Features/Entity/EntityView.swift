@@ -385,7 +385,7 @@ private struct HeaderView: View {
 
     var body: some View {
         Group {
-            if header.kind == .artist, let banner = header.bannerURL {
+            if header.kind == .artist, let banner = header.artistPage?.bannerURL {
                 bannerHeader(banner)
             } else {
                 standardHeader
@@ -412,8 +412,8 @@ private struct HeaderView: View {
             EditPlaylistSheet(
                 name: header.title,
                 description: header.description,
-                privacy: header.privacy,
-                voteOptions: header.voteOptions,
+                privacy: header.collection?.privacy,
+                voteOptions: (header.collection?.voteOptions ?? []),
                 save: { name, description, privacy, votePermission in
                     await model.editPlaylist(name: name, description: description, privacy: privacy,
                                              votePermission: votePermission)
@@ -459,7 +459,7 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(3)
 
-                if let byline = header.byline {
+                if let byline = header.collection?.byline {
                     bylineRow(byline)
                 }
 
@@ -584,7 +584,7 @@ private struct HeaderView: View {
                     .foregroundStyle(.primary.opacity(0.85))
             }
 
-            let meta = [header.monthlyAudience, header.pronouns].compactMap(\.self)
+            let meta = [header.artistPage?.monthlyAudience, header.artistPage?.pronouns].compactMap(\.self)
             if !meta.isEmpty {
                 Text(meta.joined(separator: " • "))
                     .font(.callout)
@@ -629,8 +629,8 @@ private struct HeaderView: View {
     /// both header layouts.
     @ViewBuilder
     private var actions: some View {
-        if !tracks.isEmpty || showsSubscribe || showsSave || header.radioPlaylistId != nil
-            || header.startRadioPlaylistId != nil {
+        if !tracks.isEmpty || showsSubscribe || showsSave || header.artistPage?.radioPlaylistId != nil
+            || header.artistPage?.startRadioPlaylistId != nil {
             HStack(spacing: 12) {
                 if !tracks.isEmpty {
                     Button {
@@ -644,7 +644,7 @@ private struct HeaderView: View {
                     .tint(.red)
                 }
 
-                if let radioPlaylistId = header.radioPlaylistId {
+                if let radioPlaylistId = header.artistPage?.radioPlaylistId {
                     Button {
                         player.playAll(videoId: nil, playlistId: radioPlaylistId)
                     } label: {
@@ -655,7 +655,7 @@ private struct HeaderView: View {
                     .buttonStyle(.bordered)
                 }
 
-                if let mixId = header.startRadioPlaylistId, mixId != header.radioPlaylistId {
+                if let mixId = header.artistPage?.startRadioPlaylistId, mixId != header.artistPage?.radioPlaylistId {
                     Button {
                         player.playAll(videoId: nil, playlistId: mixId)
                     } label: {
@@ -695,7 +695,7 @@ private struct HeaderView: View {
     /// Whether to offer the "Save to library" toggle: only when the header has
     /// one (playlists the user owns don't).
     private var showsSave: Bool {
-        auth.isSignedIn && model.savablePlaylistId != nil && header.isSaved != nil
+        auth.isSignedIn && model.savablePlaylistId != nil && header.collection?.isSaved != nil
     }
 
     /// Whether to offer playlist editing (rename / delete): one of the signed-in

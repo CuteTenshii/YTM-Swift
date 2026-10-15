@@ -30,7 +30,7 @@ struct CollaborationTests {
           "identifier":{"tag":"PAplaylist_collaborate"},
           "globalConfiguration":{"params":"0ggPCg1QTE5t"}}}}
         """).header
-        #expect(header.collaborationPanel == CollaborationPanelRef(panelId: "PAplaylist_collaborate", params: "0ggPCg1QTE5t"))
+        #expect(header.collection?.collaborationPanel == CollaborationPanelRef(panelId: "PAplaylist_collaborate", params: "0ggPCg1QTE5t"))
     }
 
     @Test("A private playlist, whose settings are disabled, has no collaboration panel")
@@ -39,7 +39,7 @@ struct CollaborationTests {
         {"privacy":"PRIVATE","collaborationSettingsDisabled":true,"collaborationSettingsCommand":{
           "confirmDialogEndpoint":{"content":{"confirmDialogRenderer":{}}}}}
         """).header
-        #expect(header.collaborationPanel == nil)
+        #expect(header.collection?.collaborationPanel == nil)
     }
 
     private func panel(enabled: Bool, allowNew: Bool, shortUrl: String, collaborators: String) -> String {

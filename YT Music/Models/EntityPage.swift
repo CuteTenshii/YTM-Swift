@@ -99,24 +99,78 @@ struct EntityHeader: Sendable {
     var subtitle: String       // e.g. "Album • Artist • 2020"
     var description: String
     var thumbnailURL: URL?
-    /// Wide banner artwork for artist pages (the immersive header's large
-    /// background image). Nil for albums/playlists and artists without one.
-    var bannerURL: URL? = nil
-    var kind: HomeItem.Kind
-    /// "35.3M monthly audience" on artist pages.
-    var monthlyAudience: String? = nil
-    var pronouns: String? = nil
     /// Navigable artist link(s) parsed from the header subtitle. For an album,
     /// these are the album's artist(s) — inherited by tracks that carry none.
     var artists: [EntityLink] = []
-    /// Subscribe-button state for artist pages (nil for albums/playlists, or when
-    /// signed out and the header carries no subscribe button).
+    var content: Content
+
+    /// What the page is, with the fields only that type has.
+    enum Content: Sendable {
+        case artist(ArtistPageInfo)
+        /// A plain YouTube channel (a song/video byline target).
+        case profile(ArtistPageInfo)
+        case album(CollectionInfo)
+        case playlist(CollectionInfo)
+        /// A bare feed page with no entity of its own.
+        case feed
+    }
+
+    var kind: HomeItem.Kind {
+        switch content {
+        case .artist: .artist
+        case .profile: .profile
+        case .album: .album
+        case .playlist: .playlist
+        case .feed: .unknown
+        }
+    }
+
+    var artistPage: ArtistPageInfo? {
+        switch content {
+        case .artist(let info), .profile(let info): info
+        case .album, .playlist, .feed: nil
+        }
+    }
+
+    var collection: CollectionInfo? {
+        get {
+            switch content {
+            case .album(let info), .playlist(let info): info
+            case .artist, .profile, .feed: nil
+            }
+        }
+        set {
+            guard let newValue else { return }
+            switch content {
+            case .album: content = .album(newValue)
+            case .playlist: content = .playlist(newValue)
+            case .artist, .profile, .feed: break
+            }
+        }
+    }
+
+    var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
+}
+
+/// Header fields specific to artist and channel pages.
+struct ArtistPageInfo: Sendable {
+    /// Wide banner artwork (the immersive header's large background image).
+    var bannerURL: URL? = nil
+    /// "35.3M monthly audience".
+    var monthlyAudience: String? = nil
+    var pronouns: String? = nil
+    /// Subscribe-button state (nil when signed out and the header carries no
+    /// subscribe button).
     var subscription: ArtistSubscription? = nil
-    /// The artist header's "Shuffle"/"Start radio" playlist id (e.g. `RDEM…`),
-    /// when present — lets an artist page start a mix with no video seed.
+    /// The header's "Shuffle"/"Start radio" playlist id (e.g. `RDEM…`), when
+    /// present — lets an artist page start a mix with no video seed.
     var radioPlaylistId: String? = nil
-    /// The artist header's "Start radio" playlist id, when present.
+    /// The header's "Start radio" playlist id, when present.
     var startRadioPlaylistId: String? = nil
+}
+
+/// Header fields specific to album and playlist pages.
+struct CollectionInfo: Sendable {
     /// The visibility of one of the user's own playlists, from its edit header.
     /// Nil for everything else.
     var privacy: PlaylistPrivacy? = nil
@@ -129,8 +183,6 @@ struct EntityHeader: Sendable {
     var isSaved: Bool? = nil
     /// An album's artist(s) or a playlist's owner, shown with an avatar.
     var byline: EntityByline? = nil
-
-    var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
 }
 
 /// Who made an album or playlist: its text runs (linked where the server gave
