@@ -33,6 +33,16 @@ struct EntityLink: Hashable, Codable, Sendable {
     }
 }
 
+/// A podcast episode's description, from its player "Details" tab.
+nonisolated struct EpisodeDetails: Sendable {
+    var title: String
+    /// The show's page, when linked.
+    var show: EntityLink?
+    var showName: String
+    /// Description text with its links.
+    var description: AttributedString
+}
+
 /// A playlist filter chip. Selecting it reloads the track list from `token`;
 /// `clearToken` reloads the unfiltered list.
 struct PlaylistFilter: Identifiable, Hashable, Sendable {

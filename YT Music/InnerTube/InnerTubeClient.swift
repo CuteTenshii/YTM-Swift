@@ -627,6 +627,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return CreditsParser.parse(response)
     }
 
+    /// Fetches a podcast episode's description. Nil when the episode has none.
+    func episodeDetails(videoId: String) async throws -> EpisodeDetails? {
+        let response: EpisodeDetailsResponse = try await post("browse", body: ["browseId": "MPPE" + videoId])
+        return EpisodeDetailsParser.parse(response)
+    }
+
     /// Fetches a track's related-music shelves. Two steps, mirroring the web
     /// client: the `next` response carries a "Related" tab whose browse id (an
     /// `MPTRt…`) is then browsed for the shelves. Empty when the track has no

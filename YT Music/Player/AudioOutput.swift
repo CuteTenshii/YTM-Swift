@@ -21,6 +21,8 @@ struct NowPlayingMetadata: Sendable, Equatable {
     var loudnessDb: Double? = nil
     /// Precise stream length where playback is cut off; nil leaves the end to AVPlayer.
     var streamEnd: Double? = nil
+    /// Enables the system skip-forward/back commands.
+    var isEpisode = false
 }
 
 @MainActor
@@ -38,6 +40,8 @@ protocol AudioOutput: AnyObject {
     var volume: Double { get set }
     /// Turns down tracks louder than YouTube's reference level (see `NowPlayingMetadata.loudnessDb`).
     var normalizesVolume: Bool { get set }
+    /// Playback speed multiplier applied to the current and future items.
+    var playbackRate: Double { get set }
 
     /// Called when the current item plays to its end.
     var onTrackFinished: (() -> Void)? { get set }
@@ -89,6 +93,7 @@ extension AudioOutput {
     func applyEqualizer(_ settings: EqualizerSettings) {}
     var spectrum: SpectrumAnalyzer? { nil }
     var normalizesVolume: Bool { get { false } set {} }
+    var playbackRate: Double { get { 1 } set {} }
     var isActuallyPlaying: Bool { isPlaying }
     var onPlaybackStart: (() -> Void)? { get { nil } set {} }
     var onTogglePlayPause: (() -> Void)? { get { nil } set {} }

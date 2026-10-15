@@ -75,6 +75,18 @@ final class AudioPlayer: AudioOutput {
         }
     }
 
+    var playbackRate: Double = 1 {
+        didSet {
+            playerA.defaultRate = Float(playbackRate)
+            playerB.defaultRate = Float(playbackRate)
+            if isPlaying, active.timeControlStatus != .paused { active.rate = Float(playbackRate) }
+            updateNowPlayingInfo()
+        }
+    }
+
+    private static let skipBackSeconds: Double = 15
+    private static let skipForwardSeconds: Double = 30
+
     private var clampedVolume: Float { Float(min(max(volume, 0), 1)) }
 
     /// Master volume scaled by the normalization gain of `player`'s track.
@@ -246,8 +258,10 @@ final class AudioPlayer: AudioOutput {
         currentTime = 0
         bufferedTime = 0
         duration = metadata.knownDuration ?? 0
-        active.playImmediately(atRate: 1)
+        active.playImmediately(atRate: Float(playbackRate))
         isPlaying = true
+        commandCenter.skipBackwardCommand.isEnabled = metadata.isEpisode
+        commandCenter.skipForwardCommand.isEnabled = metadata.isEpisode
         artwork = nil
         loadArtwork(metadata.artworkURL)
         updateNowPlayingInfo()
@@ -342,7 +356,7 @@ final class AudioPlayer: AudioOutput {
             MPMediaItemPropertyTitle: metadata.title,
             MPMediaItemPropertyArtist: metadata.artist,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0,
         ]
         if !metadata.album.isEmpty {
             info[MPMediaItemPropertyAlbumTitle] = metadata.album
@@ -402,6 +416,21 @@ final class AudioPlayer: AudioOutput {
                 }
                 self.seek(to: event.positionTime)
                 return .success
+            }
+        }
+        commandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: Self.skipBackSeconds)]
+        commandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: Self.skipForwardSeconds)]
+        commandCenter.skipBackwardCommand.isEnabled = false
+        commandCenter.skipForwardCommand.isEnabled = false
+        for command in [commandCenter.skipBackwardCommand, commandCenter.skipForwardCommand] {
+            command.addTarget { [weak self] event in
+                MainActor.assumeIsolated {
+                    guard let self, let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
+                    let forward = command === self.commandCenter.skipForwardCommand
+                    let target = self.currentTime + (forward ? event.interval : -event.interval)
+                    self.seek(to: min(max(0, target), self.duration > 0 ? self.duration : target))
+                    return .success
+                }
             }
         }
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in

@@ -13,6 +13,7 @@ import SwiftUI
 enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
     case queue = "Queue"
     case lyrics = "Lyrics"
+    case details = "Details"
     case related = "Related"
     case comments = "Comments"
 
@@ -21,6 +22,7 @@ enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
         switch self {
         case .queue:    "list.bullet"
         case .lyrics:   "music.mic"
+        case .details:  "info.circle"
         case .related:  "square.stack"
         case .comments: "text.bubble"
         }
@@ -44,9 +46,14 @@ struct NowPlayingPanelView: View {
     /// The tabs offered right now — Comments is dropped when the current track
     /// has no comments.
     private var availableTabs: [NowPlayingPanelTab] {
-        comments.isUnavailable
-            ? NowPlayingPanelTab.allCases.filter { $0 != .comments }
-            : NowPlayingPanelTab.allCases
+        NowPlayingPanelTab.allCases.filter { candidate in
+            switch candidate {
+            case .comments: !comments.isUnavailable
+            case .lyrics:   !player.isEpisode
+            case .details:  player.isEpisode
+            default:        true
+            }
+        }
     }
 
     var body: some View {
@@ -87,6 +94,10 @@ struct NowPlayingPanelView: View {
         .onChange(of: comments.isUnavailable) { _, unavailable in
             if unavailable, tab == .comments { tab = .queue }
         }
+        .onChange(of: player.isEpisode) { _, isEpisode in
+            if isEpisode, tab == .lyrics { tab = .details }
+            if !isEpisode, tab == .details { tab = .lyrics }
+        }
     }
 
     @ViewBuilder
@@ -101,6 +112,8 @@ struct NowPlayingPanelView: View {
                        artist: player.nowPlayingArtist,
                        album: player.nowPlaying?.album ?? "",
                        duration: player.duration > 0 ? player.duration : nil)
+        case .details:
+            EpisodeDetailsView(videoId: player.nowPlaying?.videoId, navigate: navigate)
         case .related:
             RelatedView(videoId: player.nowPlaying?.videoId,
                         title: player.nowPlaying?.title ?? "",

@@ -33,6 +33,17 @@ struct MediaCommands: Commands {
                 .keyboardShortcut(.leftArrow, modifiers: .command)
                 .disabled(nothingPlaying)
 
+            if player.isEpisode {
+                Button("Skip Back \(Int(PlayerState.skipBackSeconds)) Seconds") {
+                    player.skip(by: -PlayerState.skipBackSeconds)
+                }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                Button("Skip Forward \(Int(PlayerState.skipForwardSeconds)) Seconds") {
+                    player.skip(by: PlayerState.skipForwardSeconds)
+                }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            }
+
             Divider()
 
             Button("Volume Up") { adjustVolume(by: 0.05) }
@@ -59,7 +70,9 @@ struct MediaCommands: Commands {
             Divider()
             Button("Show Queue") { navigator.togglePanel(.queue) }
                 .keyboardShortcut("1", modifiers: [.command, .option])
-            Button("Show Lyrics") { navigator.togglePanel(.lyrics) }
+            Button(player.isEpisode ? "Show Details" : "Show Lyrics") {
+                navigator.togglePanel(player.isEpisode ? .details : .lyrics)
+            }
                 .keyboardShortcut("2", modifiers: [.command, .option])
             Button("Show Comments") { navigator.togglePanel(.comments) }
                 .keyboardShortcut("3", modifiers: [.command, .option])

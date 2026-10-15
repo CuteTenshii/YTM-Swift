@@ -48,8 +48,10 @@ struct PlayerResponse: Decodable, Sendable {
         let lengthSeconds: String?
         let title: String?
         let author: String?
+        let musicVideoType: String?
 
         var duration: Double? { lengthSeconds.flatMap(Double.init) }
+        var isEpisode: Bool { musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" }
     }
 
     struct StreamingData: Decodable, Sendable {

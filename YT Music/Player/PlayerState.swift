@@ -97,6 +97,18 @@ final class PlayerState {
     private var awaitingAudio = false
     private(set) var loadError: String?
     private(set) var repeatMode: RepeatMode = .off
+    /// The current item is a podcast episode: speed and skip controls apply.
+    private(set) var isEpisode = false
+    static let skipBackSeconds: Double = 15
+    static let skipForwardSeconds: Double = 30
+    static let playbackRates: [Double] = [0.75, 1, 1.25, 1.5, 1.75, 2]
+    /// Speed for episodes; music always plays at 1x.
+    var playbackRate: Double = 1 {
+        didSet {
+            settings?.podcastPlaybackRate = playbackRate
+            applyPlaybackRate()
+        }
+    }
     /// Whether the queue is currently playing in shuffled order.
     private(set) var isShuffled = false
     /// The queue's order captured when shuffle was turned on, so turning it off
@@ -208,6 +220,7 @@ final class PlayerState {
             self.audio.applyEqualizer(settings.equalizerSettings)
             settings.onEqualizerChange = { [weak self] eq in self?.audio.applyEqualizer(eq) }
             self.audio.volume = settings.volume
+            self.playbackRate = settings.podcastPlaybackRate
             self.audio.normalizesVolume = settings.volumeNormalization
             settings.onVolumeNormalizationChange = { [weak self] in self?.audio.normalizesVolume = $0 }
         }
@@ -506,6 +519,19 @@ final class PlayerState {
         }
         audio.seek(to: seconds)
         emitPlaybackChange()   // keep plugin-presence timestamps in sync
+    }
+
+    func skip(by seconds: Double) {
+        let target = currentTime + seconds
+        seek(to: min(max(0, target), duration > 0 ? duration : target))
+    }
+
+    static func speedLabel(_ rate: Double) -> String {
+        "\(rate.formatted(.number.precision(.fractionLength(0...2))))×"
+    }
+
+    private func applyPlaybackRate() {
+        audio.playbackRate = isEpisode ? playbackRate : 1
     }
 
     func next() {
@@ -836,8 +862,11 @@ final class PlayerState {
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration,
                 loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd
+                streamEnd: resolved.streamEnd,
+                isEpisode: resolved.isEpisode
             )
+            isEpisode = resolved.isEpisode
+            applyPlaybackRate()
             if usedPreloadedStream {
                 audio.loadPreloaded(url: resolved.url, metadata: metadata)
             } else {
@@ -997,8 +1026,11 @@ final class PlayerState {
                 artworkURL: nowPlaying?.thumbnailURL,
                 knownDuration: resolved.duration,
                 loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd
+                streamEnd: resolved.streamEnd,
+                isEpisode: resolved.isEpisode
             )
+            isEpisode = resolved.isEpisode
+            applyPlaybackRate()
             if usedPreloadedStream {
                 audio.crossfadePreloaded(url: resolved.url, metadata: metadata, duration: seconds)
             } else {
@@ -1042,7 +1074,8 @@ final class PlayerState {
                     artworkURL: track.thumbnailURL,
                     knownDuration: resolved.duration,
                     loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd
+                streamEnd: resolved.streamEnd,
+                isEpisode: resolved.isEpisode
                 )
                 self.preparedVideoId = videoId
                 self.preparedStream = resolved

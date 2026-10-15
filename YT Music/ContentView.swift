@@ -363,8 +363,11 @@ private struct NowPlayingBar: View {
                     Spacer(minLength: 0)
                     volumeControl
                         .frame(width: 130)
+                    if player.isEpisode {
+                        speedMenu
+                    }
                     panelButton(.queue)
-                    panelButton(.lyrics)
+                    panelButton(player.isEpisode ? .details : .lyrics)
                     immersiveLyricsButton
                 }
                 .frame(width: sideWidth, alignment: .trailing)
@@ -526,7 +529,15 @@ private struct NowPlayingBar: View {
             .buttonStyle(.plain)
             .disabled(!player.canGoPrevious)
 
+            if player.isEpisode {
+                skipButton(seconds: -PlayerState.skipBackSeconds, icon: "gobackward.15")
+            }
+
             playButton
+
+            if player.isEpisode {
+                skipButton(seconds: PlayerState.skipForwardSeconds, icon: "goforward.30")
+            }
 
             Button(action: player.next) {
                 Image(systemName: "forward.fill")
@@ -544,6 +555,34 @@ private struct NowPlayingBar: View {
             .buttonStyle(.plain)
             .help("Repeat")
         }
+    }
+
+    private func skipButton(seconds: Double, icon: String) -> some View {
+        Button { player.skip(by: seconds) } label: {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+        }
+        .buttonStyle(.plain)
+        .help(seconds < 0 ? "Back \(Int(-seconds)) seconds" : "Forward \(Int(seconds)) seconds")
+    }
+
+    private var speedMenu: some View {
+        @Bindable var player = player
+        return Menu {
+            Picker("Speed", selection: $player.playbackRate) {
+                ForEach(PlayerState.playbackRates, id: \.self) { rate in
+                    Text(PlayerState.speedLabel(rate)).tag(rate)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Text(PlayerState.speedLabel(player.playbackRate))
+                .font(.caption.weight(.semibold).monospacedDigit())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Playback speed")
     }
 
     private var repeatIcon: String {

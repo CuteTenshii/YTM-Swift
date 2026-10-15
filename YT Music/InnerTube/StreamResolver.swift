@@ -40,6 +40,8 @@ struct ResolvedStream: Sendable {
     var loudnessDb: Double? = nil
     /// The stream's millisecond-precise length, when YouTube provides one.
     var streamEnd: Double? = nil
+    /// A podcast episode, which gets speed and skip controls.
+    var isEpisode = false
 }
 
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
@@ -127,7 +129,8 @@ actor StreamResolver: StreamResolving {
         return ResolvedStream(url: url, duration: duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
                               loudnessDb: format.loudnessDb ?? streamSource.playerConfig?.audioConfig?.loudnessDb,
-                              streamEnd: format.approxDuration)
+                              streamEnd: format.approxDuration,
+                              isEpisode: response.videoDetails?.isEpisode ?? false)
     }
 
     /// `response` when it's playable with a compatible audio stream. A visionOS

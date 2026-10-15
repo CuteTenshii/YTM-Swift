@@ -36,6 +36,7 @@ nonisolated struct StubResolver: StreamResolving {
     var cpn: String? = nil
     var loudnessDb: Double? = nil
     var streamEnd: Double? = nil
+    var isEpisode = false
     var shouldThrow = false
     let calls = ResolverCalls()
 
@@ -44,7 +45,7 @@ nonisolated struct StubResolver: StreamResolving {
         if shouldThrow { throw StubError.boom }
         return ResolvedStream(url: url, duration: duration, historyURL: historyURL,
                               watchtimeURL: watchtimeURL, cpn: cpn, loudnessDb: loudnessDb,
-                              streamEnd: streamEnd)
+                              streamEnd: streamEnd, isEpisode: isEpisode)
     }
 }
 
@@ -103,6 +104,7 @@ final class FakeAudioOutput: AudioOutput {
     var bufferedTime: Double = 0
     var volume: Double = 1
     var normalizesVolume = false
+    var playbackRate: Double = 1
     var onTrackFinished: (() -> Void)?
     var onNext: (() -> Void)?
     var onPrevious: (() -> Void)?
@@ -205,6 +207,34 @@ struct PlayerStateTests {
         player.play(track(videoId: nil))
         #expect(player.nowPlaying == nil)
         #expect(!player.isLoading)
+    }
+
+    @Test("Episodes play at the chosen speed and music stays at 1x")
+    func episodeSpeed() async {
+        let audio = FakeAudioOutput()
+        let player = PlayerState(audio: audio, resolver: StubResolver(isEpisode: true))
+        player.playbackRate = 1.5
+        await player.loadStream(videoId: "ep")
+        #expect(player.isEpisode)
+        #expect(audio.playbackRate == 1.5)
+
+        let music = PlayerState(audio: audio, resolver: StubResolver())
+        music.playbackRate = 1.5
+        await music.loadStream(videoId: "song")
+        #expect(!music.isEpisode)
+        #expect(audio.playbackRate == 1)
+    }
+
+    @Test("skip(by:) seeks relative to the playhead and clamps to the track")
+    func skipClamps() async {
+        let audio = FakeAudioOutput()
+        let player = PlayerState(audio: audio, resolver: StubResolver())
+        audio.currentTime = 100
+        audio.duration = 120
+        player.skip(by: 30)
+        #expect(audio.seekedTo == 120)
+        player.skip(by: -500)
+        #expect(audio.seekedTo == 0)
     }
 
     @Test("Successful resolve loads the stream and clears loading")
