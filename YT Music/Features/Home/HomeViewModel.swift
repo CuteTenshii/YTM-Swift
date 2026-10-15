@@ -30,8 +30,9 @@ final class HomeViewModel {
         await load()
     }
 
-    func load(chip: HomeChip? = nil) async {
-        let isChipLoad = chip != nil
+    /// `inPlace` keeps the current feed on screen while reloading (chip changes).
+    func load(chip: HomeChip? = nil, inPlace: Bool = false) async {
+        let isChipLoad = chip != nil || inPlace
         if isChipLoad {
             isLoadingChip = true
         } else {

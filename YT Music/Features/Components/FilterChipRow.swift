@@ -18,7 +18,9 @@ struct FilterChipRow<Chip: Identifiable & Equatable>: View {
             HStack(spacing: 8) {
                 chipButton("All", isSelected: selection == nil) { select(nil) }
                 ForEach(chips) { chip in
-                    chipButton(chip[keyPath: title], isSelected: chip == selection) { select(chip) }
+                    chipButton(chip[keyPath: title], isSelected: chip == selection) {
+                        select(chip == selection ? nil : chip)
+                    }
                 }
             }
             .padding(.horizontal, 24)

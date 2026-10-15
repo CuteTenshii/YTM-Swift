@@ -97,8 +97,9 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 ForEach(chips) { chip in
                     Button {
-                        selectedChip = chip
-                        Task { await model.load(chip: chip) }
+                        let deselecting = selectedChip == chip
+                        selectedChip = deselecting ? nil : chip
+                        Task { await model.load(chip: deselecting ? nil : chip, inPlace: true) }
                     } label: {
                         Text(chip.title)
                             .font(.callout.weight(.medium))
