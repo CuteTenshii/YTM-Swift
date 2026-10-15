@@ -52,7 +52,7 @@ The signature + `n`-parameter solving is the most brittle code and breaks whenev
 
 - `StreamResolver` (actor) makes the `player` request with `sts`, picks the highest-bitrate **AAC/MP4** format (AVPlayer can't decode Opus/WebM), and deciphers the URL.
 - `SignatureDecipher` (actor) fetches `base.js`, extracts `signatureTimestamp`, and solves sig + `n` by **running YouTube's own player code in JavaScriptCore** (it stubs browser globals, finds the URL-signer candidate structurally via the `.set("alr","yes")` fingerprint, and injects a solver before the IIFE close). `JSExtraction.swift` provides regex + brace-matching helpers with nonisolated testing seams.
-- When this breaks: reference **yt-dlp**'s `youtube` extractor and its bundled deno solver (`yt.solver.core.js`) as ground truth. `PlaybackLog` (OSLog subsystem `moe.tenshii.YT-Music`, category `playback`, 🎵) logs every resolve stage; on solver failure it dumps the live base.js to `Caches/yt-base.js`. Read with `log stream --predicate 'subsystem == "moe.tenshii.YT-Music"'`.
+- When this breaks: reference **yt-dlp**'s `youtube` extractor and its bundled deno solver (`yt.solver.core.js`) as ground truth. `StreamResolver`/`SignatureDecipher` log every resolve stage (OSLog subsystem `moe.tenshii.YT-Music`, category `playback`; `InnerTubeClient` logs each request under `requests`); on solver failure `DebugDump` writes the live base.js to `Caches/yt-base.js`. Read with `log stream --predicate 'subsystem == "moe.tenshii.YT-Music"'`.
 - WEB_REMIX without auth/PoToken can return `LOGIN_REQUIRED`/`UNPLAYABLE`, and some tracks get SABR/DRM experiments that hide plain URLs.
 
 ## Gotchas

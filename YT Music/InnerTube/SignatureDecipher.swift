@@ -32,10 +32,11 @@
 //  ⚠️ FRAGILE: the `.set("alr","yes")` fingerprint and the IIFE shape can change
 //  when YouTube ships a new player. yt-dlp's `youtube` extractor / its bundled
 //  `ejs` solver is the reference. On failure the real base.js is dumped (see
-//  PlaybackLog) so the fingerprint can be re-derived.
+//  `yt-base.js` in Caches) so the fingerprint can be re-derived.
 //
 
 import Foundation
+import OSLog
 import JavaScriptCore
 
 enum DecipherError: LocalizedError {
@@ -57,6 +58,7 @@ enum DecipherError: LocalizedError {
 }
 
 actor SignatureDecipher {
+    private static let log = Logger(category: "playback")
     static let shared = SignatureDecipher()
 
     /// A prepared player: the JSContext with base.js evaluated and the injected
@@ -96,11 +98,11 @@ actor SignatureDecipher {
         let solver = try await solver()
 
         if let cipher = format.cipherString {
-            PlaybackLog.note("format has signatureCipher — deciphering")
+            Self.log.note("format has signatureCipher — deciphering")
             return try decipheredURL(cipher: cipher, solver: solver)
         }
         if let urlString = format.url, var components = URLComponents(string: urlString) {
-            PlaybackLog.note("format has a direct url — applying n transform only")
+            Self.log.note("format has a direct url — applying n transform only")
             applyNTransform(to: &components, solver: solver)
             guard let url = components.url else { throw DecipherError.malformedStreamURL }
             return url
@@ -114,7 +116,7 @@ actor SignatureDecipher {
         if let cached { return cached }
 
         let playerURL = try await fetchPlayerURL()
-        PlaybackLog.note("player JS: \(playerURL.absoluteString)")
+        Self.log.note("player JS: \(playerURL.absoluteString)")
         let js = try await fetchText(playerURL)
         let solver = buildSolver(fromBaseJS: js)
         cached = solver
@@ -132,18 +134,18 @@ actor SignatureDecipher {
 
         let context = JSContext()!
         context.exceptionHandler = { _, exception in
-            PlaybackLog.problem("JS exception: \(exception?.toString() ?? "?")")
+            Self.log.problem("JS exception: \(exception?.toString() ?? "?")")
         }
         context.evaluateScript(Self.setupScript)
 
         let signerIndex = installSolver(js, into: context)
 
-        PlaybackLog.note(
+        Self.log.note(
             "base.js \(js.count) chars · sts=\(signatureTimestamp ?? "nil") · "
             + "canSolve=\(signerIndex != nil)"
         )
-        if signerIndex == nil, let path = PlaybackLog.dumpBaseJS(js) {
-            PlaybackLog.problem("dumped base.js (solver missing) → \(path)")
+        if signerIndex == nil, let path = DebugDump.write(Data(js.utf8), to: "yt-base.js") {
+            Self.log.problem("dumped base.js (solver missing) → \(path)")
         }
 
         return Solver(
@@ -157,7 +159,7 @@ actor SignatureDecipher {
     /// candidate signer that probes successfully, or nil if none does.
     private nonisolated func installSolver(_ js: String, into context: JSContext) -> Int? {
         let candidates = signerCandidates(in: js)
-        PlaybackLog.note("solver: signer candidates \(candidates)")
+        Self.log.note("solver: signer candidates \(candidates)")
 
         let script: String
         if let range = js.range(of: Self.iifeClose, options: .backwards) {
@@ -173,7 +175,7 @@ actor SignatureDecipher {
         context.evaluateScript(script)
 
         if let err = context.objectForKeyedSubscript("__ytSolveErr"), !err.isUndefined {
-            PlaybackLog.problem("solver: injection error — \(err.toString() ?? "?")")
+            Self.log.problem("solver: injection error — \(err.toString() ?? "?")")
         }
         guard let solveWith = context.objectForKeyedSubscript("__ytSolveWith"),
               !solveWith.isUndefined else {
@@ -185,13 +187,13 @@ actor SignatureDecipher {
                   let n = result.objectForKeyedSubscript("n"), n.isString,
                   let transformed = n.toString(),
                   !transformed.isEmpty, transformed != Self.probeSample else {
-                PlaybackLog.note("solver: candidate '\(candidates[index])' rejected")
+                Self.log.note("solver: candidate '\(candidates[index])' rejected")
                 continue
             }
-            PlaybackLog.note("solver: using signer '\(candidates[index])' (index \(index))")
+            Self.log.note("solver: using signer '\(candidates[index])' (index \(index))")
             return index
         }
-        PlaybackLog.problem("solver: no candidate produced a working n transform")
+        Self.log.problem("solver: no candidate produced a working n transform")
         return nil
     }
 

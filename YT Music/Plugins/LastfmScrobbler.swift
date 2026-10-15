@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import OSLog
 import CryptoKit
 
 // MARK: - Models
@@ -160,6 +161,7 @@ nonisolated struct ScrobbleTracker {
 /// `auth.getSession` returns a permanent session key. Scrobbling is a write, so the
 /// API key + shared secret + session key are all required; a username can't do it.
 actor LastfmClient {
+    private static let log = Logger(category: "lastfm")
     private static let endpoint = URL(string: "https://ws.audioscrobbler.com/2.0/")!
     private static let keychainService = "moe.tenshii.YT-Music"
     private static let keychainAccount = "lastfm-account"
@@ -212,14 +214,14 @@ actor LastfmClient {
         let response = try await call(["method": "auth.getSession", "token": token],
                                       apiKey: pending.apiKey, secret: pending.secret)
         guard let session = response["session"] as? [String: Any] else {
-            PlaybackLog.problem("Last.fm getSession missing `session`: \(response)")
+            Self.log.problem("Last.fm getSession missing `session`: \(response)")
             throw LastfmError.malformedResponse
         }
         // Last.fm's JSON sometimes wraps text values as {"#text": "…"}, so pull the
         // strings out tolerantly rather than casting straight to String.
         guard let sk = Self.string(session["key"]), !sk.isEmpty,
               let name = Self.string(session["name"]), !name.isEmpty else {
-            PlaybackLog.problem("Last.fm getSession unexpected shape: \(session)")
+            Self.log.problem("Last.fm getSession unexpected shape: \(session)")
             throw LastfmError.malformedResponse
         }
         let account = StoredAccount(apiKey: pending.apiKey, secret: pending.secret,

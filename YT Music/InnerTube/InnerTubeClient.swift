@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import OSLog
 
 enum InnerTubeError: LocalizedError {
     case badStatus(Int)
@@ -210,6 +211,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
             + "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 
+    private static let log = Logger(category: "requests")
     private let session: URLSession
 
     /// Shares one `next(videoId)` round-trip across the lyrics, related, and
@@ -401,10 +403,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             // Can't reach this API from tests, so when the page comes back empty
             // dump the raw response to Caches (`yt-uploads.json`) to diagnose the
             // real layout. Read with Console.app or `open`.
-            let path = PlaybackLog.dumpData(data, to: "yt-uploads.json") ?? "(dump failed)"
-            PlaybackLog.problem("uploads: parsed 0 shelves — dumped response to \(path)")
+            let path = DebugDump.write(data, to: "yt-uploads.json") ?? "(dump failed)"
+            Self.log.problem("uploads: parsed 0 shelves — dumped response to \(path)")
         } else {
-            PlaybackLog.note("uploads: parsed \(shelves.count) shelves")
+            Self.log.note("uploads: parsed \(shelves.count) shelves")
         }
         return shelves
     }
@@ -448,11 +450,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
         let (_, startResponse) = try await session.data(for: start)
         guard let startHTTP = startResponse as? HTTPURLResponse else { throw InnerTubeError.emptyResponse }
-        PlaybackLog.note("upload: start → HTTP \(startHTTP.statusCode) for \(fileURL.lastPathComponent) (\(size) bytes)")
+        Self.log.note("upload: start → HTTP \(startHTTP.statusCode) for \(fileURL.lastPathComponent) (\(size) bytes)")
         guard (200..<300).contains(startHTTP.statusCode) else { throw UploadError.failed(startHTTP.statusCode) }
         guard let uploadURLString = startHTTP.value(forHTTPHeaderField: "X-Goog-Upload-URL"),
               let uploadURL = URL(string: uploadURLString) else {
-            PlaybackLog.problem("upload: no X-Goog-Upload-URL header in start response")
+            Self.log.problem("upload: no X-Goog-Upload-URL header in start response")
             throw UploadError.uploadURLMissing
         }
 
@@ -467,10 +469,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         let (uploadBody, uploadResponse) = try await session.upload(for: upload, fromFile: fileURL)
         guard let uploadHTTP = uploadResponse as? HTTPURLResponse else { throw InnerTubeError.emptyResponse }
         let status = uploadHTTP.value(forHTTPHeaderField: "X-Goog-Upload-Status") ?? "?"
-        PlaybackLog.note("upload: finalize → HTTP \(uploadHTTP.statusCode), upload-status=\(status)")
+        Self.log.note("upload: finalize → HTTP \(uploadHTTP.statusCode), upload-status=\(status)")
         guard (200..<300).contains(uploadHTTP.statusCode) else {
             let bodyText = String(data: uploadBody.prefix(400), encoding: .utf8) ?? ""
-            PlaybackLog.problem("upload: finalize failed \(uploadHTTP.statusCode) — \(bodyText)")
+            Self.log.problem("upload: finalize failed \(uploadHTTP.statusCode) — \(bodyText)")
             throw UploadError.failed(uploadHTTP.statusCode)
         }
     }
@@ -749,8 +751,8 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             // Can't reach this API from tests (sandbox 403), so on a decode failure
             // dump the raw response to Caches (`yt-add-to-playlist.json`) to diagnose
             // the real layout. Read with Console.app or `open`.
-            let path = PlaybackLog.dumpData(data, to: "yt-add-to-playlist.json") ?? "(dump failed)"
-            PlaybackLog.problem("add-to-playlist: decode failed (\(error)) — dumped response to \(path)")
+            let path = DebugDump.write(data, to: "yt-add-to-playlist.json") ?? "(dump failed)"
+            Self.log.problem("add-to-playlist: decode failed (\(error)) — dumped response to \(path)")
             throw error
         }
     }
@@ -1105,14 +1107,28 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             }
         }
 
-        let (data, urlResponse) = try await session.data(for: request)
+        let started = ContinuousClock.now
+        let target = (body["browseId"] as? String) ?? (body["continuation"] == nil ? nil : "continuation")
+        let label = "\(Date.now.formatted(.iso8601)) \(endpoint)\(target.map { " \($0)" } ?? "") (\(profile.clientName))"
+        let data: Data
+        let urlResponse: URLResponse
+        do {
+            (data, urlResponse) = try await session.data(for: request)
+        } catch {
+            let elapsed = started.duration(to: .now).description
+            Self.log.error("\(label, privacy: .public) failed after \(elapsed, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+        let status = (urlResponse as? HTTPURLResponse)?.statusCode ?? 0
+        let elapsed = started.duration(to: .now).description
+        Self.log.notice("\(label, privacy: .public) HTTP \(status), \(data.count) bytes, \(elapsed, privacy: .public)")
 
         if let http = urlResponse as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
             // A 401 on a request we actually signed means the session expired;
             // surface it distinctly so the UI can prompt a re-sign-in.
             if http.statusCode == 401, didAttachCredentials {
-                PlaybackLog.problem("auth: 401 on \(endpoint) — session expired")
+                Self.log.problem("auth: 401 on \(endpoint) — session expired")
                 NotificationCenter.default.post(name: .ytmSessionExpired, object: nil)
                 throw InnerTubeError.unauthorized
             }

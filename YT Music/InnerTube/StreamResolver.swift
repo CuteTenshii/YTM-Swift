@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import OSLog
 
 enum StreamError: LocalizedError {
     case notPlayable(String)
@@ -63,6 +64,7 @@ extension StreamResolving {
 }
 
 actor StreamResolver: StreamResolving {
+    private static let log = Logger(category: "playback")
     static let shared = StreamResolver()
 
     private let client = InnerTubeClient.shared
@@ -71,7 +73,7 @@ actor StreamResolver: StreamResolving {
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
         let signedIn = await CredentialStore.shared.isSignedIn
         let premium = signedIn ? await client.hasPremium() : false
-        PlaybackLog.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") "
+        Self.log.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") "
             + "signedIn=\(signedIn) premium=\(premium)")
 
         // YT Music's own streams stop loading after the first chunk without a PO
@@ -91,14 +93,14 @@ actor StreamResolver: StreamResolving {
             if let playable = playableStream(await vision, preferences: preferences) {
                 streamSource = playable
             } else {
-                PlaybackLog.note("visionOS can't play this track; streaming from WEB_REMIX")
+                Self.log.note("visionOS can't play this track; streaming from WEB_REMIX")
                 streamSource = response
             }
         }
 
         let status = response.playabilityStatus?.status ?? "nil"
         let adaptiveCount = response.streamingData?.adaptiveFormats?.count ?? 0
-        PlaybackLog.note(
+        Self.log.note(
             "playabilityStatus=\(status) · adaptiveFormats=\(adaptiveCount) "
                 + "· lengthSeconds=\(response.videoDetails?.lengthSeconds ?? "nil")"
         )
@@ -106,21 +108,21 @@ actor StreamResolver: StreamResolving {
         try checkPlayability(response)
 
         let format = try selectAudioFormat(streamSource, preferences: preferences)
-        PlaybackLog.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
+        Self.log.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
 
         // One content-playback nonce tags the media we fetch and the history
         // ping, so YouTube correlates them and the play counts toward history.
         let cpn = WatchHistory.generateCPN()
         let deciphered = try await decipher.streamURL(for: format)
         let url = WatchHistory.appendingCPN(to: deciphered, cpn: cpn)
-        PlaybackLog.note("resolved stream host=\(url.host ?? "?")")
+        Self.log.note("resolved stream host=\(url.host ?? "?")")
 
         let historyURL = response.playbackTracking?.videostatsPlaybackUrl?.baseUrl
             .flatMap { URL(string: $0) }
         let watchtimeURL = response.playbackTracking?.videostatsWatchtimeUrl?.baseUrl
             .flatMap { URL(string: $0) }
         let duration = format.approxDuration ?? response.videoDetails?.duration
-        PlaybackLog.note("duration=\(duration.map { String($0) } ?? "nil")s "
+        Self.log.note("duration=\(duration.map { String($0) } ?? "nil")s "
             + "(approxDurationMs=\(format.approxDurationMs ?? "nil"))")
         return ResolvedStream(url: url, duration: duration,
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
@@ -155,7 +157,7 @@ actor StreamResolver: StreamResolving {
             } catch {
                 lastError = error
                 guard attempt < delays.count - 1, Self.isTransient(error) else { throw error }
-                PlaybackLog.note("transient player request failure; retrying attempt \(attempt + 2)")
+                Self.log.note("transient player request failure; retrying attempt \(attempt + 2)")
             }
         }
 
@@ -183,7 +185,7 @@ actor StreamResolver: StreamResolving {
     nonisolated func checkPlayability(_ response: PlayerResponse) throws {
         guard let status = response.playabilityStatus?.status, status != "OK" else { return }
         let reason = response.playabilityStatus?.reason ?? status
-        PlaybackLog.problem("not playable: \(reason)")
+        Self.log.problem("not playable: \(reason)")
         throw StreamError.notPlayable(reason)
     }
 
