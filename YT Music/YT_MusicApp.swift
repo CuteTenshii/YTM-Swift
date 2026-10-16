@@ -6,6 +6,10 @@ import AppIntents
 /// Keeps the process alive when the only window is closed, so playback continues
 /// in the background and the window can be reopened from the Dock.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        VerticalScrollForwarding.install()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
