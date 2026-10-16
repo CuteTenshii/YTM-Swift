@@ -11,7 +11,7 @@ final class ExploreViewModel {
     enum State {
         case idle
         case loading
-        case loaded([HomeShelf])
+        case loaded([Shelf])
         case failed(String)
     }
 

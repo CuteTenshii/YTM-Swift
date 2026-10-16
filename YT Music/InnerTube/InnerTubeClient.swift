@@ -171,7 +171,7 @@ extension InnerTubeClient: LyricsProviding {}
 /// Fetches a track's related-music shelves (similar songs, artists, recommended
 /// playlists). Abstracted so the Related UI can be driven by a fake in tests.
 protocol RelatedProviding: Sendable {
-    func related(for videoId: String) async throws -> [HomeShelf]
+    func related(for videoId: String) async throws -> [Shelf]
 }
 
 extension InnerTubeClient: RelatedProviding {}
@@ -250,7 +250,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     /// Loads the YouTube Music explore landing page (`FEmusic_explore`): new
     /// releases, charts, trending, and top music videos.
-    func explore() async throws -> [HomeShelf] {
+    func explore() async throws -> [Shelf] {
         let response: BrowseResponse = try await post(
             "browse",
             body: ["browseId": "FEmusic_explore"]
@@ -262,7 +262,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// ("Songs", "Albums", "Artists", …). An empty/blank query yields no shelves.
     /// Pass a `filter` other than `.all` to scope results to a single type, in
     /// which case YouTube returns its own pre-grouped, server-titled shelves.
-    func search(_ query: String, filter: SearchFilter = .all) async throws -> [HomeShelf] {
+    func search(_ query: String, filter: SearchFilter = .all) async throws -> [Shelf] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         var body: [String: Any] = ["query": trimmed]
@@ -387,7 +387,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// Loads the signed-in user's uploaded music landing page
     /// (`FEmusic_library_privately_owned_landing`): uploaded albums, artists, and
     /// songs. Requires auth; anonymous requests return nothing.
-    func uploads() async throws -> [HomeShelf] {
+    func uploads() async throws -> [Shelf] {
         let data = try await postData(
             "browse",
             body: ["browseId": "FEmusic_library_privately_owned_landing"]
@@ -643,7 +643,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// client: the `next` response carries a "Related" tab whose browse id (an
     /// `MPTRt…`) is then browsed for the shelves. Empty when the track has no
     /// related tab.
-    func related(for videoId: String) async throws -> [HomeShelf] {
+    func related(for videoId: String) async throws -> [Shelf] {
         guard let browseId = try await watchNextInfo(for: videoId).relatedBrowseId else {
             return []
         }

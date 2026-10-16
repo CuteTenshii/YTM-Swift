@@ -123,7 +123,7 @@ struct PlaylistHeaderAndOrderTests {
 
     @Test("A card is the user's own playlist only when its menu offers Edit playlist")
     func cardOwnership() throws {
-        func card(menuItems: String) throws -> HomeItem? {
+        func card(menuItems: String) throws -> ShelfItem? {
             let json = """
             {"title":{"runs":[{"text":"Fire"}]},
              "navigationEndpoint":{"browseEndpoint":{"browseId":"VLPLmine",

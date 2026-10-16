@@ -19,9 +19,9 @@ final class LibraryViewModel {
     /// the Library tab's "All" chip.
     private(set) var state: State = .loading
     /// The server's filter chips (Playlists, Songs, Albums, …).
-    private(set) var chips: [HomeChip] = []
+    private(set) var chips: [FeedChip] = []
     /// The chip showing in the Library tab; nil for "All" (the landing page).
-    private(set) var selectedChip: HomeChip?
+    private(set) var selectedChip: FeedChip?
     private(set) var chipState: State = .loading
 
     private var isLoadingMoreLanding = false
@@ -54,12 +54,12 @@ final class LibraryViewModel {
         if let selectedChip { await loadChip(selectedChip) }
     }
 
-    func select(_ chip: HomeChip?) async {
+    func select(_ chip: FeedChip?) async {
         selectedChip = chip
         if let chip { await loadChip(chip) }
     }
 
-    private func loadChip(_ chip: HomeChip) async {
+    private func loadChip(_ chip: FeedChip) async {
         chipState = .loading
         do {
             let page = try await client.library(browseId: chip.browseId, params: chip.params)

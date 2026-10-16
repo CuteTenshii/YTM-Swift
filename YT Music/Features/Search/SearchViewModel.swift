@@ -11,7 +11,7 @@ final class SearchViewModel {
     enum State {
         case idle                   // no query yet — show the prompt
         case loading
-        case results([HomeShelf])
+        case results([Shelf])
         case empty(String)          // query returned nothing
         case failed(String)
     }

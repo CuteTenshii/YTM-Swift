@@ -11,7 +11,7 @@ import Foundation
 /// Navigation value for pushing an entity detail page.
 struct EntityDestination: Hashable {
     let browseId: String
-    let kind: HomeItem.Kind
+    let kind: ShelfItem.Kind
     /// Shown immediately (in the nav bar / header) while the page loads.
     let title: String
     let subtitle: String
@@ -24,23 +24,13 @@ struct EntityDestination: Hashable {
 struct EntityLink: Hashable, Codable, Sendable {
     var name: String
     var browseId: String
-    var kind: HomeItem.Kind
+    var kind: ShelfItem.Kind
 
     /// A push destination for this link (no artwork/subtitle — the page fills
     /// those in once loaded).
     var destination: EntityDestination {
         EntityDestination(browseId: browseId, kind: kind, title: name, subtitle: "", thumbnailURL: nil)
     }
-}
-
-/// A podcast episode's description, from its player "Details" tab.
-nonisolated struct EpisodeDetails: Sendable {
-    var title: String
-    /// The show's page, when linked.
-    var show: EntityLink?
-    var showName: String
-    /// Description text with its links.
-    var description: AttributedString
 }
 
 /// A playlist filter chip. Selecting it reloads the track list from `token`;
@@ -74,7 +64,7 @@ struct PlaylistSortOption: Identifiable, Hashable, Sendable {
 struct EntityPage: Sendable {
     var header: EntityHeader
     var tracks: [Track]
-    var shelves: [HomeShelf]   // artist albums/singles/related, etc.
+    var shelves: [Shelf]   // artist albums/singles/related, etc.
     var continuationToken: String? = nil
     /// Playlist behind the page's "Shuffle all" row, when it has one.
     var shufflePlaylistId: String? = nil
@@ -130,7 +120,7 @@ struct EntityHeader: Sendable {
         case feed
     }
 
-    var kind: HomeItem.Kind {
+    var kind: ShelfItem.Kind {
         switch content {
         case .artist: .artist
         case .profile: .profile
@@ -248,38 +238,4 @@ struct ArtistSubscription: Sendable, Equatable {
     var unsubscribeParams: String?
     /// False when the server disables the button (the user's own channel).
     var isEnabled = true
-}
-
-/// A single playable track in a listing.
-struct Track: Identifiable, Sendable {
-    let id = UUID()
-    var index: Int             // 1-based position in its listing
-    var title: String
-    var subtitle: String       // artist(s)
-    var duration: String?      // "3:45"
-    var thumbnailURL: URL?
-    var videoId: String?
-    /// Navigable artist links parsed from the row, if any.
-    var artists: [EntityLink] = []
-    /// Navigable album link parsed from the row, if any.
-    var albumLink: EntityLink?
-    /// History-removal feedback token, when this track came from the history page.
-    var feedbackToken: String? = nil
-    /// Playlist-scoped id for removing this row from an owned playlist, if known.
-    /// Note: this is plumbing, not permission — rows of *any* playlist may carry
-    /// one. `canRemoveFromPlaylist` is the permission signal.
-    var playlistSetVideoId: String? = nil
-    /// The server's permission signal: this row's menu carried a
-    /// remove-from-playlist action, which only rows of playlists the signed-in
-    /// user can edit get. Gates both the row's "Remove from Playlist" entry
-    /// and the page's edit affordances.
-    var canRemoveFromPlaylist: Bool = false
-    /// Additional text fields used by lightweight playlist search results.
-    var searchTerms: [String] = []
-    /// The account's current like rating for this track, parsed from the row's
-    /// menu when available (signed in). `.indifferent` when unknown — enough for
-    /// a context menu to show the right "Like" / "Remove from Likes" label.
-    var likeStatus: LikeStatus = .indifferent
-    /// Up/down votes, on playlists with voting turned on.
-    var vote: PlaylistItemVote? = nil
 }

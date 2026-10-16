@@ -62,3 +62,27 @@ struct ProfileCardShelfTests {
         #expect(shelf.items.first?.browseId == "VLRDATjuUC1")
     }
 }
+
+@Suite("Shelf header avatar")
+struct ShelfHeaderAvatarTests {
+    @Test("A carousel header's thumbnail and strapline reach the shelf")
+    func avatar() throws {
+        let json = """
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicCarouselShelfRenderer":{
+            "header":{"musicCarouselShelfBasicHeaderRenderer":{
+              "title":{"runs":[{"text":"Listen again"}]},
+              "strapline":{"runs":[{"text":"ME"}]},
+              "thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://example.com/a.jpg","width":0,"height":0}]}}}}},
+            "contents":[{"musicTwoRowItemRenderer":{"title":{"runs":[{"text":"Album"}]},
+              "navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_1",
+                "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}}]
+          }}]}}}}]}}}
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(json.utf8))
+        let destination = EntityDestination(browseId: "UC1", kind: .profile, title: "Me", subtitle: "", thumbnailURL: nil)
+        let shelf = try #require(EntityPageParser.parse(response, fallback: destination).shelves.first)
+        #expect(shelf.strapline == "ME")
+        #expect(shelf.avatarURL == URL(string: "https://example.com/a.jpg"))
+    }
+}

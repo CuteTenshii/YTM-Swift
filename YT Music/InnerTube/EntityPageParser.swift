@@ -23,7 +23,7 @@ nonisolated enum EntityPageParser {
         header.collection?.voteOptions = editableHeader?.voteOptions ?? []
 
         var tracks: [Track] = []
-        var shelves: [HomeShelf] = []
+        var shelves: [Shelf] = []
         var continuationToken = continuationToken(from: response.contents)
         var sortOptions: [PlaylistSortOption] = []
         var isManuallyOrdered = false
@@ -52,7 +52,7 @@ nonisolated enum EntityPageParser {
                     thumbnailURL: card.thumbnail?.bestURL,
                     endpoint: card.onTap
                 ) {
-                    shelves.append(HomeShelf(title: card.headerTitle.isEmpty ? "More" : card.headerTitle, items: [item]))
+                    shelves.append(Shelf(title: card.headerTitle.isEmpty ? "More" : card.headerTitle, items: [item]))
                 }
             } else if let grid = section.gridRenderer {
                 // Feed pages (e.g. a shelf's "More" → "Listen again") lay their
@@ -327,7 +327,7 @@ nonisolated enum EntityPageParser {
 
     /// The content for a kind when the response had no matching header renderer; songs, videos and unknown are a bare feed page.
     private static func collectionContent(
-        _ kind: HomeItem.Kind,
+        _ kind: ShelfItem.Kind,
         _ info: CollectionInfo
     ) -> EntityHeader.Content {
         switch kind {
@@ -463,20 +463,21 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Carousels (reuse the Home shelf shape)
 
-    private static func makeShelf(from carousel: MusicCarouselShelfRenderer) -> HomeShelf? {
+    private static func makeShelf(from carousel: MusicCarouselShelfRenderer) -> Shelf? {
         let items = (carousel.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(
+        return Shelf(
             title: title, items: items, buttons: HomeFeedParser.shelfButtons(from: carousel),
-            rowsPerColumn: carousel.rowsPerColumn
+            rowsPerColumn: carousel.rowsPerColumn,
+            strapline: carousel.strapline, avatarURL: carousel.avatarURL
         )
     }
 
-    private static func makeShelf(from grid: GridRenderer) -> HomeShelf? {
+    private static func makeShelf(from grid: GridRenderer) -> Shelf? {
         let items = (grid.items ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: grid.title.isEmpty ? "More" : grid.title, items: items)
+        return Shelf(title: grid.title.isEmpty ? "More" : grid.title, items: items)
     }
 
     // MARK: - Helpers

@@ -21,13 +21,13 @@ nonisolated enum HomeFeedParser {
 
         let shelves = sections.compactMap { shelf(from: $0) }
         let sectionChips = sections.flatMap { section in
-            (section.chipCloudRenderer?.chips ?? []).compactMap { chip -> HomeChip? in
+            (section.chipCloudRenderer?.chips ?? []).compactMap { chip -> FeedChip? in
                 guard let renderer = chip.chipCloudChipRenderer,
                       let title = renderer.text?.text,
                       let browse = renderer.navigationEndpoint?.browseEndpoint,
                       let browseId = browse.browseId,
                       !title.isEmpty else { return nil }
-                return HomeChip(
+                return FeedChip(
                     id: "\(browseId)|\(browse.params ?? title)",
                     title: title,
                     browseId: browseId,
@@ -35,13 +35,13 @@ nonisolated enum HomeFeedParser {
                 )
             }
         }
-        let topChips = (content?.sectionListRenderer?.header?.chipCloudRenderer?.chips ?? []).compactMap { chip -> HomeChip? in
+        let topChips = (content?.sectionListRenderer?.header?.chipCloudRenderer?.chips ?? []).compactMap { chip -> FeedChip? in
             guard let renderer = chip.chipCloudChipRenderer,
                   let title = renderer.text?.text,
                   let browse = renderer.navigationEndpoint?.browseEndpoint,
                   let browseId = browse.browseId,
                   !title.isEmpty else { return nil }
-            return HomeChip(
+            return FeedChip(
                 id: "\(browseId)|\(browse.params ?? title)",
                 title: title,
                 browseId: browseId,
@@ -71,16 +71,17 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - Shelves
 
-    private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
+    private static func shelf(from section: BrowseResponse.SectionContent) -> Shelf? {
         guard let carousel = section.carousel else { return nil }
 
         let items = (carousel.contents ?? []).compactMap { makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
 
         let title = carousel.title.isEmpty ? "More" : carousel.title
-        return HomeShelf(
+        return Shelf(
             title: title, items: items, buttons: shelfButtons(from: carousel),
-            rowsPerColumn: carousel.rowsPerColumn
+            rowsPerColumn: carousel.rowsPerColumn,
+            strapline: carousel.strapline, avatarURL: carousel.avatarURL
         )
     }
 
@@ -117,10 +118,10 @@ nonisolated enum HomeFeedParser {
         return nil
     }
 
-    /// Maps a single carousel/list entry to a `HomeItem`, dispatching on whichever
+    /// Maps a single carousel/list entry to a `ShelfItem`, dispatching on whichever
     /// card renderer it carries. Shared by the home, library, explore, and search
     /// parsers (all built from the same two row renderers).
-    static func makeItem(from carouselItem: CarouselItem) -> HomeItem? {
+    static func makeItem(from carouselItem: CarouselItem) -> ShelfItem? {
         if let row = carouselItem.musicTwoRowItemRenderer {
             return makeItem(from: row)
         }
@@ -132,7 +133,7 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - Two-row cards
 
-    static func makeItem(from row: MusicTwoRowItemRenderer) -> HomeItem? {
+    static func makeItem(from row: MusicTwoRowItemRenderer) -> ShelfItem? {
         let title = row.title?.text ?? ""
         guard !title.isEmpty else { return nil }
 
@@ -141,7 +142,7 @@ nonisolated enum HomeFeedParser {
             ?? collectionPlaylistId(kind: kind, browseId: browseId, play: row.overlayPlayEndpoint)
         let links = row.subtitle?.entityLinks ?? []
 
-        return HomeItem(
+        return ShelfItem(
             title: title,
             subtitle: row.subtitle?.text ?? "",
             thumbnailURL: row.thumbnailRenderer?.bestURL,
@@ -159,7 +160,7 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - List rows
 
-    static func makeItem(from row: MusicResponsiveListItemRenderer) -> HomeItem? {
+    static func makeItem(from row: MusicResponsiveListItemRenderer) -> ShelfItem? {
         let columns = row.textColumns
         guard let title = columns.first else { return nil }
 
@@ -176,7 +177,7 @@ nonisolated enum HomeFeedParser {
             ?? collectionPlaylistId(kind: kind, browseId: browseId, play: row.overlayPlayEndpoint)
         let links = row.entityLinks
 
-        return HomeItem(
+        return ShelfItem(
             title: title,
             subtitle: subtitle,
             thumbnailURL: row.thumbnail?.bestURL,
@@ -195,7 +196,7 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - Endpoint resolution
 
-    /// Builds a `HomeItem` from already-extracted text plus a navigation endpoint.
+    /// Builds a `ShelfItem` from already-extracted text plus a navigation endpoint.
     /// Used for renderers that don't fit the two row shapes (e.g. the search
     /// top-result card), reusing the shared endpoint resolution.
     static func makeItem(
@@ -203,10 +204,10 @@ nonisolated enum HomeFeedParser {
         subtitle: String,
         thumbnailURL: URL?,
         endpoint: NavigationEndpoint?
-    ) -> HomeItem? {
+    ) -> ShelfItem? {
         guard !title.isEmpty else { return nil }
         let (kind, videoId, browseId, playlistId) = resolve(endpoint)
-        return HomeItem(
+        return ShelfItem(
             title: title,
             subtitle: subtitle,
             thumbnailURL: thumbnailURL,
@@ -220,7 +221,7 @@ nonisolated enum HomeFeedParser {
     /// The queueable playlist id of an album/playlist card: its play button's,
     /// else (playlists only) the browse id minus its "VL" prefix.
     private static func collectionPlaylistId(
-        kind: HomeItem.Kind, browseId: String?, play: NavigationEndpoint?
+        kind: ShelfItem.Kind, browseId: String?, play: NavigationEndpoint?
     ) -> String? {
         guard kind == .album || kind == .playlist else { return nil }
         if let id = play?.watchPlaylistEndpoint?.playlistId ?? play?.watchEndpoint?.playlistId {
@@ -232,10 +233,10 @@ nonisolated enum HomeFeedParser {
 
     private static func resolve(
         _ endpoint: NavigationEndpoint?
-    ) -> (HomeItem.Kind, String?, String?, String?) {
+    ) -> (ShelfItem.Kind, String?, String?, String?) {
         if let watch = endpoint?.watchEndpoint, let videoId = watch.videoId {
             // A watch endpoint with a playlist is typically a music video / mix.
-            let kind: HomeItem.Kind = watch.playlistId == nil ? .song : .video
+            let kind: ShelfItem.Kind = watch.playlistId == nil ? .song : .video
             return (kind, videoId, nil, watch.playlistId)
         }
 

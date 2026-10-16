@@ -219,7 +219,7 @@ final class DiscordRPC: @unchecked Sendable {
     /// Canonical music.youtube.com URL for a browse id. Artists resolve to the
     /// `/channel/<id>` page; `VL…` ids are playlists; everything else is a
     /// `/browse/<id>` page (albums, playlists, …).
-    private static func musicURL(browseId: String, kind: HomeItem.Kind) -> String {
+    private static func musicURL(browseId: String, kind: ShelfItem.Kind) -> String {
         if kind == .artist {
             return "\(base)/channel/\(browseId)"
         }

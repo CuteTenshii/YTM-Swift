@@ -5,7 +5,7 @@
 //  Parses the watch-next "Related" browse response into shelves. Unlike Home /
 //  Explore (which nest their shelves under a tab), the related page returns its
 //  section list directly under `contents.sectionListRenderer`. The shelves
-//  themselves use the same carousel / list renderers, so we reuse `HomeShelf`
+//  themselves use the same carousel / list renderers, so we reuse `Shelf`
 //  and `HomeFeedParser.makeItem`. Non-card sections (e.g. the description shelf
 //  and the "About the artist" text block) carry no items and are skipped.
 //
@@ -14,12 +14,12 @@ import Foundation
 
 nonisolated enum RelatedParser {
 
-    static func parse(_ response: BrowseResponse) -> [HomeShelf] {
+    static func parse(_ response: BrowseResponse) -> [Shelf] {
         let sections = response.contents?.sectionListRenderer?.contents ?? []
         return sections.compactMap(shelf(from:))
     }
 
-    private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
+    private static func shelf(from section: BrowseResponse.SectionContent) -> Shelf? {
         if let carousel = section.carousel {
             return makeShelf(
                 title: carousel.title,
@@ -39,10 +39,10 @@ nonisolated enum RelatedParser {
         contents: [CarouselItem]?,
         buttons: [ShelfButton] = [],
         rowsPerColumn: Int = 1
-    ) -> HomeShelf? {
+    ) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(
+        return Shelf(
             title: title.isEmpty ? "Related" : title, items: items, buttons: buttons,
             rowsPerColumn: rowsPerColumn
         )

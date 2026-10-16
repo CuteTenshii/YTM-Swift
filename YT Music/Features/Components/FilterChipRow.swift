@@ -5,29 +5,13 @@
 
 import SwiftUI
 
-/// Horizontal row of selectable filter chips (YT Music style): "All" (no
-/// filter, `nil`) followed by `chips`.
-struct FilterChipRow<Chip: Identifiable & Equatable>: View {
-    let chips: [Chip]
-    let title: KeyPath<Chip, String>
-    let selection: Chip?
-    let select: (Chip?) -> Void
+/// A pill-shaped filter toggle. Selected = solid, otherwise a faint translucent fill.
+struct FilterChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chipButton("All", isSelected: selection == nil) { select(nil) }
-                ForEach(chips) { chip in
-                    chipButton(chip[keyPath: title], isSelected: chip == selection) {
-                        select(chip == selection ? nil : chip)
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-        }
-    }
-
-    private func chipButton(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline.weight(.medium))
@@ -38,5 +22,31 @@ struct FilterChipRow<Chip: Identifiable & Equatable>: View {
                 .clipShape(.capsule)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Horizontal row of selectable filter chips (YT Music style), optionally led by
+/// an "All" chip (no filter, `nil`). Tapping the selected chip deselects it.
+struct FilterChipRow<Chip: Identifiable & Equatable>: View {
+    let chips: [Chip]
+    let title: KeyPath<Chip, String>
+    let selection: Chip?
+    var showsAll = true
+    let select: (Chip?) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if showsAll {
+                    FilterChip(title: "All", isSelected: selection == nil) { select(nil) }
+                }
+                ForEach(chips) { chip in
+                    FilterChip(title: chip[keyPath: title], isSelected: chip == selection) {
+                        select(chip == selection ? nil : chip)
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
     }
 }

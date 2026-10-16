@@ -470,6 +470,9 @@ nonisolated struct MusicCarouselShelfRenderer: Decodable {
 
         struct Basic: Decodable {
             let title: InnerTubeText?
+            /// Small label above the title, with the avatar ("TENSHII" on "Listen again").
+            let strapline: InnerTubeText?
+            let thumbnail: ThumbnailRendererWrapper?
             /// The "More" button beside the shelf title, navigating to a fuller
             /// listing (e.g. all of an artist's albums, or a home feed page).
             let moreContentButton: MoreButton?
@@ -482,6 +485,14 @@ nonisolated struct MusicCarouselShelfRenderer: Decodable {
 
     var title: String {
         header?.musicCarouselShelfBasicHeaderRenderer?.title?.text ?? ""
+    }
+
+    var strapline: String {
+        header?.musicCarouselShelfBasicHeaderRenderer?.strapline?.text ?? ""
+    }
+
+    var avatarURL: URL? {
+        header?.musicCarouselShelfBasicHeaderRenderer?.thumbnail?.bestURL
     }
 
     /// Tappable header buttons ("More", "Play all", …) carried beside the title.
@@ -1060,7 +1071,7 @@ struct NavigationEndpoint: Decodable {
 
         /// The domain kind this browse endpoint targets, if it's one we navigate
         /// to (album / playlist / artist).
-        var kind: HomeItem.Kind? {
+        var kind: ShelfItem.Kind? {
             switch pageType {
             case "MUSIC_PAGE_TYPE_ALBUM":    return .album
             case "MUSIC_PAGE_TYPE_PLAYLIST": return .playlist

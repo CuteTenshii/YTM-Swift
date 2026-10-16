@@ -11,7 +11,7 @@ final class UploadsViewModel {
     enum State {
         case signedOut
         case loading
-        case loaded([HomeShelf])
+        case loaded([Shelf])
         case failed(String)
     }
 
@@ -75,7 +75,7 @@ final class UploadsViewModel {
     /// Deletes an uploaded item (song or album), removing it optimistically and
     /// then server-side via its entity id. Reloads to reflect the true state if
     /// the request fails. No-op for items without a delete token.
-    func delete(_ item: HomeItem) async {
+    func delete(_ item: ShelfItem) async {
         guard let entityId = item.deleteEntityId, case .loaded(var shelves) = state else { return }
         for index in shelves.indices {
             shelves[index].items.removeAll { $0.id == item.id }

@@ -63,7 +63,7 @@ struct SearchContent: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(SearchFilter.allCases) { filter in
-                    FilterChip(title: filter.title, selected: filter == model.filter) {
+                    FilterChip(title: filter.title, isSelected: filter == model.filter) {
                         Task { await model.apply(filter) }
                     }
                 }
@@ -106,7 +106,7 @@ struct SearchContent: View {
         }
     }
 
-    private func shelfList(_ shelves: [HomeShelf]) -> some View {
+    private func shelfList(_ shelves: [Shelf]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 ForEach(shelves) { shelf in
@@ -119,7 +119,7 @@ struct SearchContent: View {
     }
 
     @ViewBuilder
-    private func section(_ shelf: HomeShelf) -> some View {
+    private func section(_ shelf: Shelf) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(shelf.title)
                 .font(.title2.weight(.bold))
@@ -146,7 +146,7 @@ struct SearchContent: View {
 
     /// A shelf renders as a row list when every entry is a playable song/video
     /// (e.g. the "Songs" category), otherwise as an artwork-card grid.
-    private func isTrackShelf(_ shelf: HomeShelf) -> Bool {
+    private func isTrackShelf(_ shelf: Shelf) -> Bool {
         shelf.items.allSatisfy { $0.kind == .song || $0.kind == .video }
     }
 
@@ -192,32 +192,11 @@ struct SearchContent: View {
     }
 }
 
-/// A pill-shaped search filter toggle. Selected = solid white, otherwise a faint
-/// translucent fill.
-private struct FilterChip: View {
-    let title: String
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(selected ? Color.appBackground : Color.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(selected ? Color.primary : Color.primary.opacity(0.12))
-                .clipShape(.capsule)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// A compact song/video result row: tap to play it as a one-off. Mirrors the
-/// entity-page track row but sourced from a search `HomeItem`.
+/// entity-page track row but sourced from a search `ShelfItem`.
 private struct SearchResultRow: View {
     @Environment(PlayerState.self) private var player
-    let item: HomeItem
+    let item: ShelfItem
 
     @State private var hovering = false
 

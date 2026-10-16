@@ -11,7 +11,7 @@ final class RelatedViewModel {
     enum State {
         case idle
         case loading
-        case loaded([HomeShelf])
+        case loaded([Shelf])
         case unavailable
         case failed(String)
     }

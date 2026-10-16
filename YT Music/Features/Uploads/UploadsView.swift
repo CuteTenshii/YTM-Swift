@@ -83,7 +83,7 @@ struct UploadsView: View {
     }
 
     @ViewBuilder
-    private func content(_ shelves: [HomeShelf]) -> some View {
+    private func content(_ shelves: [Shelf]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             uploadBanner
 
@@ -150,7 +150,7 @@ struct UploadsView: View {
     }
 
     /// `showsTitle` is false for a page's only shelf, whose title repeats the page's.
-    private func shelfSection(_ shelf: HomeShelf, showsTitle: Bool) -> some View {
+    private func shelfSection(_ shelf: Shelf, showsTitle: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if showsTitle {
                 Text(shelf.title)

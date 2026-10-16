@@ -42,7 +42,7 @@ struct ExploreView: View {
         .task { await model.loadIfNeeded() }
     }
 
-    private func content(_ shelves: [HomeShelf]) -> some View {
+    private func content(_ shelves: [Shelf]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 32) {
                 ForEach(shelves) { shelf in

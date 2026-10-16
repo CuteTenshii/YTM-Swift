@@ -2,7 +2,7 @@
 //  SearchParser.swift
 //  YT Music
 //
-//  Turns a raw `SearchResponse` into `HomeShelf`s the app already renders. The
+//  Turns a raw `SearchResponse` into `Shelf`s the app already renders. The
 //  default ("everything") search comes back as a flat, relevance-ranked list:
 //  a `musicCardShelfRenderer` top result, then one `itemSectionRenderer` per
 //  result row — no category headers. We re-group those rows by type (Songs,
@@ -98,16 +98,16 @@ nonisolated enum SearchCategory: CaseIterable {
 
 nonisolated enum SearchParser {
 
-    static func parse(_ response: SearchResponse) -> [HomeShelf] {
+    static func parse(_ response: SearchResponse) -> [Shelf] {
         let sections = response.contents?
             .tabbedSearchResultsRenderer?
             .tabs?.first?
             .tabRenderer?.content?
             .sectionListRenderer?.contents ?? []
 
-        var topResult: HomeItem?
-        var grouped: [HomeShelf] = []
-        var byCategory: [SearchCategory: [HomeItem]] = [:]
+        var topResult: ShelfItem?
+        var grouped: [Shelf] = []
+        var byCategory: [SearchCategory: [ShelfItem]] = [:]
 
         for section in sections {
             if let card = section.musicCardShelfRenderer {
@@ -130,13 +130,13 @@ nonisolated enum SearchParser {
             }
         }
 
-        var shelves: [HomeShelf] = []
+        var shelves: [Shelf] = []
         if let topResult {
-            shelves.append(HomeShelf(title: "Top result", items: [topResult]))
+            shelves.append(Shelf(title: "Top result", items: [topResult]))
         }
         for category in SearchCategory.allCases {
             if let items = byCategory[category], !items.isEmpty {
-                shelves.append(HomeShelf(title: category.title, items: items))
+                shelves.append(Shelf(title: category.title, items: items))
             }
         }
         shelves += grouped
@@ -171,13 +171,13 @@ nonisolated enum SearchParser {
 
     // MARK: - Shelves
 
-    private static func makeShelf(title: String, contents: [CarouselItem]?) -> HomeShelf? {
+    private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0).map(stripType) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: title.isEmpty ? "Results" : title, items: items)
+        return Shelf(title: title.isEmpty ? "Results" : title, items: items)
     }
 
-    private static func makeTopResult(_ card: MusicCardShelfRenderer) -> HomeItem? {
+    private static func makeTopResult(_ card: MusicCardShelfRenderer) -> ShelfItem? {
         HomeFeedParser.makeItem(
             title: card.title?.text ?? "",
             subtitle: card.subtitle?.text ?? "",
@@ -191,7 +191,7 @@ nonisolated enum SearchParser {
     /// Drops the leading content-type token ("Song" / "Album" / "Artist" / …)
     /// from a result's subtitle; the category shelf header already conveys the
     /// type, so repeating it on every row is noise.
-    private static func stripType(_ item: HomeItem) -> HomeItem {
+    private static func stripType(_ item: ShelfItem) -> ShelfItem {
         var item = item
         var parts = item.subtitle.components(separatedBy: " • ")
         let labels: Set<String> = [

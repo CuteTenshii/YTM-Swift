@@ -6,7 +6,7 @@
 //  signed-in user's uploaded music — into shelves. Structurally identical to the
 //  library landing: a grid of uploaded albums, a carousel of uploaded artists,
 //  and a flat list shelf of uploaded songs, all built from the same card
-//  renderers as Home, so we reuse `HomeShelf` / `HomeItem` and
+//  renderers as Home, so we reuse `Shelf` / `ShelfItem` and
 //  `HomeFeedParser.makeItem`.
 //
 
@@ -14,7 +14,7 @@ import Foundation
 
 nonisolated enum UploadsParser {
 
-    static func parse(_ response: BrowseResponse) -> [HomeShelf] {
+    static func parse(_ response: BrowseResponse) -> [Shelf] {
         sections(in: response).compactMap(shelf(from:))
     }
 
@@ -48,7 +48,7 @@ nonisolated enum UploadsParser {
         return chosen.map(contents) ?? []
     }
 
-    private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
+    private static func shelf(from section: BrowseResponse.SectionContent) -> Shelf? {
         if let grid = section.gridRenderer {
             return makeShelf(title: grid.title, contents: grid.items)
         }
@@ -61,9 +61,9 @@ nonisolated enum UploadsParser {
         return nil
     }
 
-    private static func makeShelf(title: String, contents: [CarouselItem]?) -> HomeShelf? {
+    private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: title.isEmpty ? "Uploads" : title, items: items)
+        return Shelf(title: title.isEmpty ? "Uploads" : title, items: items)
     }
 }

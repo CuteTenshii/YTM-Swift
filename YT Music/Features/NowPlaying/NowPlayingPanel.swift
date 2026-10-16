@@ -368,7 +368,7 @@ private struct RelatedView: View {
 
     /// A browsable item (album/playlist/artist) opens its page; a song/video
     /// plays. Items that are neither do nothing.
-    private func select(_ item: HomeItem) {
+    private func select(_ item: ShelfItem) {
         if let destination = item.entityDestination {
             navigate(destination)
         } else if let videoId = item.videoId {
@@ -465,8 +465,8 @@ private struct SongInsightCard: View {
 /// One related shelf: its title, then its items as a wrapping card grid (like
 /// YT Music's Related tab). The grid adapts its column count to the panel width.
 private struct RelatedShelfView: View {
-    let shelf: HomeShelf
-    let onSelect: (HomeItem) -> Void
+    let shelf: Shelf
+    let onSelect: (ShelfItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -514,7 +514,7 @@ private struct RelatedShelfView: View {
 
 /// A compact related row: artwork beside its title and subtitle.
 private struct RelatedRow: View {
-    let item: HomeItem
+    let item: ShelfItem
     let onSelect: () -> Void
 
     @State private var hovering = false
@@ -568,7 +568,7 @@ private struct RelatedRow: View {
 /// Home's `ItemCard` layout, but taps run the panel's select closure (play or
 /// navigate) instead of a `NavigationLink`, which is inert outside the nav stack.
 private struct RelatedCard: View {
-    let item: HomeItem
+    let item: ShelfItem
     let onSelect: () -> Void
 
     private let artworkSize: CGFloat = 132

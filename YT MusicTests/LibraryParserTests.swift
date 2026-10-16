@@ -162,13 +162,13 @@ struct LibraryParserTests {
         func track(_ id: String, _ index: Int) -> Track {
             Track(index: index, title: id, subtitle: "", duration: nil, thumbnailURL: nil, videoId: id)
         }
-        func item(_ id: String) -> HomeItem {
-            HomeItem(title: id, subtitle: "", thumbnailURL: nil, kind: .playlist,
+        func item(_ id: String) -> ShelfItem {
+            ShelfItem(title: id, subtitle: "", thumbnailURL: nil, kind: .playlist,
                      videoId: nil, browseId: id, playlistId: nil)
         }
-        let first = LibraryPage(shelves: [HomeShelf(title: "Library", items: [item("a")])],
+        let first = LibraryPage(shelves: [Shelf(title: "Library", items: [item("a")])],
                                 tracks: [track("x", 1), track("y", 2)], continuation: "T1")
-        let next = LibraryPage(shelves: [HomeShelf(title: "", items: [item("b")])],
+        let next = LibraryPage(shelves: [Shelf(title: "", items: [item("b")])],
                                tracks: [track("z", 1)], continuation: nil)
 
         let merged = first.appending(next)

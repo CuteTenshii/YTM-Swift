@@ -561,7 +561,7 @@ struct EntityPageParserTests {
 @MainActor
 struct PlaylistSaveTests {
 
-    private func model(browseId: String, kind: HomeItem.Kind) -> EntityViewModel {
+    private func model(browseId: String, kind: ShelfItem.Kind) -> EntityViewModel {
         EntityViewModel(destination: EntityDestination(
             browseId: browseId, kind: kind, title: "", subtitle: "", thumbnailURL: nil
         ))

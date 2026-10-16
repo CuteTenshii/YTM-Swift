@@ -15,7 +15,7 @@ import Foundation
 @Suite("Home feed parser")
 struct HomeFeedParserTests {
 
-    private func card(_ json: String) throws -> HomeItem {
+    private func card(_ json: String) throws -> ShelfItem {
         let item = try JSONDecoder().decode(CarouselItem.self, from: Data(json.utf8))
         return try #require(HomeFeedParser.makeItem(from: item))
     }

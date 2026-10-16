@@ -8,11 +8,11 @@ import Foundation
 /// One page of a library listing: the landing page or a chip's (Playlists,
 /// Songs, …) page, or a continuation of either.
 struct LibraryPage: Sendable {
-    var shelves: [HomeShelf]
+    var shelves: [Shelf]
     /// Song listings, as playlist-style track rows.
     var tracks: [Track] = []
     /// The filter chips in the page header; empty for continuations.
-    var chips: [HomeChip] = []
+    var chips: [FeedChip] = []
     var continuation: String?
 
     var isEmpty: Bool { shelves.allSatisfy(\.items.isEmpty) && tracks.isEmpty }

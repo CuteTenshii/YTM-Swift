@@ -16,7 +16,7 @@ struct HomeView: View {
     @State private var searchModel = SearchViewModel()
     @State private var searchText = ""
     @State private var showingSearch = false
-    @State private var selectedChip: HomeChip?
+    @State private var selectedChip: FeedChip?
 
     var body: some View {
         @Bindable var navigator = navigator
@@ -92,29 +92,10 @@ struct HomeView: View {
         }
     }
 
-    private func chipRow(_ chips: [HomeChip]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(chips) { chip in
-                    Button {
-                        let deselecting = selectedChip == chip
-                        selectedChip = deselecting ? nil : chip
-                        Task { await model.load(chip: deselecting ? nil : chip, inPlace: true) }
-                    } label: {
-                        Text(chip.title)
-                            .font(.callout.weight(.medium))
-                            .foregroundStyle(selectedChip == chip ? Color.appBackground : .primary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(selectedChip == chip ? Color.primary : Color.primary.opacity(0.12))
-                            .clipShape(.capsule)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            // Inset inside the scroll content (the ShelfView pattern) so the
-            // row still runs edge-to-edge and slides beneath the sidebar.
-            .padding(.horizontal, 24)
+    private func chipRow(_ chips: [FeedChip]) -> some View {
+        FilterChipRow(chips: chips, title: \.title, selection: selectedChip, showsAll: false) { chip in
+            selectedChip = chip
+            Task { await model.load(chip: chip, inPlace: true) }
         }
     }
 

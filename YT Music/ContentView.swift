@@ -221,7 +221,7 @@ private struct SidebarLibraryItems: View {
         }
     }
 
-    private func open(_ item: HomeItem) {
+    private func open(_ item: ShelfItem) {
         if let destination = item.entityDestination {
             navigator.section = .library
             navigator.open(destination)

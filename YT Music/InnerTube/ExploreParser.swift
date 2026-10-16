@@ -4,7 +4,7 @@
 //
 //  Parses the `FEmusic_explore` browse response into shelves. Explore uses the
 //  same single-column layout and carousel/grid renderers as Home and Library
-//  (new releases, charts, trending, top music videos), so we reuse `HomeShelf`
+//  (new releases, charts, trending, top music videos), so we reuse `Shelf`
 //  and `HomeFeedParser.makeItem`. The mood/genre chip grids (built from
 //  `musicNavigationButtonRenderer`, which carries no card) yield no items and are
 //  skipped.
@@ -14,7 +14,7 @@ import Foundation
 
 nonisolated enum ExploreParser {
 
-    static func parse(_ response: BrowseResponse) -> [HomeShelf] {
+    static func parse(_ response: BrowseResponse) -> [Shelf] {
         let sections = response.contents?
             .singleColumnBrowseResultsRenderer?
             .tabs?.first?
@@ -24,7 +24,7 @@ nonisolated enum ExploreParser {
         return sections.compactMap(shelf(from:))
     }
 
-    private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
+    private static func shelf(from section: BrowseResponse.SectionContent) -> Shelf? {
         if let carousel = section.carousel {
             return makeShelf(
                 title: carousel.title,
@@ -44,10 +44,10 @@ nonisolated enum ExploreParser {
         contents: [CarouselItem]?,
         buttons: [ShelfButton] = [],
         rowsPerColumn: Int = 1
-    ) -> HomeShelf? {
+    ) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return HomeShelf(
+        return Shelf(
             title: title.isEmpty ? "Explore" : title, items: items, buttons: buttons,
             rowsPerColumn: rowsPerColumn
         )

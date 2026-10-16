@@ -5,7 +5,7 @@
 //  Parses the library browse pages (`FEmusic_library_landing` and each filter
 //  chip's page, e.g. `FEmusic_liked_playlists`) into shelves. They mix grids
 //  (playlists/albums) and flat list shelves (songs/artists), all built from the
-//  same card renderers as Home, so we reuse `HomeShelf` / `HomeItem` and
+//  same card renderers as Home, so we reuse `Shelf` / `ShelfItem` and
 //  `HomeFeedParser.makeItem`. Each listing is paginated via continuations.
 //
 
@@ -28,7 +28,7 @@ nonisolated enum LibraryParser {
             .compactMap { $0.gridRenderer?.continuationToken ?? $0.listShelf?.continuationToken }
             .first
 
-        var shelves: [HomeShelf] = []
+        var shelves: [Shelf] = []
         var tracks: [Track] = []
         for section in sections {
             if let list = section.listShelf, isSongList(list.contents) {
@@ -51,7 +51,7 @@ nonisolated enum LibraryParser {
         }
         let items = playableItems(grid?.items ?? list?.contents)
         return LibraryPage(
-            shelves: items.isEmpty ? [] : [HomeShelf(title: "", items: items)],
+            shelves: items.isEmpty ? [] : [Shelf(title: "", items: items)],
             continuation: continuation
         )
     }
@@ -74,16 +74,16 @@ nonisolated enum LibraryParser {
             }
     }
 
-    private static func chip(from chip: ChipCloudRenderer.Chip) -> HomeChip? {
+    private static func chip(from chip: ChipCloudRenderer.Chip) -> FeedChip? {
         guard let renderer = chip.chipCloudChipRenderer,
               let title = renderer.text?.text, !title.isEmpty,
               let browse = renderer.navigationEndpoint?.browse,
               let browseId = browse.browseId else { return nil }
-        return HomeChip(id: "\(browseId)|\(browse.params ?? title)", title: title,
+        return FeedChip(id: "\(browseId)|\(browse.params ?? title)", title: title,
                         browseId: browseId, params: browse.params)
     }
 
-    private static func shelf(from section: BrowseResponse.SectionContent) -> HomeShelf? {
+    private static func shelf(from section: BrowseResponse.SectionContent) -> Shelf? {
         if let grid = section.gridRenderer {
             return makeShelf(title: grid.title, contents: grid.items)
         }
@@ -96,15 +96,15 @@ nonisolated enum LibraryParser {
         return nil
     }
 
-    private static func makeShelf(title: String, contents: [CarouselItem]?) -> HomeShelf? {
+    private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = playableItems(contents)
         guard !items.isEmpty else { return nil }
-        return HomeShelf(title: title.isEmpty ? "Library" : title, items: items)
+        return Shelf(title: title.isEmpty ? "Library" : title, items: items)
     }
 
     /// Drops action tiles ("New playlist", "Shuffle all", "Add podcast") that
     /// neither play nor open a page.
-    private static func playableItems(_ contents: [CarouselItem]?) -> [HomeItem] {
+    private static func playableItems(_ contents: [CarouselItem]?) -> [ShelfItem] {
         (contents ?? [])
             .compactMap { HomeFeedParser.makeItem(from: $0) }
             .filter { $0.videoId != nil || $0.browseId != nil }
