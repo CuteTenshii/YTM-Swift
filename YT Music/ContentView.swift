@@ -355,8 +355,9 @@ private struct NowPlayingBar: View {
         VStack(spacing: 0) {
             Divider().overlay(.primary.opacity(0.1))
             HStack(spacing: 16) {
-                // Left and right clusters share a fixed width so the transport
-                // controls between the two Spacers stay truly centered.
+                // Left and right clusters grow equally around the fixed-size
+                // transport block, so it stays centered and the track info gets
+                // all the spare width.
                 HStack(spacing: 14) {
                     trackInfo
                     if isSignedIn || votes != nil {
@@ -364,9 +365,7 @@ private struct NowPlayingBar: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .frame(width: sideWidth, alignment: .leading)
-
-                Spacer(minLength: 12)
+                .frame(minWidth: sideWidth, maxWidth: .infinity, alignment: .leading)
 
                 // Transport controls sit directly above the scrubber.
                 VStack(spacing: 6) {
@@ -374,8 +373,7 @@ private struct NowPlayingBar: View {
                     scrubber
                 }
                 .frame(maxWidth: 520)
-
-                Spacer(minLength: 12)
+                .layoutPriority(1)
 
                 HStack(spacing: 16) {
                     Spacer(minLength: 0)
@@ -388,7 +386,7 @@ private struct NowPlayingBar: View {
                     panelButton(player.isEpisode ? .details : .lyrics)
                     immersiveLyricsButton
                 }
-                .frame(width: sideWidth, alignment: .trailing)
+                .frame(minWidth: sideWidth, maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -429,8 +427,8 @@ private struct NowPlayingBar: View {
         .help(tab.rawValue)
     }
 
-    /// Equal width reserved for the track-info (left) and volume (right)
-    /// clusters, so the centered transport block lands at the true midpoint.
+    /// Minimum width of the track-info (left) and volume (right) clusters; they
+    /// grow equally from here so the transport block stays at the midpoint.
     private let sideWidth: CGFloat = 300
 
     // MARK: - Track info (with clickable artists / album)
