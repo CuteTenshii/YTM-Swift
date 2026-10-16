@@ -362,10 +362,24 @@ nonisolated struct ItemSectionRenderer: Decodable {
 /// The "top result" hero card at the head of a search response. Its tap target
 /// (artist/album/song) lives in `onTap`.
 nonisolated struct MusicCardShelfRenderer: Decodable {
+    let header: Header?
     let title: InnerTubeText?
     let subtitle: InnerTubeText?
     let thumbnail: ThumbnailRendererWrapper?
     let onTap: NavigationEndpoint?
+
+    struct Header: Decodable {
+        let musicCardShelfHeaderBasicRenderer: Basic?
+
+        struct Basic: Decodable {
+            let title: InnerTubeText?
+        }
+    }
+
+    /// The shelf's own heading ("Personal mix"), distinct from the card's title.
+    var headerTitle: String {
+        header?.musicCardShelfHeaderBasicRenderer?.title?.text ?? ""
+    }
 }
 
 /// A wrapping grid of cards. Used by the Library landing page.

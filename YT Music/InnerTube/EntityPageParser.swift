@@ -44,6 +44,16 @@ nonisolated enum EntityPageParser {
                 continuationToken = shelf.continuationToken ?? continuationToken
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
+            } else if let card = section.musicCardShelfRenderer {
+                // A single highlighted item, like a profile's "Personal mix".
+                if let item = HomeFeedParser.makeItem(
+                    title: card.title?.text ?? "",
+                    subtitle: card.subtitle?.text ?? "",
+                    thumbnailURL: card.thumbnail?.bestURL,
+                    endpoint: card.onTap
+                ) {
+                    shelves.append(HomeShelf(title: card.headerTitle.isEmpty ? "More" : card.headerTitle, items: [item]))
+                }
             } else if let grid = section.gridRenderer {
                 // Feed pages (e.g. a shelf's "More" → "Listen again") lay their
                 // content out as grids rather than carousels.

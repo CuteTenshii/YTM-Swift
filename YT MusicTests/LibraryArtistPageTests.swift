@@ -37,3 +37,28 @@ struct LibraryArtistPageTests {
         #expect(page.sortOptions[1].action == .browse(browseId: "MPLAUC1", params: "p2"))
     }
 }
+
+@Suite("Profile card shelf")
+struct ProfileCardShelfTests {
+    @Test("A card shelf becomes a one-item shelf titled by its header")
+    func personalMix() throws {
+        let json = """
+        {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+          {"musicCardShelfRenderer":{
+            "header":{"musicCardShelfHeaderBasicRenderer":{"title":{"runs":[{"text":"Personal mix"}]}}},
+            "title":{"runs":[{"text":"My Mix"}]},
+            "subtitle":{"runs":[{"text":"Based on your recent music"}]},
+            "onTap":{"browseEndpoint":{"browseId":"VLRDATjuUC1",
+              "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}
+          }}]}}}}]}}}
+        """
+        let response = try JSONDecoder().decode(EntityBrowseResponse.self, from: Data(json.utf8))
+        let destination = EntityDestination(browseId: "UC1", kind: .profile, title: "Me", subtitle: "", thumbnailURL: nil)
+        let page = EntityPageParser.parse(response, fallback: destination)
+        let shelf = try #require(page.shelves.first)
+        #expect(shelf.title == "Personal mix")
+        #expect(shelf.items.map(\.title) == ["My Mix"])
+        #expect(shelf.items.first?.kind == .playlist)
+        #expect(shelf.items.first?.browseId == "VLRDATjuUC1")
+    }
+}
