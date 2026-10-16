@@ -127,7 +127,7 @@ struct EntityView: View {
                             .sectionSpacing()
                     }
                 } else {
-                    HeaderView(header: page.header, tracks: page.tracks,
+                    HeaderView(header: page.header, tracks: page.tracks, shufflePlaylistId: page.shufflePlaylistId,
                                album: album, model: model, topInset: topInset)
                         .sectionSpacing()
 
@@ -370,6 +370,7 @@ private struct HeaderView: View {
     @Environment(Navigator.self) private var navigator
     let header: EntityHeader
     let tracks: [Track]
+    let shufflePlaylistId: String?
     let album: String
     let model: EntityViewModel
     /// Height of the window titlebar the header extends under, so its content
@@ -630,7 +631,7 @@ private struct HeaderView: View {
     @ViewBuilder
     private var actions: some View {
         if !tracks.isEmpty || showsSubscribe || showsSave || header.artistPage?.radioPlaylistId != nil
-            || header.artistPage?.startRadioPlaylistId != nil {
+            || header.artistPage?.startRadioPlaylistId != nil || shufflePlaylistId != nil {
             HStack(spacing: 12) {
                 if !tracks.isEmpty {
                     Button {
@@ -649,6 +650,17 @@ private struct HeaderView: View {
                         player.playAll(videoId: nil, playlistId: radioPlaylistId)
                     } label: {
                         Label("Shuffle", systemImage: "shuffle")
+                            .font(.headline)
+                            .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let shufflePlaylistId {
+                    Button {
+                        player.playAll(videoId: nil, playlistId: shufflePlaylistId, shuffled: true)
+                    } label: {
+                        Label("Shuffle all", systemImage: "shuffle")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }

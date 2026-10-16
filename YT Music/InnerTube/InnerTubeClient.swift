@@ -320,6 +320,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityPageParser.parseTrackReload(response, header: header)
     }
 
+    /// Reloads a page through a sort dropdown entry (`browseId` + `params`).
+    func entityReload(browseId: String, params: String, fallback: EntityDestination) async throws -> EntityPage {
+        let response: EntityBrowseResponse = try await post("browse", body: ["browseId": browseId, "params": params])
+        return EntityPageParser.parse(response, fallback: fallback)
+    }
+
     /// Loads the complete lightweight playlist index used by playlist search.
     /// This contains names and IDs, not full browse rows, so it does not create
     /// thousands of SwiftUI views or eagerly load artwork.

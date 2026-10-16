@@ -392,6 +392,40 @@ struct MusicShelfRenderer: Decodable {
     let header: BrowseResponse.SectionList.Header?
     let contents: [CarouselItem]?
     let continuations: [BrowseContinuation]?
+    /// Library artist pages put their sort dropdown here.
+    let subheaders: [Subheader]?
+
+    struct Subheader: Decodable {
+        let musicSideAlignedItemRenderer: SideAligned?
+
+        struct SideAligned: Decodable {
+            let startItems: [StartItem]?
+        }
+
+        struct StartItem: Decodable {
+            let dropdownRenderer: Dropdown?
+        }
+
+        struct Dropdown: Decodable {
+            let entries: [Entry]?
+        }
+
+        struct Entry: Decodable {
+            let dropdownItemRenderer: Item?
+        }
+
+        struct Item: Decodable {
+            let label: InnerTubeText?
+            let isSelected: Bool?
+            let onSelectCommand: NavigationEndpoint?
+        }
+    }
+
+    var dropdownItems: [Subheader.Item] {
+        (subheaders ?? []).compactMap(\.musicSideAlignedItemRenderer).flatMap { $0.startItems ?? [] }
+            .compactMap(\.dropdownRenderer).flatMap { $0.entries ?? [] }
+            .compactMap(\.dropdownItemRenderer)
+    }
 
     var continuationToken: String? {
         continuations?.first?.nextContinuationData?.continuation

@@ -27,11 +27,17 @@ nonisolated enum EntityPageParser {
         var continuationToken = continuationToken(from: response.contents)
         var sortOptions: [PlaylistSortOption] = []
         var isManuallyOrdered = false
+        var shufflePlaylistId: String?
 
         for section in sections {
             if let shelf = section.listShelf {
                 if sortOptions.isEmpty {
                     sortOptions = self.sortOptions(shelf.header, updates: response.frameworkUpdates)
+                }
+                shufflePlaylistId = shufflePlaylistId ?? shelf.contents?
+                    .lazy.compactMap { $0.musicResponsiveListItemRenderer?.navigationEndpoint?.watchPlaylistEndpoint?.playlistId }.first
+                if sortOptions.isEmpty {
+                    sortOptions = dropdownSortOptions(shelf)
                 }
                 isManuallyOrdered = isManuallyOrdered || self.isManuallyOrdered(shelf.header)
                 tracks.append(contentsOf: parseTracks(shelf, startIndex: tracks.count + 1, header: header))
@@ -52,6 +58,7 @@ nonisolated enum EntityPageParser {
             tracks: tracks,
             shelves: shelves,
             continuationToken: continuationToken,
+            shufflePlaylistId: shufflePlaylistId,
             isManuallyOrdered: isManuallyOrdered,
             shareURL: response.microformat?.microformatDataRenderer?.urlCanonical.flatMap(URL.init(string:)),
             filters: filters(chipCloud),
@@ -76,6 +83,16 @@ nonisolated enum EntityPageParser {
             filters: filters(section?.header?.chipCloudRenderer),
             sortOptions: shelfSort.isEmpty ? popupSortOptions(section?.header?.chipCloudRenderer) : shelfSort
         )
+    }
+
+    private static func dropdownSortOptions(_ shelf: MusicShelfRenderer) -> [PlaylistSortOption] {
+        shelf.dropdownItems.compactMap { item in
+            guard let title = item.label?.text, !title.isEmpty,
+                  let browse = item.onSelectCommand?.browseEndpoint,
+                  let browseId = browse.browseId, let params = browse.params else { return nil }
+            return PlaylistSortOption(title: title, action: .browse(browseId: browseId, params: params),
+                                      isSelected: item.isSelected ?? false)
+        }
     }
 
     /// A podcast show's sort chip: its popup menu lists the orders, the current
@@ -351,7 +368,8 @@ nonisolated enum EntityPageParser {
                     likeStatus: episode.menu?.likeStatus ?? .indifferent
                 )
             }
-            guard let row = item.musicResponsiveListItemRenderer else { return nil }
+            guard let row = item.musicResponsiveListItemRenderer,
+                  row.navigationEndpoint?.watchPlaylistEndpoint == nil else { return nil }
             let columns = row.textColumns
             guard let title = columns.first else { return nil }
 

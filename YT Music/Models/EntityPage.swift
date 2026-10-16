@@ -58,6 +58,8 @@ struct PlaylistSortOption: Identifiable, Hashable, Sendable {
     enum Action: Hashable, Sendable {
         /// Reloads the track list from a continuation token.
         case reload(String)
+        /// Reloads the page with a different `params` (library artist sorts).
+        case browse(browseId: String, params: String)
         /// Changes an owned playlist's saved order.
         case edit(PlaylistSortEdit)
     }
@@ -74,6 +76,8 @@ struct EntityPage: Sendable {
     var tracks: [Track]
     var shelves: [HomeShelf]   // artist albums/singles/related, etc.
     var continuationToken: String? = nil
+    /// Playlist behind the page's "Shuffle all" row, when it has one.
+    var shufflePlaylistId: String? = nil
     /// Whether the playlist's sort menu has "Manual ordering" selected, the
     /// only order in which its tracks can be rearranged.
     var isManuallyOrdered = false

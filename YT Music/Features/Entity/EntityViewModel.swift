@@ -118,6 +118,10 @@ final class EntityViewModel {
         switch option.action {
         case .reload(let token):
             await reloadTracks(token)
+        case .browse(let browseId, let params):
+            await reloadTracks {
+                try await self.client.entityReload(browseId: browseId, params: params, fallback: self.destination)
+            }
         case .edit(let edit):
             guard let playlistId = editablePlaylistId else { return }
             isReloadingTracks = true
@@ -156,10 +160,14 @@ final class EntityViewModel {
     /// new selection) with a reload. The latest request wins.
     private func reloadTracks(_ token: String) async {
         guard case .loaded(let page) = state else { return }
+        await reloadTracks { try await self.client.entityTrackReload(token, header: page.header) }
+    }
+
+    private func reloadTracks(_ load: () async throws -> EntityPage) async {
         reloadGeneration += 1
         let generation = reloadGeneration
         isReloadingTracks = true
-        let reload = try? await client.entityTrackReload(token, header: page.header)
+        let reload = try? await load()
         guard generation == reloadGeneration else { return }
         isReloadingTracks = false
         guard let reload, case .loaded(var current) = state else { return }
