@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.0 - 2026-10-16
+
+### New
+
+- Podcasts: playback speed, skip back 15 and forward 30 seconds, an episode Details tab, and show pages with episodes
+- Dislike button that skips to the next track, and a Return YouTube Dislike plugin with like and dislike counts
+- SponsorBlock plugin that skips non-music sections and sponsors
+- "In Your Library" pages for artists, with sorting and Shuffle all
+- Personal mix and other card shelves on profile pages
+- Shelf headers show their avatar and label, such as your account on Listen again
+- Tap a selected filter chip to deselect it
+- Account menu links to your profile and opens Settings
+- Choose single or double click to play tracks
+- Linkable descriptions, audience and pronouns on artist pages, and a Mix button
+
+### Fixes
+
+- Premium accounts are detected from the membership page
+- Scrolling vertically over a shelf scrolls the page
+- The track title in the playback bar uses the spare width instead of cutting off early
+
 ## 1.1.0 - 2026-10-08
 
 ### New

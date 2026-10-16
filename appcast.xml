@@ -6,6 +6,36 @@
         <description>Updates for YouTube Music, a native macOS client.</description>
         <language>en</language>
         <item>
+            <title>1.2.0</title>
+            <link>https://git.tenshii.moe/Tenshii/YTM-Swift/releases/tag/v1.2.0</link>
+            <sparkle:fullReleaseNotesLink>https://git.tenshii.moe/Tenshii/YTM-Swift/raw/branch/master/CHANGELOG.md</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[
+### New
+
+- Podcasts: playback speed, skip back 15 and forward 30 seconds, an episode Details tab, and show pages with episodes
+- Dislike button that skips to the next track, and a Return YouTube Dislike plugin with like and dislike counts
+- SponsorBlock plugin that skips non-music sections and sponsors
+- "In Your Library" pages for artists, with sorting and Shuffle all
+- Personal mix and other card shelves on profile pages
+- Shelf headers show their avatar and label, such as your account on Listen again
+- Tap a selected filter chip to deselect it
+- Account menu links to your profile and opens Settings
+- Choose single or double click to play tracks
+- Linkable descriptions, audience and pronouns on artist pages, and a Mix button
+
+### Fixes
+
+- Premium accounts are detected from the membership page
+- Scrolling vertically over a shelf scrolls the page
+- The track title in the playback bar uses the spare width instead of cutting off early
+]]></description>
+            <pubDate>Fri, 16 Oct 2026 10:45:56 +0200</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://git.tenshii.moe/Tenshii/YTM-Swift/releases/download/v1.2.0/YouTube%20Music%201.2.0.dmg" length="4603647" type="application/octet-stream" sparkle:edSignature="lYnxMKqVxqF648XHdG1KCIMXwINqbKE8AM/LQW44MXhT67Y2m+LENzigCoDMxaiqbhFj2B5+Wb50/wqU2Gt3CA=="/>
+        </item>
+        <item>
             <title>1.1.0</title>
             <link>https://git.tenshii.moe/Tenshii/YTM-Swift/releases/tag/v1.1.0</link>
             <sparkle:fullReleaseNotesLink>https://git.tenshii.moe/Tenshii/YTM-Swift/raw/branch/master/CHANGELOG.md</sparkle:fullReleaseNotesLink>
