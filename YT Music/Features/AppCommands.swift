@@ -63,6 +63,10 @@ struct MediaCommands: Commands {
             Button("Like Song") { player.toggleLike() }
                 .keyboardShortcut("l", modifiers: .command)
                 .disabled(nothingPlaying)
+
+            Button("Dislike Song") { player.toggleDislike() }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+                .disabled(nothingPlaying)
         }
 
         // MARK: View (inspector panels)

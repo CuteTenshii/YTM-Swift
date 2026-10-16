@@ -322,6 +322,7 @@ private enum AvatarBadge {
 
 /// Persistent transport bar reflecting the current track and playback state.
 private struct NowPlayingBar: View {
+    @Environment(PluginHost.self) private var pluginHost
     let player: PlayerState
     /// Whether the user is signed in (the like action requires a session).
     let isSignedIn: Bool
@@ -341,8 +342,8 @@ private struct NowPlayingBar: View {
                 // controls between the two Spacers stay truly centered.
                 HStack(spacing: 14) {
                     trackInfo
-                    if isSignedIn {
-                        likeButton
+                    if isSignedIn || votes != nil {
+                        ratingControls
                     }
                     Spacer(minLength: 0)
                 }
@@ -496,16 +497,41 @@ private struct NowPlayingBar: View {
 
     // MARK: - Like
 
-    private var likeButton: some View {
-        let liked = player.likeStatus == .liked
-        return Button(action: player.toggleLike) {
-            Image(systemName: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(liked ? Color.red : Color.secondary)
+    private var votes: VoteCounts? {
+        pluginHost.enabled(ReturnYouTubeDislikePlugin.self)?.votes
+    }
+
+    private var ratingControls: some View {
+        HStack(spacing: 10) {
+            ratingButton(
+                icon: "hand.thumbsup", filledIcon: "hand.thumbsup.fill",
+                isOn: player.likeStatus == .liked, count: votes?.likes,
+                help: player.likeStatus == .liked ? "Remove from liked songs" : "Like",
+                action: player.toggleLike)
+            ratingButton(
+                icon: "hand.thumbsdown", filledIcon: "hand.thumbsdown.fill",
+                isOn: player.likeStatus == .disliked, count: votes?.dislikes,
+                help: player.likeStatus == .disliked ? "Remove dislike" : "Dislike",
+                action: player.toggleDislike)
+        }
+    }
+
+    private func ratingButton(icon: String, filledIcon: String, isOn: Bool, count: Int?,
+                              help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: isOn ? filledIcon : icon)
+                    .font(.system(size: 15, weight: .semibold))
+                if let count {
+                    Text(count, format: .number.notation(.compactName))
+                        .font(.caption.monospacedDigit())
+                }
+            }
+            .foregroundStyle(isOn ? Color.red : Color.secondary)
         }
         .buttonStyle(.plain)
-        .disabled(player.isUpdatingLike)
-        .help(liked ? "Remove from liked songs" : "Like")
+        .disabled(!isSignedIn || player.isUpdatingLike)
+        .help(help)
     }
 
     // MARK: - Transport

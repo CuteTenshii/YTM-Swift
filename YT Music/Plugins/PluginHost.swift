@@ -31,6 +31,11 @@ final class PluginHost {
 
     func isEnabled(_ plugin: any Plugin) -> Bool { enabledIDs.contains(plugin.id) }
 
+    /// The registered plugin of type `T`, only while it is enabled.
+    func enabled<T: Plugin>(_ type: T.Type) -> T? {
+        plugins.lazy.compactMap { $0 as? T }.first { enabledIDs.contains($0.id) }
+    }
+
     func setEnabled(_ enabled: Bool, for plugin: any Plugin) {
         if enabled { enabledIDs.insert(plugin.id) } else { enabledIDs.remove(plugin.id) }
         defaults.set(Array(enabledIDs), forKey: storageKey)

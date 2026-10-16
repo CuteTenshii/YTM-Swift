@@ -53,6 +53,7 @@ struct YT_MusicApp: App {
             LastfmPlugin(),
             DownloaderPlugin(downloader: downloader),
             SponsorBlockPlugin(player: player),
+            ReturnYouTubeDislikePlugin(),
         ]
         _pluginHost = State(initialValue: PluginHost(plugins: plugins))
     }

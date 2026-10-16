@@ -651,13 +651,19 @@ final class PlayerState {
     }
 
     /// Likes the current track, or removes the like if it's already liked.
-    /// Updates the UI optimistically and reverts if the request fails (e.g.
+    /// Rating changes update the UI optimistically and reverts if the request fails (e.g.
     /// signed out). No-op while a previous like request is still in flight.
-    func toggleLike() {
+    func toggleLike() { toggleRating(.liked) }
+
+    /// Dislikes the current track and skips to the next one, or removes the
+    /// dislike if it's already disliked.
+    func toggleDislike() { toggleRating(.disliked) }
+
+    private func toggleRating(_ rating: LikeStatus) {
         guard let videoId = nowPlaying?.videoId, !isUpdatingLike else { return }
         likeInteracted = true
         let previous = likeStatus
-        let target: LikeStatus = likeStatus == .liked ? .indifferent : .liked
+        let target: LikeStatus = likeStatus == rating ? .indifferent : rating
         likeStatus = target
         likeStatusCache[videoId] = target
         isUpdatingLike = true
@@ -671,6 +677,7 @@ final class PlayerState {
                 if nowPlaying?.videoId == videoId { likeStatus = previous }
             }
         }
+        if target == .disliked { next() }
     }
 
     /// Refreshes `likeStatus` from the server for `videoId`. Applied only if the

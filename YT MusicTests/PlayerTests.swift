@@ -1282,6 +1282,43 @@ struct PlayerStateLikeTests {
         #expect(like.calls.last?.status == .indifferent)
     }
 
+    @Test("toggleDislike replaces a like, and a second toggle clears it")
+    func dislikes() async {
+        let like = FakeLikeProvider()
+        let p = player(like)
+        p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        p.toggleLike()
+        await eventually { like.calls.count == 1 }
+        p.toggleDislike()
+        #expect(p.likeStatus == .disliked)
+        await eventually { like.calls.count == 2 }
+        #expect(like.calls.last?.status == .disliked)
+
+        p.toggleDislike()
+        await eventually { like.calls.count == 3 }
+        #expect(p.likeStatus == .indifferent)
+        #expect(like.calls.last?.status == .indifferent)
+    }
+
+    @Test("Disliking skips to the next track; clearing the dislike does not")
+    func dislikeSkips() async {
+        let like = FakeLikeProvider()
+        let p = player(like)
+        let tracks = ["a", "b", "c"].enumerated().map { index, id in
+            Track(index: index + 1, title: id, subtitle: "A", duration: nil, thumbnailURL: nil, videoId: id)
+        }
+        p.play(tracks, startAt: 0)
+        p.toggleDislike()
+        #expect(p.nowPlaying?.videoId == "b")
+        await eventually { !p.isUpdatingLike }
+
+        p.toggleDislike()
+        await eventually { !p.isUpdatingLike }
+        #expect(p.nowPlaying?.videoId == "c")
+        #expect(like.calls.map(\.videoId) == ["a", "b"])
+    }
+
     @Test("toggleLike reverts the optimistic change when the request fails")
     func revertsOnFailure() async {
         let like = FakeLikeProvider()
