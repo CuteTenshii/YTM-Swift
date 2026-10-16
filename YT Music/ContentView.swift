@@ -232,8 +232,9 @@ private struct SidebarLibraryItems: View {
     }
 }
 
-/// Sidebar toolbar avatar: sign in, or a menu to sign out.
+/// Sidebar toolbar avatar: sign in, or a menu with the profile, settings and sign out.
 private struct AccountControl: View {
+    @Environment(Navigator.self) private var navigator
     let auth: AuthStore
     /// Pre-rendered circular badge: menu labels ignore SwiftUI frame/clip modifiers.
     let avatar: NSImage?
@@ -251,10 +252,9 @@ private struct AccountControl: View {
             .help("Sign in")
         case .signedIn:
             Menu {
-                Text(auth.account?.name ?? "Signed in")
-                if let handle = auth.account?.handle, !handle.isEmpty {
-                    Text(handle)
-                }
+                Button(profileTitle) { Task { await openProfile() } }
+                    .disabled(profileHandle == nil)
+                SettingsLink { Text("Settings…") }
                 Divider()
                 Button("Sign out", role: .destructive) {
                     Task { await auth.signOut() }
@@ -265,6 +265,23 @@ private struct AccountControl: View {
             .menuIndicator(.hidden)
             .help(auth.account?.name ?? "Account")
         }
+    }
+
+    private var profileTitle: String {
+        let name = auth.account?.name ?? "Signed in"
+        guard let handle = auth.account?.handle, !handle.isEmpty else { return name }
+        return "\(name) (\(handle))"
+    }
+
+    /// The channel handle, when the account has one (it may be an email).
+    private var profileHandle: String? {
+        auth.account?.handle.hasPrefix("@") == true ? auth.account?.handle : nil
+    }
+
+    private func openProfile() async {
+        guard let handle = profileHandle,
+              let link = try? await InnerTubeClient.shared.resolveHandle(handle) else { return }
+        navigator.open(link.destination)
     }
 
     @ViewBuilder
