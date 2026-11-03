@@ -119,6 +119,9 @@ final class PlayerState {
     /// `.indifferent` and then refreshed from the server (`fetchLikeStatus`);
     /// `toggleLike` updates it optimistically.
     private(set) var likeStatus: LikeStatus = .indifferent
+    /// The current track's like count without the account's own vote; nil until
+    /// fetched or when unavailable.
+    private(set) var likeCount: Int?
     /// True while a like request is in flight (disables the button).
     private(set) var isUpdatingLike = false
     /// Set once the user toggles the like for the current track, so a slower
@@ -686,6 +689,8 @@ final class PlayerState {
     private func fetchLikeStatus(for videoId: String) {
         likeFetchTask?.cancel()
         likeFetchTask = Task {
+            let count = try? await likeProvider.likeCount(for: videoId)
+            if !Task.isCancelled, nowPlaying?.videoId == videoId { likeCount = count }
             guard let status = try? await likeProvider.likeStatus(for: videoId) else { return }
             guard !Task.isCancelled else { return }
             likeStatusCache[videoId] = status
@@ -817,6 +822,7 @@ final class PlayerState {
         playbackPinged = false
         lastWatchtimeAt = -1
         likeStatus = .indifferent
+        likeCount = nil
         likeInteracted = false
         nowPlaying = NowPlaying(
             title: title,
@@ -991,6 +997,7 @@ final class PlayerState {
         playbackPinged = false
         lastWatchtimeAt = -1
         likeStatus = .indifferent
+        likeCount = nil
         likeInteracted = false
         nowPlaying = NowPlaying(
             title: track.title,

@@ -360,7 +360,7 @@ private struct NowPlayingBar: View {
                 // all the spare width.
                 HStack(spacing: 14) {
                     trackInfo
-                    if isSignedIn || votes != nil {
+                    if isSignedIn || votes != nil || player.likeCount != nil {
                         ratingControls
                     }
                     Spacer(minLength: 0)
@@ -516,11 +516,16 @@ private struct NowPlayingBar: View {
         pluginHost.enabled(ReturnYouTubeDislikePlugin.self)?.votes
     }
 
+    private var likeCount: Int? {
+        guard let count = player.likeCount else { return votes?.likes }
+        return player.likeStatus == .liked ? count + 1 : count
+    }
+
     private var ratingControls: some View {
         HStack(spacing: 10) {
             ratingButton(
                 icon: "hand.thumbsup", filledIcon: "hand.thumbsup.fill",
-                isOn: player.likeStatus == .liked, count: votes?.likes,
+                isOn: player.likeStatus == .liked, count: likeCount,
                 help: player.likeStatus == .liked ? "Remove from liked songs" : "Like",
                 action: player.toggleLike)
             ratingButton(

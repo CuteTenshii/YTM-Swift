@@ -102,4 +102,18 @@ struct WatchNextParserTests {
         let empty = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
         #expect(WatchNextParser.likeStatus(empty, expecting: "vid") == .indifferent)
     }
+
+    @Test("Reads the like count from the action bar view model")
+    func parsesLikeCount() throws {
+        let json = """
+        {"playerOverlays":{"playerOverlayRenderer":{"videoActionBar":{"videoActionBarViewModel":
+        {"buttons":[{"buttonViewModel":{"segmentedLikeDislikeButtonViewModel":
+        {"likeCountEntity":{"likeCountIfLikedNumber":"1001","likeCountIfIndifferentNumber":"1000"}}}}]}}}}}
+        """
+        let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(json.utf8))
+        #expect(WatchNextParser.likeCount(response) == 1000)
+
+        let empty = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))
+        #expect(WatchNextParser.likeCount(empty) == nil)
+    }
 }

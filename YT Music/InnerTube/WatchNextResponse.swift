@@ -38,6 +38,34 @@ struct WatchNextResponse: Decodable {
 
     struct PlayerOverlayRenderer: Decodable {
         let actions: [OverlayAction]?
+        let videoActionBar: VideoActionBar?
+    }
+
+    // The like count lives at
+    //   videoActionBar.videoActionBarViewModel.buttons[].buttonViewModel
+    //     .segmentedLikeDislikeButtonViewModel.likeCountEntity.likeCountIfIndifferentNumber
+    struct VideoActionBar: Decodable {
+        let videoActionBarViewModel: ViewModel?
+
+        struct ViewModel: Decodable {
+            let buttons: [Button]?
+        }
+
+        struct Button: Decodable {
+            let buttonViewModel: ButtonViewModel?
+        }
+
+        struct ButtonViewModel: Decodable {
+            let segmentedLikeDislikeButtonViewModel: Segmented?
+        }
+
+        struct Segmented: Decodable {
+            let likeCountEntity: LikeCountEntity?
+        }
+
+        struct LikeCountEntity: Decodable {
+            let likeCountIfIndifferentNumber: String?
+        }
     }
 
     struct OverlayAction: Decodable {
@@ -213,6 +241,16 @@ nonisolated enum WatchNextParser {
             .actions?.compactMap(\.likeButtonRenderer)
             .first { $0.target?.videoId == videoId }
         return LikeStatus(innerTube: button?.likeStatus)
+    }
+
+    /// The track's like count excluding the account's own vote; nil when the
+    /// response carries none.
+    static func likeCount(_ response: WatchNextResponse) -> Int? {
+        response.playerOverlays?.playerOverlayRenderer?.videoActionBar?
+            .videoActionBarViewModel?.buttons?
+            .compactMap { $0.buttonViewModel?.segmentedLikeDislikeButtonViewModel?
+                .likeCountEntity?.likeCountIfIndifferentNumber }
+            .compactMap { Int($0) }.first
     }
 
     /// The browse id of the watch-next "Lyrics" tab, if the track has lyrics.

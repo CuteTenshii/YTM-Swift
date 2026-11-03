@@ -160,6 +160,7 @@ final class FakeLikeProvider: LikeProviding {
     /// Server-side rating returned by `likeStatus(for:)`, keyed by videoId.
     var statuses: [String: LikeStatus] = [:]
     private(set) var statusQueries: [String] = []
+    var counts: [String: Int] = [:]
 
     func setLikeStatus(videoId: String, status: LikeStatus) async throws {
         if shouldThrow { throw StubError.boom }
@@ -170,6 +171,8 @@ final class FakeLikeProvider: LikeProviding {
         statusQueries.append(videoId)
         return statuses[videoId] ?? .indifferent
     }
+
+    func likeCount(for videoId: String) async throws -> Int? { counts[videoId] }
 }
 
 /// Polls until `condition` holds (yielding to let pending tasks run) or a bounded
@@ -1356,6 +1359,17 @@ struct PlayerStateLikeTests {
         await eventually { p.likeStatus == .liked }
         #expect(p.likeStatus == .liked)
         #expect(like.statusQueries.contains("vid"))
+    }
+
+    @Test("a track's like count is fetched when it starts")
+    func seedsLikeCount() async {
+        let like = FakeLikeProvider()
+        like.counts["vid"] = 42
+        let p = player(like)
+        p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
+
+        await eventually { p.likeCount == 42 }
+        #expect(p.likeCount == 42)
     }
 
     @Test("a user toggle is not clobbered by a slower status fetch")

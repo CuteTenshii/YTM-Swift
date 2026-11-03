@@ -79,20 +79,42 @@ private nonisolated struct WatchNextInfo: Sendable {
     let lyricsBrowseId: String?
     let relatedBrowseId: String?
     let likeStatus: LikeStatus
+    let likeCount: Int?
 }
 
 /// A small LRU cache of `WatchNextInfo` keyed by videoId. The browse ids are
 /// immutable, so entries live until evicted; the like status is account-relative,
 /// so a track's entry is invalidated when its rating changes, and the whole cache
-/// is cleared on sign-in/out (see `ytmCredentialsChanged`).
+/// is cleared on sign-in/out (see `ytmCredentialsChanged`). Concurrent lookups
+/// for the same uncached track share one in-flight fetch.
 private actor WatchNextStore {
     private var entries: [String: WatchNextInfo] = [:]
+    private var pending: [String: Task<WatchNextInfo, Error>] = [:]
     private var order: [String] = []
     private let limit = 16
 
-    func cached(_ videoId: String) -> WatchNextInfo? { entries[videoId] }
+    func info(
+        for videoId: String,
+        fetch: @escaping @Sendable () async throws -> WatchNextInfo
+    ) async throws -> WatchNextInfo {
+        if let cached = entries[videoId] { return cached }
+        if let inFlight = pending[videoId] { return try await inFlight.value }
+        let task = Task { try await fetch() }
+        pending[videoId] = task
+        do {
+            let info = try await task.value
+            if pending[videoId] == task {
+                pending[videoId] = nil
+                store(info, for: videoId)
+            }
+            return info
+        } catch {
+            if pending[videoId] == task { pending[videoId] = nil }
+            throw error
+        }
+    }
 
-    func store(_ info: WatchNextInfo, for videoId: String) {
+    private func store(_ info: WatchNextInfo, for videoId: String) {
         if entries[videoId] == nil { order.append(videoId) }
         entries[videoId] = info
         while order.count > limit { entries[order.removeFirst()] = nil }
@@ -100,11 +122,13 @@ private actor WatchNextStore {
 
     func invalidate(_ videoId: String) {
         entries[videoId] = nil
+        pending[videoId] = nil
         order.removeAll { $0 == videoId }
     }
 
     func clear() {
         entries.removeAll()
+        pending.removeAll()
         order.removeAll()
     }
 }
@@ -155,6 +179,7 @@ nonisolated enum LikeStatus: String, Codable, Sendable {
 protocol LikeProviding: Sendable {
     func setLikeStatus(videoId: String, status: LikeStatus) async throws
     func likeStatus(for videoId: String) async throws -> LikeStatus
+    func likeCount(for videoId: String) async throws -> Int?
 }
 
 extension InnerTubeClient: LikeProviding {}
@@ -604,15 +629,15 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     /// all call this, so a track costs a single `next` round-trip rather than one
     /// each. Cached entries are dropped on rating changes and sign-in/out.
     private func watchNextInfo(for videoId: String) async throws -> WatchNextInfo {
-        if let cached = await watchNextCache.cached(videoId) { return cached }
-        let response: WatchNextResponse = try await post("next", body: ["videoId": videoId])
-        let info = WatchNextInfo(
-            lyricsBrowseId: WatchNextParser.lyricsBrowseId(response),
-            relatedBrowseId: WatchNextParser.relatedBrowseId(response),
-            likeStatus: WatchNextParser.likeStatus(response, expecting: videoId)
-        )
-        await watchNextCache.store(info, for: videoId)
-        return info
+        try await watchNextCache.info(for: videoId) { [self] in
+            let response: WatchNextResponse = try await post("next", body: ["videoId": videoId])
+            return WatchNextInfo(
+                lyricsBrowseId: WatchNextParser.lyricsBrowseId(response),
+                relatedBrowseId: WatchNextParser.relatedBrowseId(response),
+                likeStatus: WatchNextParser.likeStatus(response, expecting: videoId),
+                likeCount: WatchNextParser.likeCount(response)
+            )
+        }
     }
 
     /// Fetches the lyrics for a track. Two steps, mirroring the web client: the
@@ -941,6 +966,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     func likeStatus(for videoId: String) async throws -> LikeStatus {
         guard await CredentialStore.shared.isSignedIn else { return .indifferent }
         return try await watchNextInfo(for: videoId).likeStatus
+    }
+
+    /// The track's public like count from the cached `next` fetch.
+    func likeCount(for videoId: String) async throws -> Int? {
+        try await watchNextInfo(for: videoId).likeCount
     }
 
     /// Fires the `playback` beacon once at the start of a play. No-op when signed
