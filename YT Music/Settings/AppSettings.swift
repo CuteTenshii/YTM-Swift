@@ -97,6 +97,10 @@ final class AppSettings {
         didSet { store(volume, for: .volume) }
     }
 
+    var isMuted: Bool {
+        didSet { store(isMuted, for: .isMuted) }
+    }
+
     /// Speed for podcast episodes. Music always plays at 1x.
     var podcastPlaybackRate: Double {
         didSet { store(podcastPlaybackRate, for: .podcastPlaybackRate) }
@@ -196,6 +200,7 @@ final class AppSettings {
         self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
             .flatMap(LyricsProvider.init)) ?? .youtubeMusic
         self.volume = defaults.object(forKey: Key.volume.rawValue) as? Double ?? 1
+        self.isMuted = defaults.bool(forKey: Key.isMuted.rawValue)
         self.podcastPlaybackRate = defaults.object(forKey: Key.podcastPlaybackRate.rawValue) as? Double ?? 1
         self.crossfadeEnabled = defaults.bool(forKey: Key.crossfadeEnabled.rawValue)
         self.crossfadeSeconds = defaults.object(forKey: Key.crossfadeSeconds.rawValue) as? Double ?? 6
@@ -259,6 +264,7 @@ final class AppSettings {
         case playOnSingleClick   = "settings.playOnSingleClick"
         case lyricsProvider      = "settings.lyricsProvider"
         case volume              = "settings.volume"
+        case isMuted             = "settings.isMuted"
         case podcastPlaybackRate = "settings.podcastPlaybackRate"
         case crossfadeEnabled    = "settings.crossfadeEnabled"
         case crossfadeSeconds    = "settings.crossfadeSeconds"

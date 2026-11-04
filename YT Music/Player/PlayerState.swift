@@ -203,6 +203,7 @@ final class PlayerState {
          settings: AppSettings? = nil, historyReporter: WatchHistoryReporting? = nil,
          likeProvider: LikeProviding? = nil) {
         self.audio = audio ?? AudioPlayer()
+        self.level = self.audio.volume
         self.resolver = resolver ?? StreamResolver.shared
         self.radioProvider = radioProvider ?? InnerTubeClient.shared
         self.likeProvider = likeProvider ?? InnerTubeClient.shared
@@ -224,7 +225,9 @@ final class PlayerState {
         if let settings {
             self.audio.applyEqualizer(settings.equalizerSettings)
             settings.onEqualizerChange = { [weak self] eq in self?.audio.applyEqualizer(eq) }
-            self.audio.volume = settings.volume
+            self.level = settings.volume
+            self.isMuted = settings.isMuted
+            self.audio.volume = isMuted ? 0 : level
             self.playbackRate = settings.podcastPlaybackRate
             self.audio.normalizesVolume = settings.volumeNormalization
             settings.onVolumeNormalizationChange = { [weak self] in self?.audio.normalizesVolume = $0 }
@@ -483,12 +486,23 @@ final class PlayerState {
 
     /// Output volume, 0...1. Forwards to the engine and persists via settings.
     var volume: Double {
-        get { audio.volume }
+        get { level }
         set {
-            audio.volume = newValue
+            level = newValue
+            isMuted = false
             settings?.volume = newValue
         }
     }
+
+    /// Silences output while keeping `volume` as the level to return to.
+    var isMuted = false {
+        didSet {
+            audio.volume = isMuted ? 0 : level
+            settings?.isMuted = isMuted
+        }
+    }
+
+    private var level: Double
 
     var canGoNext: Bool { !queue.isEmpty && (currentIndex + 1 < queue.count || repeatMode == .all) }
     var canGoPrevious: Bool { !queue.isEmpty && (currentIndex > 0 || repeatMode == .all) }

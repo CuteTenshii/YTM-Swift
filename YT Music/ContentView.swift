@@ -372,7 +372,7 @@ private struct NowPlayingBar: View {
                     transportControls
                     scrubber
                 }
-                .frame(maxWidth: 520)
+                .frame(maxWidth: 420)
                 .layoutPriority(1)
 
                 HStack(spacing: 16) {
@@ -656,20 +656,23 @@ private struct NowPlayingBar: View {
     // MARK: - Volume
 
     private var volumeControl: some View {
-        @Bindable var player = player
-        return HStack(spacing: 8) {
-            Image(systemName: volumeIcon)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Slider(value: $player.volume, in: 0...1)
+        HStack(spacing: 8) {
+            Button { player.isMuted.toggle() } label: {
+                Image(systemName: volumeIcon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+            }
+            .buttonStyle(.plain)
+            .help(player.isMuted ? "Unmute" : "Mute")
+            Slider(value: Binding(get: { player.isMuted ? 0 : player.volume }, set: { player.volume = $0 }), in: 0...1)
                 .controlSize(.small)
                 .tint(.primary)
         }
     }
 
     private var volumeIcon: String {
-        switch player.volume {
+        switch player.isMuted ? 0 : player.volume {
         case ..<0.01: "speaker.slash.fill"
         case ..<0.5:  "speaker.wave.1.fill"
         default:      "speaker.wave.2.fill"
