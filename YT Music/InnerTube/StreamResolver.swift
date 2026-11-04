@@ -42,6 +42,18 @@ struct ResolvedStream: Sendable {
     var streamEnd: Double? = nil
     /// A podcast episode, which gets speed and skip controls.
     var isEpisode = false
+    var details: StreamDetails? = nil
+}
+
+/// What was chosen to play a track, for the stats dialog.
+struct StreamDetails: Sendable, Equatable {
+    let videoId: String
+    let itag: Int?
+    let mimeType: String?
+    let bitrate: Int?
+    let audioQuality: String?
+    let host: String?
+    let source: String
 }
 
 /// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
@@ -83,9 +95,11 @@ actor StreamResolver: StreamResolving {
         // Signed in, the YT Music response still drives playability and history.
         let response: PlayerResponse
         let streamSource: PlayerResponse
+        var sourceName = "WEB_REMIX"
         if !signedIn {
             response = try await playerResponse(videoId: videoId, playlistId: nil, fromMusic: false)
             streamSource = response
+            sourceName = "visionOS"
         } else if premium {
             response = try await playerResponse(videoId: videoId, playlistId: playlistId, fromMusic: true)
             streamSource = response
@@ -94,6 +108,7 @@ actor StreamResolver: StreamResolving {
             response = try await playerResponse(videoId: videoId, playlistId: playlistId, fromMusic: true)
             if let playable = playableStream(await vision, preferences: preferences) {
                 streamSource = playable
+                sourceName = "visionOS"
             } else {
                 Self.log.note("visionOS can't play this track; streaming from WEB_REMIX")
                 streamSource = response
@@ -130,7 +145,10 @@ actor StreamResolver: StreamResolving {
                               historyURL: historyURL, watchtimeURL: watchtimeURL, cpn: cpn,
                               loudnessDb: format.loudnessDb ?? streamSource.playerConfig?.audioConfig?.loudnessDb,
                               streamEnd: format.approxDuration,
-                              isEpisode: response.videoDetails?.isEpisode ?? false)
+                              isEpisode: response.videoDetails?.isEpisode ?? false,
+                              details: StreamDetails(videoId: videoId, itag: format.itag, mimeType: format.mimeType,
+                                                     bitrate: format.bitrate, audioQuality: format.audioQuality,
+                                                     host: url.host, source: sourceName))
     }
 
     /// `response` when it's playable with a compatible audio stream. A visionOS

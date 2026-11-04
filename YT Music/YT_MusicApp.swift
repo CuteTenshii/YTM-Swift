@@ -81,6 +81,11 @@ struct YT_MusicApp: App {
             UpdateCommands(updater: updaterController.updater)
         }
 
+        Window("Stats for Nerds", id: "stats") {
+            StatsForNerdsView(player: player)
+        }
+        .windowResizability(.contentSize)
+
         // The native macOS settings window (app menu → Settings…, ⌘,). Scenes
         // don't inherit each other's environments, so inject the same app-level
         // state here — plugin configuration views reach for it too.

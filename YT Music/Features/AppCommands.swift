@@ -13,6 +13,7 @@ import SwiftUI
 struct MediaCommands: Commands {
     let player: PlayerState
     let navigator: Navigator
+    @Environment(\.openWindow) private var openWindow
 
     private var nothingPlaying: Bool { player.nowPlaying == nil }
 
@@ -87,6 +88,9 @@ struct MediaCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [.command, .control])
             .disabled(nothingPlaying)
+            Button("Stats for Nerds") { openWindow(id: "stats") }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(nothingPlaying)
         }
 
         // MARK: Go (sidebar navigation)

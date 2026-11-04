@@ -99,6 +99,8 @@ final class PlayerState {
     private(set) var repeatMode: RepeatMode = .off
     /// The current item is a podcast episode: speed and skip controls apply.
     private(set) var isEpisode = false
+    /// How the current track's stream was chosen; may lag `nowPlaying` while a track loads.
+    private(set) var streamDetails: StreamDetails?
     static let skipBackSeconds: Double = 15
     static let skipForwardSeconds: Double = 30
     static let playbackRates: [Double] = [0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -881,6 +883,7 @@ final class PlayerState {
                 isEpisode: resolved.isEpisode
             )
             isEpisode = resolved.isEpisode
+            streamDetails = resolved.details
             applyPlaybackRate()
             if usedPreloadedStream {
                 audio.loadPreloaded(url: resolved.url, metadata: metadata)
@@ -1046,6 +1049,7 @@ final class PlayerState {
                 isEpisode: resolved.isEpisode
             )
             isEpisode = resolved.isEpisode
+            streamDetails = resolved.details
             applyPlaybackRate()
             if usedPreloadedStream {
                 audio.crossfadePreloaded(url: resolved.url, metadata: metadata, duration: seconds)
