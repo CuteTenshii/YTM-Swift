@@ -50,6 +50,8 @@ final class AudioPlayer: AudioOutput {
     @ObservationIgnored let spectrum: SpectrumAnalyzer? = SpectrumAnalyzer()
 
     private(set) var isPlaying = false
+    /// The active player wants to play but is waiting on data (initial load or a stall).
+    private(set) var isBuffering = false
     /// The stored intent isn't enough: `load()` marks us playing before the
     /// stream has started flowing. `isActuallyPlaying` is true only once AVPlayer
     /// really advances (timeControlStatus == .playing), so consumers can wait
@@ -457,10 +459,11 @@ final class AudioPlayer: AudioOutput {
     /// brief mid-track stalls, which don't matter for presence.
     private func observeTimeControl(of player: AVPlayer) {
         let observation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
-            guard player.timeControlStatus == .playing else { return }
+            let status = player.timeControlStatus
             Task { @MainActor in
-                guard let self, self.isPlaying, player === self.active else { return }
-                self.onPlaybackStart?()
+                guard let self, player === self.active else { return }
+                self.isBuffering = self.isPlaying && status == .waitingToPlayAtSpecifiedRate
+                if status == .playing, self.isPlaying { self.onPlaybackStart?() }
             }
         }
         timeControlObservers.append(observation)

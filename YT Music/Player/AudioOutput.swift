@@ -31,6 +31,8 @@ protocol AudioOutput: AnyObject {
     /// Whether audio is genuinely flowing (not paused, not still buffering).
     /// The plugin-facing truth, so presences don't go live mid-load.
     var isActuallyPlaying: Bool { get }
+    /// Playback is wanted but stalled on data, so the UI can show a spinner.
+    var isBuffering: Bool { get }
     var currentTime: Double { get }
     var duration: Double { get }
     /// How far into the track the stream has buffered ahead (seconds). Drives the
@@ -95,6 +97,7 @@ extension AudioOutput {
     var normalizesVolume: Bool { get { false } set {} }
     var playbackRate: Double { get { 1 } set {} }
     var isActuallyPlaying: Bool { isPlaying }
+    var isBuffering: Bool { false }
     var onPlaybackStart: (() -> Void)? { get { nil } set {} }
     var onTogglePlayPause: (() -> Void)? { get { nil } set {} }
 }

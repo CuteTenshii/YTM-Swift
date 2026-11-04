@@ -474,6 +474,7 @@ final class PlayerState {
     // MARK: - Transport
 
     var isPlaying: Bool { audio.isPlaying }
+    var isBuffering: Bool { audio.isBuffering }
     var currentTime: Double { awaitingResume ? restoredPosition : audio.currentTime }
     var duration: Double { awaitingResume ? restoredDuration : audio.duration }
     var bufferedTime: Double { audio.bufferedTime }
@@ -836,6 +837,7 @@ final class PlayerState {
         loadError = nil
         isLoading = true
         awaitingAudio = false
+        if audio.isPlaying { audio.togglePlayPause() }
         if preparedVideoId != videoId {
             preloadTask?.cancel()
             preloadTask = nil

@@ -640,7 +640,7 @@ private struct NowPlayingBar: View {
 
     @ViewBuilder
     private var playButton: some View {
-        if player.isLoading {
+        if player.isLoading || player.isBuffering {
             LoadingPlayButton(size: 36)
         } else {
             Button(action: player.togglePlayPause) {
