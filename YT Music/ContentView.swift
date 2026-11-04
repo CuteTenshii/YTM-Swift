@@ -451,7 +451,7 @@ private struct NowPlayingBar: View {
         }
     }
 
-    /// The artist/album line: shows an error or loading message, then clickable
+    /// The artist/album line: shows an error, then clickable
     /// links when we have them, otherwise the plain subtitle text.
     @ViewBuilder
     private func subtitle(_ nowPlaying: PlayerState.NowPlaying) -> some View {
@@ -459,11 +459,6 @@ private struct NowPlayingBar: View {
             Text(error)
                 .font(.caption)
                 .foregroundStyle(.red)
-                .lineLimit(1)
-        } else if player.isLoading {
-            Text("Loading…")
-                .font(.caption)
-                .foregroundStyle(.secondary)
                 .lineLimit(1)
         } else if !nowPlaying.artists.isEmpty {
             // Only use the clickable links row when we actually have artist links.
