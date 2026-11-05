@@ -2,25 +2,19 @@
 //  PlaybackPersistence.swift
 //  YT Music
 //
-//  Persists a snapshot of what's playing so the player can repopulate on the
-//  next launch (the track appears in the now-playing bar, paused and ready to
-//  resume). Backed by UserDefaults; abstracted behind a protocol so PlayerState
-//  can be tested without touching real storage.
+//  Persists a playback snapshot (UserDefaults-backed) to restore on next launch.
 //
 
 import Foundation
 
-/// A snapshot of playback state, persisted across launches.
 struct PersistedPlayback: Codable {
     var nowPlaying: PlayerState.NowPlaying
-    var tracks: [StoredTrack]   // the queue (empty for a one-off play)
+    var tracks: [StoredTrack]
     var currentIndex: Int
     var repeatMode: PlayerState.RepeatMode
     var album: String
     var isShuffled: Bool = false
-    /// The playlist the queue was started from (attribution context), if any.
     var playlistId: String? = nil
-    /// Playback position and track duration (seconds), 0 when unknown.
     var position: Double = 0
     var duration: Double = 0
 
@@ -38,8 +32,7 @@ struct PersistedPlayback: Codable {
         self.duration = duration
     }
 
-    // Tolerant decode so snapshots saved before shuffle existed still restore
-    // (the new key defaults to false rather than failing the whole restore).
+    // Tolerant decode: older snapshots lack the new key.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         nowPlaying = try c.decode(PlayerState.NowPlaying.self, forKey: .nowPlaying)
@@ -113,7 +106,6 @@ extension PersistedPlayback.StoredTrack {
     }
 }
 
-/// Loads / saves the last playback snapshot.
 protocol PlaybackStore {
     func load() -> PersistedPlayback?
     func save(_ snapshot: PersistedPlayback?)

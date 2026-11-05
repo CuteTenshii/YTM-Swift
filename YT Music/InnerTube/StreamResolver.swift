@@ -2,10 +2,6 @@
 //  StreamResolver.swift
 //  YT Music
 //
-//  Turns a videoId into a final, playable audio URL: requests the player
-//  response (with the correct signatureTimestamp), picks an AVPlayer-compatible
-//  audio stream, and deciphers its URL.
-//
 
 import Foundation
 import OSLog
@@ -22,30 +18,21 @@ enum StreamError: LocalizedError {
     }
 }
 
-/// A resolved, playable stream plus the track's authoritative length (from the
-/// player response), used so the scrubber doesn't trust AVPlayer's estimate.
 struct ResolvedStream: Sendable {
     let url: URL
     let duration: Double?
-    /// The player response's `videostatsPlaybackUrl`, if present — ping it to
-    /// record the play in the user's watch history. nil when YouTube omits it.
+    /// Ping to record the play in watch history; nil when omitted.
     var historyURL: URL? = nil
-    /// The player response's `videostatsWatchtimeUrl`, if present — reports
-    /// accumulated listen time, which drives YT Music history.
     var watchtimeURL: URL? = nil
-    /// The content-playback nonce that tags `url`; reused for the history ping so
-    /// YouTube correlates the two. nil when no history URL is being reported.
+    /// Content-playback nonce reused for the history ping so YouTube correlates it with the stream.
     var cpn: String? = nil
     /// Track loudness relative to YouTube's reference level, in dB (positive is louder).
     var loudnessDb: Double? = nil
-    /// The stream's millisecond-precise length, when YouTube provides one.
     var streamEnd: Double? = nil
-    /// A podcast episode, which gets speed and skip controls.
     var isEpisode = false
     var details: StreamDetails? = nil
 }
 
-/// What was chosen to play a track, for the stats dialog.
 struct StreamDetails: Sendable, Equatable {
     let videoId: String
     let itag: Int?
@@ -56,22 +43,16 @@ struct StreamDetails: Sendable, Equatable {
     let source: String
 }
 
-/// Resolves a videoId to a playable stream. Abstracted so PlayerState can be
-/// tested with a stub.
 protocol StreamResolving: Sendable {
-    /// `playlistId` is the playlist the play comes from (attribution context),
-    /// when known — sent with the player request so the listen is attributed
-    /// to that playlist/radio.
+    /// `playlistId` attributes the listen to that playlist or radio.
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream
 }
 
 extension StreamResolving {
-    /// Convenience for callers (and tests) that don't care about preferences.
     func audioStream(videoId: String) async throws -> ResolvedStream {
         try await audioStream(videoId: videoId, playlistId: nil, preferences: StreamPreferences())
     }
 
-    /// Convenience for callers that resolve without playlist context (downloads).
     func audioStream(videoId: String, preferences: StreamPreferences) async throws -> ResolvedStream {
         try await audioStream(videoId: videoId, playlistId: nil, preferences: preferences)
     }
@@ -87,12 +68,10 @@ actor StreamResolver: StreamResolving {
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
         let signedIn = await CredentialStore.shared.isSignedIn
         let premium = signedIn ? await client.hasPremium() : false
-        Self.log.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "—") "
+        Self.log.note("resolving videoId=\(videoId) playlist=\(playlistId ?? "-") "
             + "signedIn=\(signedIn) premium=\(premium)")
 
-        // YT Music's own streams stop loading after the first chunk without a PO
-        // token unless the account has Premium, so others stream from visionOS.
-        // Signed in, the YT Music response still drives playability and history.
+        // YT Music's own streams stall without a PO token unless Premium, so others use visionOS.
         let response: PlayerResponse
         let streamSource: PlayerResponse
         var sourceName = "WEB_REMIX"
@@ -127,8 +106,7 @@ actor StreamResolver: StreamResolving {
         let format = try selectAudioFormat(streamSource, preferences: preferences)
         Self.log.note("selected itag=\(format.itag ?? -1) mime=\(format.mimeType ?? "?") quality=\(preferences.audioQuality.rawValue)")
 
-        // One content-playback nonce tags the media we fetch and the history
-        // ping, so YouTube correlates them and the play counts toward history.
+        // One cpn tags the media fetch and the history ping so the play counts.
         let cpn = WatchHistory.generateCPN()
         let deciphered = try await decipher.streamURL(for: format)
         let url = WatchHistory.appendingCPN(to: deciphered, cpn: cpn)
@@ -151,17 +129,14 @@ actor StreamResolver: StreamResolving {
                                                      host: url.host, source: sourceName))
     }
 
-    /// `response` when it's playable with a compatible audio stream. A visionOS
-    /// response isn't for the user's own uploads, which only exist for their account.
+    /// A visionOS response isn't valid for the user's own uploads.
     nonisolated func playableStream(_ response: PlayerResponse?, preferences: StreamPreferences) -> PlayerResponse? {
         guard let response, (try? checkPlayability(response)) != nil,
               (try? selectAudioFormat(response, preferences: preferences)) != nil else { return nil }
         return response
     }
 
-    /// Player requests are safe to repeat. A short retry covers transient
-    /// connection resets and server errors without retrying auth or playability
-    /// failures that will not change on their own.
+    /// Short retry for transient connection resets and server errors only.
     private func playerResponse(videoId: String, playlistId: String?, fromMusic: Bool) async throws -> PlayerResponse {
         let delays: [UInt64] = [0, 300_000_000, 1_000_000_000]
         var lastError: Error?
@@ -199,10 +174,7 @@ actor StreamResolver: StreamResolving {
         }
     }
 
-    /// Throws when the player response reports the video can't be played
-    /// (e.g. `LOGIN_REQUIRED`, `UNPLAYABLE`, `ERROR`). A missing status, or
-    /// `"OK"`, is treated as playable. `nonisolated` so it can be unit-tested
-    /// without the actor hop.
+    /// Throws on LOGIN_REQUIRED, UNPLAYABLE, ERROR; a missing status or OK is playable.
     nonisolated func checkPlayability(_ response: PlayerResponse) throws {
         guard let status = response.playabilityStatus?.status, status != "OK" else { return }
         let reason = response.playabilityStatus?.reason ?? status
@@ -210,13 +182,7 @@ actor StreamResolver: StreamResolving {
         throw StreamError.notPlayable(reason)
     }
 
-    /// Picks a playable stream honouring the user's preferences:
-    /// - "prefer audio over video" keeps us on adaptive audio-only streams and
-    ///   only falls back to a muxed (video+audio) MP4 when no audio stream is
-    ///   compatible. With it off, a muxed stream is allowed to win on quality.
-    /// - audio quality selects a rung on the bitrate-sorted ladder (auto/high =
-    ///   best, medium = middle, low = lowest).
-    /// `nonisolated` so it can be unit-tested without the actor hop.
+    /// Honours prefer-audio (muxed only as fallback) and audio quality (a rung on the bitrate ladder).
     nonisolated func selectAudioFormat(
         _ response: PlayerResponse,
         preferences: StreamPreferences = StreamPreferences()
@@ -227,8 +193,6 @@ actor StreamResolver: StreamResolving {
             .filter { $0.isAVPlayerCompatible }
 
         if preferences.preferAudioOverVideo {
-            // Stay on audio-only streams; use a muxed (video+audio) stream only
-            // when no compatible audio-only stream exists.
             if let chosen = pick(from: adaptiveAudio, quality: preferences.audioQuality) {
                 return chosen
             }
@@ -236,7 +200,6 @@ actor StreamResolver: StreamResolving {
                 return chosen
             }
         } else {
-            // Let audio-only and muxed compete together on the quality ladder.
             if let chosen = pick(from: adaptiveAudio + muxed, quality: preferences.audioQuality) {
                 return chosen
             }
@@ -244,8 +207,6 @@ actor StreamResolver: StreamResolving {
         throw StreamError.noCompatibleAudio
     }
 
-    /// Ranks `formats` by bitrate (ascending) and returns the rung matching the
-    /// requested quality. Returns nil for an empty pool.
     private nonisolated func pick(
         from formats: [PlayerResponse.Format],
         quality: AudioQuality

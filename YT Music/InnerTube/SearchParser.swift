@@ -2,21 +2,9 @@
 //  SearchParser.swift
 //  YT Music
 //
-//  Turns a raw `SearchResponse` into `Shelf`s the app already renders. The
-//  default ("everything") search comes back as a flat, relevance-ranked list:
-//  a `musicCardShelfRenderer` top result, then one `itemSectionRenderer` per
-//  result row — no category headers. We re-group those rows by type (Songs,
-//  Videos, Albums, Artists, Playlists, Podcasts, Episodes, Profiles) using the
-//  rows' structural signals (`musicVideoType` / `pageType`), which are stable
-//  across locales. Filtered searches that already arrive grouped (as titled
-//  `musicShelfRenderer` shelves) keep their server titles.
-//
 
 import Foundation
 
-/// A search scope the user can pick from the filter chips. `.all` is the default
-/// relevance-ranked search (no scoping); the rest map to the `params` value the
-/// YT Music web client sends to restrict results to one type.
 nonisolated enum SearchFilter: String, CaseIterable, Identifiable, Sendable {
     case all, songs, videos, albums, artists, playlists, podcasts, episodes, profiles
 
@@ -36,9 +24,7 @@ nonisolated enum SearchFilter: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The InnerTube `search` `params` value scoping results to this filter — the
-    /// (URL-encoded) protobuf blobs the web client sends. nil for `.all`, which
-    /// sends no `params` and gets the default mixed feed.
+    /// URL-encoded protobuf `params` blob the web client sends; nil for `.all`.
     var params: String? {
         switch self {
         case .all:       nil
@@ -54,8 +40,6 @@ nonisolated enum SearchFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// A search result bucket. Order of `allCases` is the display order of the
-/// category shelves.
 nonisolated enum SearchCategory: CaseIterable {
     case song, video, album, artist, playlist, podcast, episode, profile, other
 
@@ -73,7 +57,6 @@ nonisolated enum SearchCategory: CaseIterable {
         }
     }
 
-    /// Classifies a playable row by its `musicVideoType`.
     init(musicVideoType: String) {
         switch musicVideoType {
         case "MUSIC_VIDEO_TYPE_ATV":             self = .song
@@ -82,7 +65,6 @@ nonisolated enum SearchCategory: CaseIterable {
         }
     }
 
-    /// Classifies a browsable row by its destination `pageType`.
     init(pageType: String) {
         switch pageType {
         case "MUSIC_PAGE_TYPE_ALBUM":        self = .album
@@ -113,7 +95,6 @@ nonisolated enum SearchParser {
             if let card = section.musicCardShelfRenderer {
                 topResult = topResult ?? makeTopResult(card)
             } else if let listShelf = section.listShelf {
-                // A pre-grouped, server-titled shelf (filtered search).
                 if let shelf = makeShelf(title: listShelf.title?.text ?? "", contents: listShelf.contents) {
                     grouped.append(shelf)
                 }
@@ -122,7 +103,6 @@ nonisolated enum SearchParser {
                     grouped.append(shelf)
                 }
             } else if let itemSection = section.itemSectionRenderer {
-                // Ungrouped rows: classify each and collect by category.
                 for carouselItem in itemSection.contents ?? [] {
                     guard let item = HomeFeedParser.makeItem(from: carouselItem) else { continue }
                     byCategory[category(for: carouselItem), default: []].append(stripType(item))
@@ -145,9 +125,7 @@ nonisolated enum SearchParser {
 
     // MARK: - Categorization
 
-    /// Determines a result row's category from its structural signals: a watch
-    /// endpoint's `musicVideoType` (songs/videos/episodes), else a browse
-    /// endpoint's `pageType` (albums/artists/playlists/podcasts/profiles).
+    /// Uses structural signals (`musicVideoType`, then `pageType`), which are stable across locales.
     private static func category(for carouselItem: CarouselItem) -> SearchCategory {
         if let row = carouselItem.musicResponsiveListItemRenderer {
             if let type = row.playEndpoint?.watchEndpoint?.musicVideoType {
@@ -188,9 +166,7 @@ nonisolated enum SearchParser {
 
     // MARK: - Subtitle cleanup
 
-    /// Drops the leading content-type token ("Song" / "Album" / "Artist" / …)
-    /// from a result's subtitle; the category shelf header already conveys the
-    /// type, so repeating it on every row is noise.
+    /// The category shelf header already conveys the content-type token.
     private static func stripType(_ item: ShelfItem) -> ShelfItem {
         var item = item
         var parts = item.subtitle.components(separatedBy: " • ")

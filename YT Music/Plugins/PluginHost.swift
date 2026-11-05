@@ -2,10 +2,6 @@
 //  PluginHost.swift
 //  YT Music
 //
-//  Owns the registered plugins, persists which are enabled, and fans playback
-//  changes out to the enabled ones. The single integration point for plugins:
-//  the app builds the array, the Settings screen renders it, and PluginBridge
-//  feeds it playback updates.
 //
 
 import SwiftUI
@@ -23,7 +19,6 @@ final class PluginHost {
         self.plugins = plugins
         self.defaults = defaults
         self.enabledIDs = Set(defaults.stringArray(forKey: storageKey) ?? [])
-        // Bring previously-enabled plugins online.
         for plugin in plugins where enabledIDs.contains(plugin.id) {
             plugin.setActive(true)
         }
@@ -31,7 +26,6 @@ final class PluginHost {
 
     func isEnabled(_ plugin: any Plugin) -> Bool { enabledIDs.contains(plugin.id) }
 
-    /// The registered plugin of type `T`, only while it is enabled.
     func enabled<T: Plugin>(_ type: T.Type) -> T? {
         plugins.lazy.compactMap { $0 as? T }.first { enabledIDs.contains($0.id) }
     }

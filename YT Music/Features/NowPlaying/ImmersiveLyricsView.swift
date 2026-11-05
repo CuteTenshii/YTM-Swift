@@ -2,16 +2,12 @@
 //  ImmersiveLyricsView.swift
 //  YT Music
 //
-//  A full-window, Apple Music–style lyrics experience: the current track's
-//  artwork blurred behind big, auto-scrolling synced lyrics, with a compact
-//  transport strip. Presented as an animated overlay from the now-playing bar
-//  (macOS has no full-screen cover), dismissed with the close button or Escape.
+//  Full-window lyrics overlay with blurred artwork and visualizer modes.
 //
 
 import SwiftUI
 
 struct ImmersiveLyricsView: View {
-    /// What the immersive view is showing: the lyrics, or one of the visualizers.
     enum Mode: String, CaseIterable {
         case lyrics, bars, milkdrop
 
@@ -34,15 +30,11 @@ struct ImmersiveLyricsView: View {
 
     let player: PlayerState
     @Binding var isPresented: Bool
-    /// Safe-area inset above the view (menu bar / notch in full screen), so the
-    /// header can clear it while the background still bleeds to the screen edge.
     var safeAreaTop: CGFloat = 0
 
     @Environment(AppSettings.self) private var settings
     @State private var model = LyricsViewModel()
     @State private var mode: Mode = .lyrics
-    /// Prominent colours sampled from the current cover art, driving the ambient
-    /// background gradient. Empty until loaded (falls back to the blurred art).
     @State private var palette: [PaletteColor] = []
 
     var body: some View {
@@ -54,9 +46,6 @@ struct ImmersiveLyricsView: View {
                     switch mode {
                     case .lyrics:
                         content
-                            // Fade lyrics near the top/bottom edges so a line
-                            // scrolling up melts away instead of colliding with
-                            // the header (Apple Music does the same).
                             .mask(edgeFade)
                     case .bars:
                         SpectrumVisualizerView(analyzer: player.spectrum,
@@ -89,8 +78,6 @@ struct ImmersiveLyricsView: View {
             } else {
                 MeshGradient(width: 3, height: 3, points: meshPoints, colors: meshColors)
             }
-            // Darken so white lyrics stay legible over bright artwork, plus a
-            // top/bottom vignette to anchor the header and transport.
             Color.black.opacity(0.35)
             LinearGradient(colors: [.black.opacity(0.55), .clear, .black.opacity(0.65)],
                            startPoint: .top, endPoint: .bottom)
@@ -100,7 +87,6 @@ struct ImmersiveLyricsView: View {
         .animation(.easeInOut(duration: 0.6), value: palette)
     }
 
-    /// The previous look, kept as a fallback when colour extraction fails.
     private var blurredArtwork: some View {
         Group {
             if let url = player.nowPlaying?.thumbnailURL {
@@ -110,12 +96,11 @@ struct ImmersiveLyricsView: View {
                     Color.black
                 }
                 .blur(radius: 70)
-                .scaleEffect(1.4) // hide the blur's soft edges
+                .scaleEffect(1.4)
             }
         }
     }
 
-    /// A 3×3 control grid for the mesh — evenly spaced, corners pinned.
     private var meshPoints: [SIMD2<Float>] {
         [
             [0, 0], [0.5, 0], [1, 0],
@@ -124,15 +109,12 @@ struct ImmersiveLyricsView: View {
         ]
     }
 
-    /// Tiles the sampled palette across the nine mesh vertices (darkened so the
-    /// gradient reads as an ambient wash rather than washing out the lyrics).
     private var meshColors: [Color] {
         let base = palette.map { $0.adjusted(brightness: 0.55).color }
         guard !base.isEmpty else { return Array(repeating: .black, count: 9) }
         return (0..<9).map { base[$0 % base.count] }
     }
 
-    /// Fetches the cover art and extracts its palette off the main actor.
     private func loadPalette() async {
         guard let url = player.nowPlaying?.thumbnailURL else {
             palette = []
@@ -181,7 +163,6 @@ struct ImmersiveLyricsView: View {
         .padding(.bottom, 8)
     }
 
-    /// Switches the main area between the lyrics and the visualizers.
     private var modeToggle: some View {
         Picker("View", selection: $mode.animation(.easeInOut(duration: 0.2))) {
             ForEach(Mode.allCases, id: \.self) { mode in
@@ -224,9 +205,6 @@ struct ImmersiveLyricsView: View {
         }
     }
 
-    /// A vertical gradient that fades the lyrics near the top and bottom edges,
-    /// so scrolled-away lines melt into the background instead of butting up
-    /// against the window controls or the transport strip.
     private var edgeFade: some View {
         LinearGradient(
             stops: [
@@ -303,11 +281,8 @@ struct ImmersiveLyricsView: View {
 }
 
 extension PaletteColor {
-    /// The SwiftUI colour for this sample.
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue) }
 
-    /// Scales the colour down so its brightest channel is at most `cap`, keeping
-    /// light artwork from washing out the white lyrics laid over it.
     func adjusted(brightness cap: Double) -> PaletteColor {
         let mx = max(red, green, blue)
         guard mx > cap, mx > 0 else { return self }
@@ -317,8 +292,6 @@ extension PaletteColor {
 }
 
 extension LyricsQuery {
-    /// Builds a lyrics query for the player's current track, or nil when nothing
-    /// is playing.
     init?(currentlyPlaying player: PlayerState) {
         guard let track = player.nowPlaying else { return nil }
         self.init(videoId: track.videoId,

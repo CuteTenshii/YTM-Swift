@@ -20,9 +20,7 @@ final class AddToPlaylistModel {
     }
 
     private(set) var state: State = .loading
-    /// True while an add / create / rename / delete request is in flight.
     private(set) var busy = false
-    /// The track being added, remembered so rename/delete can refresh the list.
     private var videoId: String?
 
     private let client: InnerTubeClient
@@ -41,12 +39,10 @@ final class AddToPlaylistModel {
         }
     }
 
-    /// Reloads the current track's options after a mutation (rename/delete).
     private func reload() async {
         if let videoId { await load(videoId: videoId) }
     }
 
-    /// Adds the track to an existing playlist. Returns whether it succeeded.
     func add(videoId: String, to playlist: EditablePlaylist) async -> Bool {
         guard !busy else { return false }
         busy = true
@@ -59,7 +55,6 @@ final class AddToPlaylistModel {
         }
     }
 
-    /// Creates a new playlist seeded with the track. Returns whether it succeeded.
     func create(name: String, seeding videoId: String) async -> Bool {
         let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, !busy else { return false }
@@ -97,7 +92,6 @@ struct AddToPlaylistSheet: View {
 
     @State private var model = AddToPlaylistModel()
     @State private var newName = ""
-    /// The playlist being renamed (drives the rename alert), and its draft name.
     @State private var renaming: EditablePlaylist?
     @State private var renameText = ""
 
@@ -139,7 +133,6 @@ struct AddToPlaylistSheet: View {
         .padding(16)
     }
 
-    /// Create-and-add a brand new playlist.
     private var newPlaylistRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "plus.square")

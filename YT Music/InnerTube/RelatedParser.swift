@@ -2,13 +2,6 @@
 //  RelatedParser.swift
 //  YT Music
 //
-//  Parses the watch-next "Related" browse response into shelves. Unlike Home /
-//  Explore (which nest their shelves under a tab), the related page returns its
-//  section list directly under `contents.sectionListRenderer`. The shelves
-//  themselves use the same carousel / list renderers, so we reuse `Shelf`
-//  and `HomeFeedParser.makeItem`. Non-card sections (e.g. the description shelf
-//  and the "About the artist" text block) carry no items and are skipped.
-//
 
 import Foundation
 

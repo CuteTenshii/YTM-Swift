@@ -2,13 +2,6 @@
 //  UploadsParser.swift
 //  YT Music
 //
-//  Parses the `FEmusic_library_privately_owned_landing` browse response — the
-//  signed-in user's uploaded music — into shelves. Structurally identical to the
-//  library landing: a grid of uploaded albums, a carousel of uploaded artists,
-//  and a flat list shelf of uploaded songs, all built from the same card
-//  renderers as Home, so we reuse `Shelf` / `ShelfItem` and
-//  `HomeFeedParser.makeItem`.
-//
 
 import Foundation
 
@@ -18,9 +11,7 @@ nonisolated enum UploadsParser {
         sections(in: response).compactMap(shelf(from:))
     }
 
-    /// Uploaded music can come back in either the classic single-column layout or
-    /// the newer two-column one (primary tab + `secondaryContents`), so collect
-    /// sections from whichever the response uses.
+    /// Handles both the single-column and two-column (`secondaryContents`) layouts.
     private static func sections(in response: BrowseResponse) -> [BrowseResponse.SectionContent] {
         if let single = response.contents?.singleColumnBrowseResultsRenderer {
             return sections(inTabs: single.tabs)
@@ -33,10 +24,7 @@ nonisolated enum UploadsParser {
         return []
     }
 
-    /// Picks the meaningful tab's sections. This landing page returns several
-    /// tabs (Library / Downloads / Uploads) where only the selected (Uploads) one
-    /// carries content — the others are lazy `continuations` — so prefer the
-    /// selected tab, then any tab that actually has sections, then the first.
+    /// Only the selected tab carries content; the others are lazy continuations.
     private static func sections(inTabs tabs: [BrowseResponse.Tab]?) -> [BrowseResponse.SectionContent] {
         let renderers = (tabs ?? []).compactMap(\.tabRenderer)
         func contents(_ renderer: BrowseResponse.TabRenderer) -> [BrowseResponse.SectionContent] {

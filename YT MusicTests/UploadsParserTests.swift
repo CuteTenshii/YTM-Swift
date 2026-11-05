@@ -2,10 +2,6 @@
 //  UploadsParserTests.swift
 //  YT MusicTests
 //
-//  Tests for parsing the uploaded-music landing page
-//  (`FEmusic_library_privately_owned_landing`) into shelves of uploaded albums
-//  and songs.
-//
 
 import Testing
 import Foundation

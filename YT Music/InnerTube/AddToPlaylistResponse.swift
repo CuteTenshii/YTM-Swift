@@ -2,26 +2,6 @@
 //  AddToPlaylistResponse.swift
 //  YT Music
 //
-//  Decodable models + parser for `playlist/get_add_to_playlist` — the endpoint
-//  YT Music's own "Add to playlist" dialog uses. Unlike browsing the library
-//  playlists page (which lists every saved playlist, including ones you can't
-//  edit), this returns exactly the playlists the signed-in user can add the
-//  given track(s) to.
-//
-//  Path:
-//    contents[].addToPlaylistRenderer.playlists[]
-//      .playlistAddToOptionRenderer {
-//         playlistId,
-//         title.runs[].text,
-//         shortBylineText { simpleText | runs[] }  — e.g. "22 tracks" / "8,202 songs",
-//         thumbnailRenderer.musicThumbnailRenderer.thumbnail.thumbnails[]
-//      }
-//
-//  `contents` arrives as an *array* of renderer wrappers (the same shape as most
-//  InnerTube surfaces), so we decode it as a list. A stray single-object variant
-//  is tolerated too — see `Contents.init(from:)`. Every nested field is optional
-//  (or resilient to a missing url/text) so one malformed row can't fail the whole
-//  decode; unparseable rows are simply dropped by the parser.
 //
 
 import Foundation
@@ -29,8 +9,7 @@ import Foundation
 nonisolated struct AddToPlaylistResponse: Decodable {
     let contents: Contents?
 
-    /// `contents` is normally `[{ addToPlaylistRenderer: … }]`. We flatten every
-    /// wrapper's renderers into one list, and also accept a lone object form.
+    /// `contents` is normally `[{ addToPlaylistRenderer }]`; a lone object is also accepted.
     struct Contents: Decodable {
         let renderers: [Renderer]
 
@@ -61,11 +40,9 @@ nonisolated struct AddToPlaylistResponse: Decodable {
     struct OptionRenderer: Decodable {
         let playlistId: String?
         let title: OptionText?
-        /// Track count byline, e.g. "22 tracks" / "8,202 songs". Arrives split
-        /// across `runs` ("22" + " tracks") or as a flat `simpleText`.
+        /// Arrives as split `runs` ("22" + " tracks") or a flat `simpleText`.
         let shortBylineText: OptionText?
-        /// Cover art is nested under thumbnailRenderer → musicThumbnailRenderer,
-        /// NOT a bare top-level `thumbnail` key.
+        /// Nested under thumbnailRenderer.musicThumbnailRenderer, not a top-level `thumbnail`.
         let thumbnailRenderer: ThumbnailRenderer?
     }
 
@@ -79,7 +56,7 @@ nonisolated struct AddToPlaylistResponse: Decodable {
         var bestURL: URL? { musicThumbnailRenderer?.thumbnail?.bestURL }
     }
 
-    /// The option title can arrive as either `runs` or a flat `simpleText`.
+    /// Arrives as `runs` or a flat `simpleText`.
     struct OptionText: Decodable {
         let runs: [Run]?
         let simpleText: String?

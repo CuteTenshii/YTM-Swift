@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// A menu of choices with a sublabel under each, which a menu-style `Picker`
-/// doesn't show.
 struct DescribedMenu<Value: Hashable>: View {
     struct Choice {
         var value: Value

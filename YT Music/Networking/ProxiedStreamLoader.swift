@@ -2,10 +2,7 @@
 //  ProxiedStreamLoader.swift
 //  YT Music
 //
-//  AVPlayer fetches media with the system network settings and has no proxy
-//  option. When a proxy is configured, stream URLs are rewritten to a custom
-//  scheme so AVFoundation hands every byte-range request to this loader, which
-//  performs it through the proxied URLSession.
+//  Routes AVPlayer byte-range requests through the configured proxy via a custom URL scheme.
 //
 
 import AVFoundation
@@ -20,7 +17,6 @@ nonisolated final class ProxiedStreamLoader: NSObject, AVAssetResourceLoaderDele
     private var session: URLSession!
     private var requests: [Int: AVAssetResourceLoadingRequest] = [:]
 
-    /// nil when no valid proxy is configured; streams then load directly.
     init?(proxyURL: String? = nil) {
         let value = proxyURL ?? UserDefaults.standard.string(forKey: NetworkSession.proxyDefaultsKey)
         guard let proxy = value.flatMap(NetworkProxy.init(string:)) else { return nil }
@@ -45,7 +41,6 @@ nonisolated final class ProxiedStreamLoader: NSObject, AVAssetResourceLoaderDele
         return components.url
     }
 
-    /// The `Range` header value for a data request, or nil to fetch the whole resource.
     static func rangeHeader(offset: Int64, length: Int, toEnd: Bool) -> String? {
         if toEnd { return offset == 0 ? nil : "bytes=\(offset)-" }
         return "bytes=\(offset)-\(offset + Int64(length) - 1)"

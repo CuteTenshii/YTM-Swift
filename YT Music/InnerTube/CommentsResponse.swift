@@ -2,19 +2,6 @@
 //  CommentsResponse.swift
 //  YT Music
 //
-//  Decodable models for YouTube comments, fetched through the InnerTube `next`
-//  endpoint in two steps:
-//
-//    1. `next` with the videoId returns engagement panels; the comments panel
-//       carries a continuation token (CommentsTokenResponse).
-//    2. `next` with that token returns the comment threads. The actual comment
-//       data lives in `frameworkUpdates.entityBatchUpdate.mutations[]` as
-//       `commentEntityPayload` entities (YouTube's modern comment view-model
-//       framing); we read those directly (CommentsResponse).
-//
-//  Note: comments are a YouTube (not YT Music) surface. Audio-only tracks often
-//  have no comments panel under the WEB_REMIX client, in which case step 1
-//  yields no token and the UI shows "no comments".
 //
 
 import Foundation
@@ -34,7 +21,6 @@ nonisolated struct CommentsTokenResponse: Decodable {
         let header: PanelHeader?
         let content: PanelContent?
 
-        /// The comments continuation token buried in the panel's first section.
         var token: String? {
             (content?.sectionListRenderer?.contents ?? [])
                 .compactMap { $0.itemSectionRenderer?.contents }
@@ -88,9 +74,7 @@ nonisolated struct CommentsTokenResponse: Decodable {
 
 nonisolated struct CommentsResponse: Decodable {
     let frameworkUpdates: FrameworkUpdates?
-    /// Carries the comment threads (whose `replies` hold per-comment reply
-    /// continuation tokens). The comment *content* lives in frameworkUpdates;
-    /// these renderers correlate a commentId with its reply token.
+    /// Content lives in frameworkUpdates; these renderers only correlate a commentId with its reply token.
     let onResponseReceivedEndpoints: [ReceivedEndpoint]?
 
     struct FrameworkUpdates: Decodable {
@@ -167,8 +151,7 @@ nonisolated struct CommentsResponse: Decodable {
 
     struct ThreadItem: Decodable {
         let commentThreadRenderer: CommentThreadRenderer?
-        /// A bare continuation item (no thread) carries the "load more comments"
-        /// paging token at the end of the list.
+        // A bare continuation item at the end of the list carries the "load more" token.
         let continuationItemRenderer: ReplyContinuation?
     }
 
@@ -176,7 +159,6 @@ nonisolated struct CommentsResponse: Decodable {
         let commentViewModel: ViewModelWrapper?
         let replies: Replies?
 
-        /// (commentId, replyToken) for this thread, when both are present.
         var replyToken: (id: String, token: String)? {
             guard let id = commentViewModel?.commentViewModel?.commentId,
                   let token = replies?.commentRepliesRenderer?.contents?
@@ -201,8 +183,6 @@ nonisolated struct CommentsResponse: Decodable {
     struct ReplyContent: Decodable {
         let continuationItemRenderer: ReplyContinuation?
 
-        /// The reply continuation token, from either the plain continuation
-        /// endpoint or the "View N replies" button.
         var replyToken: String? { continuationItemRenderer?.token }
     }
 
@@ -210,8 +190,6 @@ nonisolated struct CommentsResponse: Decodable {
         let continuationEndpoint: CommentEndpoint?
         let button: ButtonWrapper?
 
-        /// The token from either the plain continuation endpoint or a button
-        /// ("View N replies" / "Show more").
         var token: String? {
             continuationEndpoint?.continuationCommand?.token
                 ?? button?.buttonRenderer?.command?.continuationCommand?.token
@@ -233,10 +211,9 @@ nonisolated struct CommentsResponse: Decodable {
 
 // MARK: - Parser
 
+// Comments are a YouTube surface; audio-only tracks often have no comments panel, so there is no token.
 nonisolated enum CommentsParser {
-    /// The continuation token for the comments engagement panel, if present.
-    /// Identifies the panel by its id or header title so a non-comments panel
-    /// (e.g. a description panel) isn't mistaken for it.
+    /// Matches the panel by id or header title so a description panel isn't mistaken for it.
     static func continuationToken(_ response: CommentsTokenResponse) -> String? {
         for panel in response.engagementPanels ?? [] {
             guard let renderer = panel.engagementPanelSectionListRenderer else { continue }
@@ -249,9 +226,7 @@ nonisolated enum CommentsParser {
         return nil
     }
 
-    /// Flattens the comment entity mutations into top-level Comments (preserving
-    /// the server's order, attaching each one's reply token) plus the paging
-    /// token for the next page. Replies (replyLevel > 0) are skipped.
+    /// Replies (replyLevel > 0) are skipped.
     static func parse(_ response: CommentsResponse) -> CommentPage {
         let tokens = replyTokens(response)
         let mutations = response.frameworkUpdates?.entityBatchUpdate?.mutations ?? []
@@ -265,10 +240,7 @@ nonisolated enum CommentsParser {
         return CommentPage(comments: comments, continuationToken: nextPageToken(response))
     }
 
-    /// Parses a reply continuation into a page of Comments, excluding the parent
-    /// comment (the reply feed sometimes re-includes it), plus the paging token
-    /// for more replies. No replyLevel filtering, since the feed is already
-    /// scoped to one thread's replies.
+    /// Excludes the parent comment (the reply feed sometimes re-includes it).
     static func parseReplies(_ response: CommentsResponse, excluding parentId: String) -> CommentPage {
         let mutations = response.frameworkUpdates?.entityBatchUpdate?.mutations ?? []
         let replies = mutations.compactMap { mutation -> Comment? in
@@ -279,7 +251,6 @@ nonisolated enum CommentsParser {
         return CommentPage(comments: replies, continuationToken: nextPageToken(response))
     }
 
-    /// Builds a Comment from one entity payload (without a reply token).
     private static func comment(from payload: CommentsResponse.CommentEntityPayload) -> Comment? {
         guard let props = payload.properties,
               let id = props.commentId,
@@ -301,8 +272,6 @@ nonisolated enum CommentsParser {
         )
     }
 
-    /// Maps each comment id to its reply continuation token (only threads that
-    /// actually have replies appear).
     private static func replyTokens(_ response: CommentsResponse) -> [String: String] {
         var map: [String: String] = [:]
         for endpoint in response.onResponseReceivedEndpoints ?? [] {
@@ -315,8 +284,6 @@ nonisolated enum CommentsParser {
         return map
     }
 
-    /// The "load more" paging token — a trailing continuation item that isn't a
-    /// comment thread — for the next page of the feed.
     private static func nextPageToken(_ response: CommentsResponse) -> String? {
         for endpoint in response.onResponseReceivedEndpoints ?? [] {
             for item in endpoint.items where item.commentThreadRenderer == nil {

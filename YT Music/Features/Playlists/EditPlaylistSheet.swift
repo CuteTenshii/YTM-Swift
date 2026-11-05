@@ -2,23 +2,21 @@
 //  EditPlaylistSheet.swift
 //  YT Music
 //
-//  The metadata editor for one of the user's own playlists — name, visibility,
-//  description — presented from the playlist page. It edits the values the
+//  The metadata editor for one of the user's own playlists, name, visibility,
+//  description, presented from the playlist page. It edits the values the
 //  page already loaded, so there's no extra fetch: the picker shows the
 //  playlist's actual visibility as parsed from the page header (Private, the
 //  visibility playlists are created with, when the header didn't say), and
-//  saving sends only the fields that changed — a visibility the page never
+//  saving sends only the fields that changed, a visibility the page never
 //  reported is never sent unless you pick one.
 //
 
 import SwiftUI
 
 struct EditPlaylistSheet: View {
-    /// Applies the edits; returns whether they were applied.
     private let save: (_ name: String, _ description: String, _ privacy: PlaylistPrivacy?,
                        _ votePermission: Int?) async -> Bool
     private let voteOptions: [PlaylistVoteOption]
-    /// Dismisses the sheet (called on cancel or after a successful save).
     private let onFinish: () -> Void
 
     @State private var name: String
@@ -125,10 +123,6 @@ struct EditPlaylistSheet: View {
             .foregroundStyle(.secondary)
     }
 
-    /// The picker selection as displayed: the playlist's actual visibility
-    /// when the page parsed one, and Private — the visibility playlists are
-    /// created with — when it didn't. Picking updates `privacy`, which stays
-    /// nil (and is therefore never sent) while untouched.
     private var displayedPrivacy: Binding<PlaylistPrivacy> {
         Binding(
             get: { privacy ?? .private },

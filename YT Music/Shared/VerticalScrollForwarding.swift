@@ -2,9 +2,7 @@
 //  VerticalScrollForwarding.swift
 //  YT Music
 //
-//  A horizontal-only scroll view swallows vertical wheel events, so the page
-//  behind it stops scrolling while the pointer is over a shelf. This monitor
-//  hands those events to the next scroll view up the hierarchy.
+//  Forwards vertical wheel events from horizontal-only scroll views to the enclosing one.
 //
 
 import AppKit
@@ -19,7 +17,6 @@ enum VerticalScrollForwarding {
         }
     }
 
-    /// True when the event was handed to an outer scroll view.
     private static func forward(_ event: NSEvent) -> Bool {
         guard abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX),
               let content = event.window?.contentView,

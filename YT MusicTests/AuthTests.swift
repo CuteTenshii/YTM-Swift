@@ -2,9 +2,6 @@
 //  AuthTests.swift
 //  YT MusicTests
 //
-//  Tests for the pure authentication logic: cookie parsing, header building, and
-//  the SAPISIDHASH scheme. (Keychain / WKWebView paths aren't unit-tested.)
-//
 
 import Testing
 import Foundation

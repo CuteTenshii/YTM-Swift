@@ -2,9 +2,6 @@
 //  PlayerResponse.swift
 //  YT Music
 //
-//  Decodable models for the InnerTube `player` endpoint, which returns playback
-//  status and the available media streams for a video.
-//
 
 import Foundation
 
@@ -29,9 +26,7 @@ struct PlayerResponse: Decodable, Sendable {
         let reason: String?
     }
 
-    /// Stats endpoints the web player pings during playback. Pinging
-    /// `videostatsPlaybackUrl` (with a content-playback nonce) is what registers
-    /// a play in the signed-in user's YouTube Music watch history.
+    /// Pinging `videostatsPlaybackUrl` registers a play in watch history.
     nonisolated struct PlaybackTracking: Decodable, Sendable {
         let videostatsPlaybackUrl: TrackingURL?
         let videostatsWatchtimeUrl: TrackingURL?
@@ -41,9 +36,7 @@ struct PlayerResponse: Decodable, Sendable {
         }
     }
 
-    /// Authoritative metadata for the video — notably `lengthSeconds`, which is
-    /// the true track length (AVPlayer's `duration` can be a bad estimate while a
-    /// progressive stream is still buffering).
+    /// `lengthSeconds` is the true length; AVPlayer's duration can be off while buffering.
     nonisolated struct VideoDetails: Decodable, Sendable {
         let lengthSeconds: String?
         let title: String?
@@ -59,8 +52,7 @@ struct PlayerResponse: Decodable, Sendable {
         let formats: [Format]?
     }
 
-    /// A single media stream. Either `url` is present directly, or the URL is
-    /// hidden inside `signatureCipher` and must be deciphered.
+    /// Either `url` is direct or it is hidden inside `signatureCipher`.
     nonisolated struct Format: Decodable, Sendable {
         let itag: Int?
         let mimeType: String?
@@ -70,7 +62,7 @@ struct PlayerResponse: Decodable, Sendable {
         let cipher: String?         // older key name
         let audioQuality: String?
         let loudnessDb: Double?
-        /// This stream's length in milliseconds; `lengthSeconds` is whole seconds.
+        /// Milliseconds; `lengthSeconds` is whole seconds.
         let approxDurationMs: String?
 
         var cipherString: String? { signatureCipher ?? cipher }
@@ -81,7 +73,7 @@ struct PlayerResponse: Decodable, Sendable {
 
         var isAudio: Bool { (mimeType ?? "").hasPrefix("audio/") }
 
-        /// AVFoundation can't decode Opus/WebM, so we only consider MP4/AAC.
+        /// AVFoundation can't decode Opus/WebM, so only MP4/AAC is considered.
         var isAVPlayerCompatible: Bool {
             let type = mimeType ?? ""
             return type.contains("mp4") || type.contains("mp4a")

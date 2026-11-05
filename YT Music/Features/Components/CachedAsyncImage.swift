@@ -6,10 +6,6 @@
 import SwiftUI
 import AppKit
 
-/// Process-wide artwork cache so images already downloaded for a shelf/grid
-/// card don't re-fetch and re-decode every time the card scrolls off/on-screen.
-/// Also shared directly by views that need the `NSImage` itself (e.g. the
-/// account avatar, which must be pre-scaled — see `AccountControl`).
 @MainActor
 final class ImageCache {
     static let shared = ImageCache()
@@ -28,7 +24,6 @@ final class ImageCache {
     }
 }
 
-/// Drop-in `AsyncImage` replacement backed by `ImageCache`.
 struct CachedAsyncImage<Content: View>: View {
     private let url: URL?
     private let content: (AsyncImagePhase) -> Content

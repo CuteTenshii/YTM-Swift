@@ -2,10 +2,6 @@
 //  PlayerTests.swift
 //  YT MusicTests
 //
-//  Tests for the playback layer. PlayerState's resolve→load/error orchestration
-//  is driven through injected fakes (no network, no audio hardware); AudioPlayer's
-//  no-item transport guards are tested on the real instance.
-//
 
 import Testing
 import Foundation
@@ -15,7 +11,7 @@ import Foundation
 
 enum StubError: Error { case boom }
 
-/// Thread-safe record of resolver calls — PlayerState drives resolves from
+/// Thread-safe record of resolver calls: PlayerState drives resolves from
 /// fire-and-forget tasks, so the stub (a struct) records through this box.
 nonisolated final class ResolverCalls: @unchecked Sendable {
     private let lock = NSLock()
@@ -176,7 +172,7 @@ final class FakeLikeProvider: LikeProviding {
 }
 
 /// Polls until `condition` holds (yielding to let pending tasks run) or a bounded
-/// number of iterations elapses — for awaiting fire-and-forget Tasks in tests.
+/// number of iterations elapses, for awaiting fire-and-forget Tasks in tests.
 @MainActor
 func eventually(_ condition: () -> Bool) async {
     for _ in 0..<100 {
@@ -465,7 +461,6 @@ struct PlayerStateQueueTests {
     @Test("play(queue:) filters unplayable tracks and remaps the start")
     func filtersUnplayable() {
         let p = player()
-        // Request the (unplayable) middle track → first playable at/after it.
         p.play(tracks(["a", nil, "c"]), startAt: 1)
         #expect(p.queue.map(\.videoId) == ["a", "c"])
         #expect(p.nowPlaying?.videoId == "c")
@@ -663,7 +658,6 @@ struct PlayerStateQueueTests {
 
     @Test("installRadio installs the fetched queue, anchored on the seed")
     func installRadioBuildsQueue() async {
-        // Seed first, then more tracks (mirrors the real radio response).
         let radioTracks = [
             Track(index: 1, title: "Seed", subtitle: "A", duration: nil, thumbnailURL: nil, videoId: "seed"),
             Track(index: 2, title: "Next", subtitle: "B", duration: nil, thumbnailURL: nil, videoId: "n2"),
@@ -690,7 +684,6 @@ struct PlayerStateQueueTests {
 
     @Test("installRadio keeps the seed current even if the radio response omits it")
     func installRadioKeepsSeedWhenOmitted() async {
-        // Some radio responses (premieres, live videos) don't echo the seed back.
         let radioTracks = tracks(["n2", "n3"])
         let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(),
                             radioProvider: StubRadio(tracks: radioTracks))
@@ -707,7 +700,6 @@ struct PlayerStateQueueTests {
 
     @Test("playAll plays the fetched watch queue with real track metadata")
     func playAllBuildsQueue() async {
-        // A "Play all" resolves the real playlist tracks, not the button label.
         let queue = [
             Track(index: 1, title: "First", subtitle: "A", duration: nil, thumbnailURL: nil, videoId: "a"),
             Track(index: 2, title: "Second", subtitle: "B", duration: nil, thumbnailURL: nil, videoId: "b"),
@@ -895,12 +887,10 @@ struct PlayerStateQueueTests {
         p.play(tracks(["a", "b"]), startAt: 0)
         #expect(p.nowPlaying?.videoId == "a")
 
-        // Within 5s of a 100s track → should arm the crossfade.
         audio.onProgress?(96, 100)
         #expect(p.currentIndex == 1)
         #expect(p.nowPlaying?.videoId == "b")
 
-        // Let the resolve + crossfade task run.
         try? await Task.sleep(for: .milliseconds(100))
         #expect(audio.crossfadedURL != nil)
         #expect(audio.crossfadeDuration == 5)
@@ -946,11 +936,10 @@ struct PlayerStateQueueTests {
                             settings: settings(crossfade: 5))
         p.play(tracks(["a", "b", "c"]), startAt: 0)
 
-        // Crossfade arms and advances to "b" (loadCrossfade task not yet run).
         audio.onProgress?(96, 100)
         #expect(p.currentIndex == 1)
 
-        // The outgoing "a" now reaches its natural end — must NOT jump to "c".
+        // The outgoing "a" now reaches its natural end: must NOT jump to "c".
         audio.onTrackFinished?()
         #expect(p.currentIndex == 1)
         #expect(p.nowPlaying?.videoId == "b")
@@ -1022,11 +1011,9 @@ struct PlayerStateQueueTests {
         let p = PlayerState(audio: FakeAudioOutput(), resolver: StubResolver(), radioProvider: radio)
         p.play(title: "Seed", subtitle: "A", thumbnailURL: nil, videoId: "seed")
 
-        // First backstop installs the radio and captures its continuation token.
         await p.appendRadio(seed: "seed")
         #expect(p.queue.map(\.videoId) == ["seed", "r1", "r2"])
 
-        // Advance to the last queued track, mirroring real playback reaching it.
         p.playQueueItem(at: 2)
 
         // Running out again continues the SAME radio via the token, not a brand
@@ -1062,7 +1049,6 @@ struct PlayerStateShuffleTests {
         #expect(p.currentIndex == 0)
         #expect(p.nowPlaying?.videoId == "c")
         #expect(p.queue.first?.videoId == "c")
-        // Same set of tracks, no losses or dupes.
         #expect(Set(p.queue.compactMap(\.videoId)) == ["a", "b", "c", "d", "e"])
         #expect(p.queue.count == 5)
     }
@@ -1087,7 +1073,6 @@ struct PlayerStateShuffleTests {
         p.playNext(title: "X", subtitle: "A", thumbnailURL: nil, videoId: "x")
         p.toggleShuffle()
         #expect(Set(p.queue.compactMap(\.videoId)) == ["a", "b", "c", "x"])
-        // Original three keep their order; the added track trails.
         #expect(p.queue.map(\.videoId) == ["a", "b", "c", "x"])
     }
 
@@ -1379,7 +1364,6 @@ struct PlayerStateLikeTests {
         let p = player(like)
         p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
 
-        // User likes the track before the background fetch can apply.
         p.toggleLike()
         #expect(p.likeStatus == .liked)   // optimistic
 
@@ -1395,10 +1379,8 @@ struct PlayerStateLikeTests {
         let p = player(like)
         p.play(title: "T", subtitle: "A", thumbnailURL: nil, videoId: "vid")
 
-        // A non-current row with no cached toggle reports the response's rating.
         #expect(p.knownLikeStatus(for: "other", default: .liked) == .liked)
         #expect(p.knownLikeStatus(for: "other") == .indifferent)   // no default given
-        // The current track's live status wins over any passed default.
         #expect(p.knownLikeStatus(for: "vid", default: .liked) == .indifferent)
     }
 
@@ -1406,10 +1388,8 @@ struct PlayerStateLikeTests {
     func likeStatusIfKnownNilWhenUnknown() async {
         let like = FakeLikeProvider()
         let p = player(like)
-        // Nothing playing, nothing cached → unknown (so the Like entry is hidden).
         #expect(p.likeStatusIfKnown(for: "vid") == nil)
 
-        // A rating learned this session becomes known.
         p.setLikeStatus(for: "vid", to: .liked)
         #expect(p.likeStatusIfKnown(for: "vid") == .liked)
     }

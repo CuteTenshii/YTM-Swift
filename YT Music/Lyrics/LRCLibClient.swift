@@ -2,11 +2,6 @@
 //  LRCLibClient.swift
 //  YT Music
 //
-//  A lyrics provider backed by LRCLIB (https://lrclib.net) — a free, open,
-//  no-auth lyrics database. Matched by track metadata rather than a YouTube id:
-//  an exact `get` (title + artist + album + duration) first, falling back to a
-//  `search` by title/artist. We display the plain (untimed) lyrics.
-//
 
 import Foundation
 
@@ -31,13 +26,11 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
     func lyrics(for query: LyricsQuery) async throws -> Lyrics? {
         let title = query.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return nil }
-        // Prefer an exact metadata match; otherwise fall back to a text search.
         if let exact = try await exactMatch(query) { return exact }
         return try await searchMatch(query)
     }
 
-    /// `GET /api/get` — an exact match on title + artist (+ album + duration).
-    /// LRCLIB returns 404 when it has no exact match, which we treat as "none".
+    /// LRCLIB returns 404 for no exact match; treated as none.
     private func exactMatch(_ query: LyricsQuery) async throws -> Lyrics? {
         guard !query.artist.isEmpty else { return nil }   // get requires an artist
         var items = [
@@ -54,7 +47,6 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
         return lyrics(from: track)
     }
 
-    /// `GET /api/search` — a fuzzy text search; we take the first usable hit.
     private func searchMatch(_ query: LyricsQuery) async throws -> Lyrics? {
         let q = [query.title, query.artist].filter { !$0.isEmpty }.joined(separator: " ")
         let items = [URLQueryItem(name: "q", value: q)]
@@ -62,8 +54,6 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
         return results.lazy.compactMap { self.lyrics(from: $0) }.first
     }
 
-    /// Issues a GET and decodes the body, or returns nil for a non-200 (e.g. the
-    /// 404 LRCLIB uses for "not found").
     private func get<T: Decodable>(_ endpoint: String, query items: [URLQueryItem]) async throws -> T? {
         var components = URLComponents(
             url: baseURL.appendingPathComponent(endpoint),
@@ -84,8 +74,7 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
             return Lyrics(text: "♪ Instrumental ♪", source: "LRCLIB")
         }
         let synced = track.syncedLyrics.map(LRCParser.parse) ?? []
-        // Prefer the plain text for the fallback view; if only synced lyrics
-        // exist, flatten them into plain text so there's always something.
+        // Flatten synced lyrics to plain text when no plain text exists.
         let plain = track.plainLyrics.flatMap { $0.isEmpty ? nil : $0 }
             ?? synced.map(\.text).joined(separator: "\n")
         guard !plain.isEmpty else { return nil }

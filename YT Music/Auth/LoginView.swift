@@ -2,13 +2,8 @@
 //  LoginView.swift
 //  YT Music
 //
-//  Web sign-in sheet. Hosts a WKWebView pointed at Google sign-in (continuing to
-//  music.youtube.com). When it lands back on YT Music with a SAPISID cookie, we
-//  capture the jar and hand it to AuthStore.
-//
-//  Note: Google sometimes refuses sign-in in embedded web views ("this browser
-//  may not be secure"). Presenting a desktop Safari user agent is the usual
-//  workaround; it isn't guaranteed to hold forever.
+//  Web sign-in sheet; captures the cookie jar once SAPISID appears.
+//  Google may refuse embedded sign-in; a desktop Safari user agent is the workaround.
 //
 
 import SwiftUI
@@ -57,7 +52,6 @@ struct LoginView: View {
     }
 }
 
-/// NSViewRepresentable wrapper around the login WKWebView.
 private struct LoginWebView: NSViewRepresentable {
     let webView: AuthWebView
     let onCookies: ([HTTPCookie]) -> Void
@@ -90,7 +84,6 @@ private struct LoginWebView: NSViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard let authWebView = webView as? AuthWebView else { return }
-            // Once we're back on music.youtube.com, try to capture.
             if webView.url?.host?.contains("music.youtube.com") == true {
                 authWebView.captureCookies()
             }
@@ -98,8 +91,6 @@ private struct LoginWebView: NSViewRepresentable {
     }
 }
 
-/// WKWebView that knows how to capture the relevant cookies and report a usable
-/// session exactly once.
 final class AuthWebView: WKWebView {
     var onCookiesCaptured: (([HTTPCookie]) -> Void)?
     private var hasReported = false

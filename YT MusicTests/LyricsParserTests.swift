@@ -2,9 +2,6 @@
 //  LyricsParserTests.swift
 //  YT MusicTests
 //
-//  Verifies the lyrics browse decode + parse, and the watch-next lyrics-tab
-//  browse-id extraction, against fixtures shaped like the real responses.
-//
 
 import Testing
 import Foundation
@@ -34,7 +31,6 @@ struct LyricsParserTests {
         let empty = try JSONDecoder().decode(LyricsResponse.self, from: Data("{}".utf8))
         #expect(LyricsParser.parse(empty) == nil)
 
-        // A "message" section (the not-available case) carries no description.
         let message = """
         {"contents":{"sectionListRenderer":{"contents":[{"messageRenderer":{}}]}}}
         """
@@ -42,7 +38,6 @@ struct LyricsParserTests {
         #expect(LyricsParser.parse(response) == nil)
     }
 
-    // The lyrics tab in a `next` response carries the MPLYt browse id.
     private let tabsFixture = """
     {"contents":{"singleColumnMusicWatchNextResultsRenderer":{"tabbedRenderer":
     {"watchNextTabbedResultsRenderer":{"tabs":[
@@ -156,9 +151,7 @@ struct LyricsFocusTests {
                       end: 17),
             LyricLine(time: 19, text: "c", id: 1),
         ]
-        // Mid-line: still line 0, so the word sweep keeps running (not dots).
         #expect(LyricsFocus.resolve(ls, at: 14) == .line(0))
-        // Short 2s tail gap (17→19) is under threshold → no interlude.
         #expect(LyricsFocus.resolve(ls, at: 18) == .line(0))
     }
 
@@ -179,7 +172,6 @@ struct LyricsFocusTests {
 
     @Test("Ordinary line-level gaps don't trigger an interlude")
     func shortLineLevelGapNoInterlude() {
-        // 4s between line starts, no word/end info → line stays active.
         #expect(LyricsFocus.resolve(lines([0, 4, 8]), at: 3) == .line(0))
     }
 

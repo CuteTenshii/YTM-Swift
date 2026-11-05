@@ -2,25 +2,12 @@
 //  DiscordRPC.swift
 //  YT Music
 //
-//  Minimal Discord Rich Presence client. Connects to the local Discord IPC
-//  socket (`discord-ipc-N` in the temp dir), performs the v1 handshake, and
-//  pushes SET_ACTIVITY frames mirroring the now-playing track.
-//
-//  Protocol: each frame is a little-endian UInt32 opcode + UInt32 byte-length +
-//  UTF-8 JSON payload. op 0 = handshake, op 1 = frame (commands), op 2 = close.
-//
-//  Discord creates `discord-ipc-N` (N = 0…9) in the per-user Darwin temp dir
-//  (`$TMPDIR`, e.g. `/var/folders/…/T/`). The App Sandbox is disabled for this
-//  app, so that temp dir is the real host one and connecting to the socket is
-//  permitted; `candidatePaths()` covers `$TMPDIR` plus the usual fallbacks. The
-//  client fails quietly when no socket is found (Discord not running).
+//  Protocol: little-endian UInt32 opcode + UInt32 length + UTF-8 JSON. op 0 handshake, 1 frame, 2 close.
 //
 
 import Foundation
 import Darwin
 
-/// Controls which field feeds the user's status text ("Listening to …") in the
-/// member list — see the gateway activity `status_display_type` field.
 nonisolated enum DiscordStatusDisplay: String, CaseIterable, Sendable, Identifiable {
     case name       // "Listening to YT Music"
     case state      // "Listening to <state / artist>"
@@ -28,7 +15,6 @@ nonisolated enum DiscordStatusDisplay: String, CaseIterable, Sendable, Identifia
 
     var id: Self { self }
 
-    /// The integer Discord expects in `activity.status_display_type`.
     var discordValue: Int {
         switch self {
         case .name:    0
@@ -47,8 +33,7 @@ nonisolated enum DiscordStatusDisplay: String, CaseIterable, Sendable, Identifia
 }
 
 final class DiscordRPC: @unchecked Sendable {
-    /// A Discord application ("client") id — controls the app name and art shown
-    /// in the presence. Replace with your own from the Discord Developer Portal.
+    /// Replace with your own id from the Discord Developer Portal.
     static let defaultClientID = "1177081335727267940"
 
     private static let base = "https://music.youtube.com"
@@ -59,23 +44,18 @@ final class DiscordRPC: @unchecked Sendable {
 
     private var fd: Int32 = -1
     private var handshaken = false
-    /// Rate-limits `openSocket()` retries so a stream of playback updates while
-    /// Discord isn't running doesn't hammer `socket()`/`connect()` every call.
+    /// Rate-limits `openSocket()` retries while Discord isn't running.
     private var lastConnectAttempt: Date?
     private static let reconnectCooldown: TimeInterval = 10
-    /// Fires periodically while disconnected so presence comes back on its own
-    /// if Discord launches (or relaunches) mid-session, without waiting for the
-    /// next playback event to trigger a retry.
+    /// Retries while disconnected so presence returns if Discord launches mid-session.
     private var reconnectTimer: DispatchSourceTimer?
-    /// The most recent presence request, replayed once a background reconnect
-    /// succeeds so the user doesn't see a stale/empty status.
+    /// Replayed once a background reconnect succeeds.
     private var pendingActivity: (snapshot: PlaybackSnapshot, style: DiscordStatusDisplay, parseTitle: Bool)?
 
     init(clientID: String = defaultClientID) { self.clientID = clientID }
 
     // MARK: - Public API (thread-safe; serialized onto `queue`)
 
-    /// Mirrors `snapshot` as the user's Discord presence (connecting on demand).
     func update(_ snapshot: PlaybackSnapshot, style: DiscordStatusDisplay = .name,
                 parseTitle: Bool = false) {
         queue.async { [weak self] in
@@ -84,7 +64,6 @@ final class DiscordRPC: @unchecked Sendable {
         }
     }
 
-    /// Clears the presence but keeps the connection open.
     func clearActivity() {
         queue.async { [weak self] in
             self?.pendingActivity = nil
@@ -92,7 +71,6 @@ final class DiscordRPC: @unchecked Sendable {
         }
     }
 
-    /// Tears down the connection entirely (e.g. when the plugin is disabled).
     func disconnect() {
         queue.async { [weak self] in
             self?.pendingActivity = nil
@@ -124,9 +102,6 @@ final class DiscordRPC: @unchecked Sendable {
         return handshaken
     }
 
-    /// Retries `ensureConnected()` every `reconnectCooldown` while disconnected;
-    /// on success, replays the last presence so it doesn't wait for the next
-    /// natural playback change to reappear.
     private func scheduleReconnectTimer() {
         guard reconnectTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
@@ -181,13 +156,12 @@ final class DiscordRPC: @unchecked Sendable {
         }
     }
 
-    /// Likely socket locations: `discord-ipc-0` … `-9` under each temp dir.
+    /// Sockets are `discord-ipc-0...9` under `$TMPDIR` (the real host dir, as the sandbox is off).
     private func candidatePaths() -> [String] {
         let env = ProcessInfo.processInfo.environment
         var dirs = ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"].compactMap { env[$0] }
         if let darwinTemp = Self.darwinUserTempDir() { dirs.append(darwinTemp) }
         dirs.append("/tmp")
-        // De-dupe while preserving order, then expand to per-index socket paths.
         var seen = Set<String>()
         let bases = dirs.compactMap { dir -> String? in
             let base = dir.hasSuffix("/") ? String(dir.dropLast()) : dir
@@ -196,9 +170,7 @@ final class DiscordRPC: @unchecked Sendable {
         return bases.flatMap { base in (0..<10).map { "\(base)/discord-ipc-\($0)" } }
     }
 
-    /// The per-user Darwin temp dir (`_CS_DARWIN_USER_TEMP_DIR`, e.g.
-    /// `/var/folders/…/T/`) where Discord writes its socket. Canonical even when
-    /// `TMPDIR` is absent from the launch environment.
+    /// Per-user Darwin temp dir; canonical even when `TMPDIR` is unset.
     private static func darwinUserTempDir() -> String? {
         let size = confstr(_CS_DARWIN_USER_TEMP_DIR, nil, 0)
         guard size > 0 else { return nil }
@@ -216,9 +188,7 @@ final class DiscordRPC: @unchecked Sendable {
 
     // MARK: - Frames
 
-    /// Canonical music.youtube.com URL for a browse id. Artists resolve to the
-    /// `/channel/<id>` page; `VL…` ids are playlists; everything else is a
-    /// `/browse/<id>` page (albums, playlists, …).
+    /// `/channel/<id>` for artists, `/browse/<id>` otherwise (`VL` ids are playlists).
     private static func musicURL(browseId: String, kind: ShelfItem.Kind) -> String {
         if kind == .artist {
             return "\(base)/channel/\(browseId)"
@@ -229,9 +199,6 @@ final class DiscordRPC: @unchecked Sendable {
         return "\(base)/browse/\(browseId)"
     }
 
-    /// Splits a video title of the form "Artist - Track" (or with an en dash)
-    /// into its parts. Video uploads often embed the artist this way while the
-    /// byline only names the uploader channel.
     static func splitTitle(_ title: String) -> (artist: String, track: String)? {
         for sep in [" - ", " – "] {
             guard let range = title.range(of: sep) else { continue }
@@ -245,16 +212,12 @@ final class DiscordRPC: @unchecked Sendable {
     private func syncUpdate(_ s: PlaybackSnapshot, style: DiscordStatusDisplay, parseTitle: Bool) {
         guard ensureConnected() else { return }
 
-        // Paused (or otherwise not actually playing) means no presence at all —
-        // clear it rather than show a frozen track.
+        // Paused means no presence; clear it rather than show a frozen track.
         guard s.isPlaying else {
             syncClear()
             return
         }
 
-        // Optionally take the artist/track from the title: video uploads often
-        // read "Artist - Track" while the byline's artist is just the uploader
-        // channel. The byline link still applies to the state line either way.
         var title = s.title
         var artist = s.artist
         if parseTitle, let split = Self.splitTitle(s.title) {
@@ -270,19 +233,14 @@ final class DiscordRPC: @unchecked Sendable {
             "type": 2,  // "Listening to …"
             "details": title.isEmpty ? "Unknown track" : title,
             "state": artist.isEmpty ? "Unknown artist" : artist,
-            // Which field feeds the "Listening to …" status text in the member
-            // list: the app name (default), the state line, or the details line.
+            // Which field feeds the "Listening to" status text: app name, state, or details.
             "status_display_type": style.discordValue,
         ]
-        // `details_url`/`state_url` make the lines clickable, each pointing at
-        // whatever that line shows.
+        // `details_url`/`state_url` make each line clickable.
         if !s.videoId.isEmpty { activity["details_url"] = "\(Self.base)/watch?v=\(s.videoId)" }
         if let artistURL { activity["state_url"] = artistURL }
 
-        // Show the album (as art hover + click-through) only when the track
-        // genuinely has one — `s.albumLink` comes from the response's browse
-        // endpoint, unlike the album-context string which can leak a playlist
-        // title or stale context onto album-less videos.
+        // Only when the response has an album link; the album context string can leak a playlist title.
         var assets: [String: Any] = [:]
         if let thumb = s.thumbnailURL?.absoluteString { assets["large_image"] = thumb }
         if let album = s.albumLink, !album.browseId.isEmpty {
@@ -291,17 +249,14 @@ final class DiscordRPC: @unchecked Sendable {
         }
         activity["assets"] = assets
 
-        // Link out to the track. Button labels must be registered for this
-        // client id in the Discord Developer Portal to render.
+        // Button labels must be registered for this client id in the Developer Portal.
         if !s.videoId.isEmpty {
             activity["buttons"] = [
                 ["label": "Listen on YouTube Music", "url": "\(Self.base)/watch?v=\(s.videoId)"],
             ]
         }
 
-        // Show a live progress bar only while actually playing. The local IPC
-        // protocol uses Unix timestamps in seconds (unlike the gateway's ms);
-        // Discord renders the elapsed/remaining time from these on its side.
+        // IPC uses Unix timestamps in seconds (the gateway uses ms).
         if s.duration > 0 {
             let now = Date().timeIntervalSince1970
             let start = now - s.currentTime
@@ -351,9 +306,7 @@ final class DiscordRPC: @unchecked Sendable {
             }
         }
         if !ok {
-            // A write failure means Discord dropped the socket (quit/crashed)
-            // mid-session — reconnect on our own rather than waiting for the
-            // next playback event, which may not come for a while if paused.
+            // Write failure means Discord dropped the socket; reconnect without waiting for playback.
             syncDisconnect()
             scheduleReconnectTimer()
         }

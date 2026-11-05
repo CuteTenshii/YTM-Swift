@@ -2,9 +2,6 @@
 //  CommentsParserTests.swift
 //  YT MusicTests
 //
-//  Verifies comments continuation-token extraction and the entity-payload parse
-//  against fixtures shaped like the real `next` responses (no network).
-//
 
 import Testing
 import Foundation
@@ -13,7 +10,6 @@ import Foundation
 @Suite("Comments parser")
 struct CommentsParserTests {
 
-    // The comments engagement panel carries a continuation token.
     private let tokenFixture = """
     {"engagementPanels":[
     {"engagementPanelSectionListRenderer":{"panelIdentifier":"engagement-panel-structured-description"}},
@@ -37,7 +33,6 @@ struct CommentsParserTests {
         #expect(CommentsParser.continuationToken(response) == nil)
     }
 
-    // Comment data lives in framework-update entity mutations.
     private let commentsFixture = """
     {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
     {"payload":{"commentEntityPayload":{
@@ -68,8 +63,8 @@ struct CommentsParserTests {
         #expect(comments[0].publishedTime == "2 years ago")
         #expect(comments[0].authorThumbnailURL?.absoluteString == "https://x/a2.jpg")  // highest width
 
-        // A "0" like count is treated as no count.
         #expect(comments[1].id == "c2")
+        // A "0" like count is treated as no count.
         #expect(comments[1].likeCount == nil)
         #expect(comments[1].isVerified == false)
     }
@@ -82,7 +77,6 @@ struct CommentsParserTests {
         #expect(page.continuationToken == nil)
     }
 
-    // A trailing (thread-less) continuation item is the "load more" paging token.
     private let pagingFixture = """
     {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
     {"payload":{"commentEntityPayload":{
@@ -102,7 +96,6 @@ struct CommentsParserTests {
         #expect(page.continuationToken == "PAGE_2")   // not mistaken for a reply token
     }
 
-    // Reply tokens live in the comment thread renderers, keyed to a comment id.
     private let withRepliesFixture = """
     {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
     {"payload":{"commentEntityPayload":{
@@ -126,7 +119,6 @@ struct CommentsParserTests {
         #expect(comments[0].replyCount == "2")
     }
 
-    // A reply continuation returns the reply entities (and may echo the parent).
     private let repliesFixture = """
     {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
     {"payload":{"commentEntityPayload":{

@@ -2,8 +2,6 @@
 //  MusicLinksTests.swift
 //  YT MusicTests
 //
-//  Tests for canonical share-URL construction.
-//
 
 import Testing
 import Foundation

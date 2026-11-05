@@ -30,8 +30,6 @@ struct ShelfView: View {
     }
 }
 
-/// A grid shelf ("Quick picks", charts): horizontally scrolling columns of
-/// compact rows, chart rows led by their rank and trend arrow.
 private struct RowGridShelfView: View {
     let shelf: Shelf
     let rowsPerColumn: Int
@@ -179,12 +177,8 @@ private struct RankLabel: View {
     }
 }
 
-/// The same shelf as `ShelfView`, but its cards wrap onto multiple rows instead
-/// of scrolling horizontally — used for full-page feeds (a shelf's "More") where
-/// a single long horizontal strip reads poorly.
 struct ShelfGridView: View {
     let shelf: Shelf
-    /// Hidden for a feed's sole shelf, whose title only repeats the page title.
     var showsHeader = true
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
@@ -205,7 +199,6 @@ struct ShelfGridView: View {
     }
 }
 
-/// A shelf's title row plus any header action pills ("More", "Play all").
 private struct ShelfHeader: View {
     let shelf: Shelf
 
@@ -236,8 +229,6 @@ private struct ShelfHeader: View {
     }
 }
 
-/// A shelf-header action pill. "More" (a browse endpoint) pushes a fuller
-/// listing; "Play all" and similar watch-endpoint buttons start playback.
 private struct ShelfButtonView: View {
     @Environment(PlayerState.self) private var player
     let button: ShelfButton

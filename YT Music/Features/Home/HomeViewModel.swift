@@ -30,7 +30,6 @@ final class HomeViewModel {
         await load()
     }
 
-    /// `inPlace` keeps the current feed on screen while reloading (chip changes).
     func load(chip: FeedChip? = nil, inPlace: Bool = false) async {
         let isChipLoad = chip != nil || inPlace
         if isChipLoad {
@@ -59,7 +58,6 @@ final class HomeViewModel {
         }
     }
 
-    /// Appends the feed's next batch of shelves, if it has one.
     func loadMore() async {
         guard !isLoadingMore, case .loaded(let feed) = state,
               let token = feed.continuation else { return }

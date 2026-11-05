@@ -2,10 +2,6 @@
 //  EntityBrowseResponse.swift
 //  YT Music
 //
-//  Decodable models for `browse` responses that describe a single entity —
-//  an album, playlist, or artist. These share the section/shelf renderers from
-//  BrowseResponse.swift but add the various header renderers YouTube uses and
-//  the newer two-column layout.
 //
 
 import Foundation
@@ -19,7 +15,6 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     let microformat: Microformat?
     let frameworkUpdates: FrameworkUpdates?
 
-    /// Entity-store mutations; a playlist's sort options resolve to commands here.
     struct FrameworkUpdates: Decodable {
         let entityBatchUpdate: BatchUpdate?
 
@@ -40,7 +35,6 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let command: ChipCloudRenderer.Endpoint?
         }
 
-        /// The reload token of the command stored under `key`.
         func reloadToken(forKey key: String) -> String? {
             entityBatchUpdate?.mutations?
                 .first { $0.entityKey == key }?
@@ -90,7 +84,6 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     struct ContinuationContents: Decodable {
         let musicShelfContinuation: MusicShelfRenderer?
         let musicPlaylistShelfContinuation: MusicShelfRenderer?
-        /// A playlist filter chip's reloaded track section.
         let sectionListContinuation: BrowseResponse.SectionList?
 
         var shelf: MusicShelfRenderer? {
@@ -101,12 +94,10 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
     // MARK: Header
 
     struct HeaderContainer: Decodable {
-        // Albums/playlists (older layout) and artists use distinct renderers.
         let musicDetailHeaderRenderer: DetailHeader?
         let musicResponsiveHeaderRenderer: ResponsiveHeader?
         let musicImmersiveHeaderRenderer: ImmersiveHeader?
-        /// Plain YouTube channels (a song/video byline target) use this lighter
-        /// header: avatar + subscribe button + subscriber count, but no bio.
+        /// Plain YouTube channels use this lighter header (no bio).
         let musicVisualHeaderRenderer: VisualHeader?
 
         struct VisualHeader: Decodable {
@@ -127,9 +118,7 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let title: InnerTubeText?
             let subtitle: InnerTubeText?
             let straplineTextOne: InnerTubeText?
-            /// The album artist's avatar, beside `straplineTextOne`.
             let straplineThumbnail: ThumbnailRendererWrapper?
-            /// A playlist's owner: name, avatar, and channel link.
             let facepile: Facepile?
             let secondSubtitle: InnerTubeText?
             let thumbnail: ResponsiveThumbnail?
@@ -154,8 +143,7 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
                 }
             }
 
-            /// Whether the playlist is saved to the library, from its "Save to
-            /// library" toggle (a like of the playlist). Nil without that toggle.
+            /// From the "Save to library" toggle (a like of the playlist); nil without it.
             var isSaved: Bool? {
                 buttons?.lazy
                     .compactMap(\.toggleButtonRenderer)
@@ -207,9 +195,7 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             let thumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let foregroundThumbnail: ResponsiveHeader.ResponsiveThumbnail?
             let subscriptionButton: SubscriptionButton?
-            /// "Shuffle" — plays the artist's auto-generated mix in shuffled order.
             let playButton: RadioButton?
-            /// "Start radio" — an endless radio/mix seeded from the artist.
             let startRadioButton: RadioButton?
 
             struct RadioButton: Decodable {
@@ -245,7 +231,7 @@ nonisolated final class EntityBrowseResponse: Decodable, @unchecked Sendable {
             }
         }
 
-        /// Detail-header artwork is nested under `croppedSquareThumbnailRenderer`.
+        /// Nested under `croppedSquareThumbnailRenderer`.
         struct CroppedThumbnail: Decodable {
             let croppedSquareThumbnailRenderer: ThumbnailRendererWrapper.MusicThumbnailRenderer?
         }

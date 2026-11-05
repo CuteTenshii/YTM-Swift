@@ -2,8 +2,7 @@
 //  Handoff.swift
 //  YT Music
 //
-//  Advertises the playing track over Handoff as its music.youtube.com URL, so
-//  another device can pick it up in its browser.
+//  Advertises the playing track over Handoff as its music.youtube.com URL.
 //
 
 import Foundation

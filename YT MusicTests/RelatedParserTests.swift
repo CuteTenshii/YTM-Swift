@@ -2,10 +2,6 @@
 //  RelatedParserTests.swift
 //  YT MusicTests
 //
-//  Verifies the watch-next "Related" browse decode + parse, against a fixture
-//  shaped like the real response (shelves directly under a section list, no tab
-//  wrapper).
-//
 
 import Testing
 import Foundation
@@ -14,7 +10,6 @@ import Foundation
 @Suite("Related parser")
 struct RelatedParserTests {
 
-    // A song carousel and an album carousel, the way the related page nests them.
     private let fixture = """
     {"contents":{"sectionListRenderer":{"contents":[
     {"musicCarouselShelfRenderer":{

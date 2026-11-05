@@ -9,6 +9,6 @@ import Foundation
 
 struct AccountInfo: Sendable, Equatable, Codable {
     var name: String
-    var handle: String      // "@handle" or email; may be empty
+    var handle: String
     var avatarURL: URL?
 }

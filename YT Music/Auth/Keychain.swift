@@ -2,8 +2,7 @@
 //  Keychain.swift
 //  YT Music
 //
-//  Tiny generic-password Keychain wrapper. Auth cookies are sensitive, so they
-//  live in the Keychain rather than UserDefaults / a plist.
+//  Generic-password Keychain wrapper for auth cookies.
 //
 
 import Foundation

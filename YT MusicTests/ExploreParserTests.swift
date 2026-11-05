@@ -2,10 +2,6 @@
 //  ExploreParserTests.swift
 //  YT MusicTests
 //
-//  Verifies explore parsing against a fixture shaped like the real
-//  `FEmusic_explore` browse response (no network): a carousel of new releases,
-//  plus a mood/genre chip grid that should be skipped (its buttons carry no card).
-//
 
 import Testing
 import Foundation
@@ -76,7 +72,6 @@ struct ExploreParserTests {
         }
         #expect(destination.browseId == "FEmusic_new_releases_albums")
         #expect(destination.kind == .playlist)
-        // Titled with the shelf name so the destination reads sensibly while loading.
         #expect(destination.title == "New albums & singles")
     }
 

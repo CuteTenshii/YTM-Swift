@@ -2,11 +2,6 @@
 //  NavigatorTests.swift
 //  YT MusicTests
 //
-//  Regression tests for cross-tab navigation: `open(_:)` must push onto the
-//  stack of the section currently on screen, not a hardcoded Home stack. The
-//  original bug: "Go to album/artist" from a Search-originated page pushed onto
-//  the off-screen Home path, so nothing visible happened.
-//
 
 import Testing
 @testable import YT_Music

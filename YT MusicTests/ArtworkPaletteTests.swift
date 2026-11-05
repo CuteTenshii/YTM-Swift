@@ -2,10 +2,6 @@
 //  ArtworkPaletteTests.swift
 //  YT MusicTests
 //
-//  Tests for the cover-art colour extractor that feeds the immersive lyrics
-//  background: bucketing synthetic RGBA pixel buffers should surface the
-//  dominant hues, keep them distinct, and favour vibrant colours over grey.
-//
 
 import Testing
 @testable import YT_Music
@@ -28,14 +24,12 @@ struct ArtworkPaletteTests {
         let palette = ArtworkPalette.palette(from: buffer, count: 4)
 
         #expect(palette.count == 2)
-        // One red-dominant, one blue-dominant colour, in either order.
         #expect(palette.contains { $0.red > 0.6 && $0.blue < 0.3 })
         #expect(palette.contains { $0.blue > 0.6 && $0.red < 0.3 })
     }
 
     @Test("Distinct colours aren't merged; near-duplicates are")
     func distinctness() {
-        // Two nearly-identical reds plus a green: should collapse to ~2 colours.
         let buffer = pixels([(200, 20, 20, 80), (205, 25, 22, 80), (20, 200, 40, 80)])
         let palette = ArtworkPalette.palette(from: buffer, count: 4)
 
@@ -46,7 +40,6 @@ struct ArtworkPaletteTests {
 
     @Test("Vibrant colour outranks a larger grey area")
     func vibrancyBeatsGrey() {
-        // Lots of mid-grey, a little vivid orange — orange should still lead.
         let buffer = pixels([(128, 128, 128, 300), (240, 120, 10, 60)])
         let palette = ArtworkPalette.palette(from: buffer, count: 2)
 
@@ -57,7 +50,6 @@ struct ArtworkPaletteTests {
 
     @Test("Fully transparent pixels are ignored")
     func skipsTransparent() {
-        // Transparent red + opaque blue → only blue survives.
         var buffer: [UInt8] = []
         for _ in 0..<100 { buffer.append(contentsOf: [220, 0, 0, 0]) }
         for _ in 0..<100 { buffer.append(contentsOf: [0, 0, 220, 255]) }

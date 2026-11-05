@@ -2,10 +2,6 @@
 //  WatchHistoryTests.swift
 //  YT MusicTests
 //
-//  Tests for the pure pieces of watch-history reporting: the content-playback
-//  nonce generator and the stats-URL builders. The actual network ping is not
-//  covered (it needs a live, authenticated request).
-//
 
 import Testing
 import Foundation
@@ -83,7 +79,6 @@ struct WatchHistoryTests {
         let q = items(url)
         #expect(q.contains(URLQueryItem(name: "c", value: "WEB_REMIX")))
         #expect(q.contains(URLQueryItem(name: "cver", value: "1.20260623.13.00")))
-        // hl already present on the base → not overwritten / not duplicated.
         #expect(q.filter { $0.name == "hl" } == [URLQueryItem(name: "hl", value: "fr")])
     }
 

@@ -15,7 +15,6 @@ final class UploadsViewModel {
         case failed(String)
     }
 
-    /// The state of an in-flight (or just-finished) upload, shown as a banner.
     enum UploadPhase: Equatable {
         case idle
         case uploading(name: String)
@@ -50,9 +49,7 @@ final class UploadsViewModel {
         }
     }
 
-    /// Uploads a picked file, then reloads so it (eventually) appears. Newly
-    /// uploaded tracks can take a while to finish processing server-side, so the
-    /// reload may not show them immediately.
+    /// New uploads may still be processing server-side, so the reload may not show them.
     func upload(fileURL: URL, isSignedIn: Bool) async {
         guard isSignedIn else {
             uploadPhase = .failed(UploadError.notSignedIn.localizedDescription)
@@ -72,9 +69,6 @@ final class UploadsViewModel {
         uploadPhase = .idle
     }
 
-    /// Deletes an uploaded item (song or album), removing it optimistically and
-    /// then server-side via its entity id. Reloads to reflect the true state if
-    /// the request fails. No-op for items without a delete token.
     func delete(_ item: ShelfItem) async {
         guard let entityId = item.deleteEntityId, case .loaded(var shelves) = state else { return }
         for index in shelves.indices {

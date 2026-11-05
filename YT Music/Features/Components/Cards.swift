@@ -11,7 +11,6 @@ import AppKit
 struct ItemCard<Extra: View>: View {
     @Environment(PlayerState.self) private var player
     let item: ShelfItem
-    /// Screen-specific extra context-menu actions (e.g. "Delete upload").
     @ViewBuilder var extraMenu: Extra
 
     init(item: ShelfItem, @ViewBuilder extraMenu: () -> Extra = { EmptyView() }) {

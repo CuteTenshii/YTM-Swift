@@ -13,10 +13,8 @@ struct LibraryView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
     let model: LibraryViewModel
-    /// The card being renamed (drives the rename alert), and its draft name.
     @State private var renaming: ShelfItem?
     @State private var renameText = ""
-    /// The card pending delete confirmation.
     @State private var deleting: ShelfItem?
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
@@ -122,7 +120,6 @@ struct LibraryView: View {
         }
     }
 
-    /// `showsTitle` is false for a page's only shelf, whose title repeats the page's.
     private func shelfSection(_ shelf: Shelf, showsTitle: Bool, lastItemID: UUID?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if showsTitle {

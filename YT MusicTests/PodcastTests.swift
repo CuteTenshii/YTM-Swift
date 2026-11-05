@@ -2,9 +2,6 @@
 //  PodcastTests.swift
 //  YT MusicTests
 //
-//  Podcast show pages: the publisher byline, the saved state, and episode rows
-//  (`musicMultiRowListItemRenderer`). Fixtures are trimmed from a live `browse`.
-//
 
 import Testing
 import Foundation

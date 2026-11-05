@@ -25,8 +25,6 @@ nonisolated enum DescriptionLinker {
     }
 }
 
-/// A description clamped to a few lines with a More/Less toggle when it overflows.
-/// Expanded text scrolls past `maxExpandedHeight` so it can't push its header off-screen.
 struct DescriptionText: View {
     let text: String
     var style: AnyShapeStyle = AnyShapeStyle(.secondary)

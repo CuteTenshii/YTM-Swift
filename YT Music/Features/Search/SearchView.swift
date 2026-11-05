@@ -38,12 +38,11 @@ struct SearchContent: View {
         }
         .task(id: query) {
             isActive = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            // Debounce keystrokes: this task is cancelled and restarted on every
-            // change to `query`, so a short sleep coalesces rapid typing.
             if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 model.clear()
                 return
             }
+            // Debounce: the task restarts on every query change.
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             await model.search(query)
@@ -52,8 +51,6 @@ struct SearchContent: View {
 
     // MARK: - Filter chips
 
-    /// Chips show once a search is underway (any state but the idle prompt), so
-    /// the user can scope an existing query to one result type.
     private var showsFilters: Bool {
         if case .idle = model.state { return false }
         return true
@@ -144,8 +141,6 @@ struct SearchContent: View {
         }
     }
 
-    /// A shelf renders as a row list when every entry is a playable song/video
-    /// (e.g. the "Songs" category), otherwise as an artwork-card grid.
     private func isTrackShelf(_ shelf: Shelf) -> Bool {
         shelf.items.allSatisfy { $0.kind == .song || $0.kind == .video }
     }
@@ -192,8 +187,6 @@ struct SearchContent: View {
     }
 }
 
-/// A compact song/video result row: tap to play it as a one-off. Mirrors the
-/// entity-page track row but sourced from a search `ShelfItem`.
 private struct SearchResultRow: View {
     @Environment(PlayerState.self) private var player
     let item: ShelfItem
@@ -204,7 +197,6 @@ private struct SearchResultRow: View {
         item.artists + (item.albumLink.map { [$0] } ?? [])
     }
 
-    /// Whether this row is the track currently loaded in the player.
     private var isCurrent: Bool {
         item.videoId != nil && item.videoId == player.nowPlaying?.videoId
     }
@@ -246,8 +238,7 @@ private struct SearchResultRow: View {
         .clipShape(.rect(cornerRadius: 6))
         .contentShape(.rect)
         .onHover { hovering = $0 }
-        // Whole-row tap plays; the inline artist/album links below intercept
-        // their own taps to navigate instead.
+        // Inline artist/album links intercept their own taps.
         .onTapGesture { play() }
         .musicContextMenu(
             title: item.title,
@@ -262,7 +253,6 @@ private struct SearchResultRow: View {
         )
     }
 
-    /// Clickable artist/album links when the row carries them, else plain text.
     @ViewBuilder
     private var subtitle: some View {
         if !links.isEmpty {
@@ -296,8 +286,6 @@ private struct SearchResultRow: View {
     }
 }
 
-/// A single artist/album link in a search row: navigates within the Search
-/// stack, turning white and underlined on hover to read as clickable.
 private struct SearchLink: View {
     let link: EntityLink
 

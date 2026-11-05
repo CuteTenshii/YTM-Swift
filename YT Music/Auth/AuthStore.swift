@@ -2,9 +2,7 @@
 //  AuthStore.swift
 //  YT Music
 //
-//  Observable, app-wide sign-in state. Bridges the (off-main) CredentialStore to
-//  the UI and bumps `generation` whenever auth changes so screens can reload
-//  their now-personalized content.
+//  Observable sign-in state; bumps `generation` on auth changes.
 //
 
 import SwiftUI
@@ -14,7 +12,7 @@ import WebKit
 @Observable
 final class AuthStore {
     enum State {
-        case unknown      // still loading from Keychain
+        case unknown
         case signedOut
         case signedIn
     }
@@ -23,11 +21,9 @@ final class AuthStore {
     private(set) var account: AccountInfo?
     var isPresentingLogin = false
 
-    /// True after an authenticated request came back 401: the stored cookies are
-    /// stale and the user needs to sign in again. Drives the re-sign-in banner.
+    /// Set on a 401: stored cookies are stale; drives the re-sign-in banner.
     private(set) var sessionExpired = false
 
-    /// Increments on every sign-in / sign-out, so views can `.task(id:)` reload.
     private(set) var generation = 0
 
     var isSignedIn: Bool { state == .signedIn }
@@ -35,8 +31,6 @@ final class AuthStore {
     private let defaults: UserDefaults
     private static let accountKey = "auth.account"
 
-    /// Starts from the cached account, if any, so the UI and first loads are
-    /// signed in without waiting on the Keychain.
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.accountKey),
@@ -44,8 +38,7 @@ final class AuthStore {
             account = cached
             state = .signedIn
         }
-        // A 401 on any authenticated request (posted by InnerTubeClient) means the
-        // session expired; surface a banner prompting re-authentication.
+        // A 401 on an authenticated request (posted by InnerTubeClient) means the session expired.
         NotificationCenter.default.addObserver(
             forName: .ytmSessionExpired, object: nil, queue: .main
         ) { [weak self] _ in
@@ -54,13 +47,11 @@ final class AuthStore {
         Task { await refresh() }
     }
 
-    /// Marks the session expired (unless already signed out). Idempotent.
     private func noteSessionExpired() {
         guard state == .signedIn else { return }
         sessionExpired = true
     }
 
-    /// Dismisses the expired banner without signing out (the user can retry later).
     func dismissExpiredNotice() {
         sessionExpired = false
     }
@@ -77,7 +68,6 @@ final class AuthStore {
         if isSignedIn { await loadAccountInfo() }
     }
 
-    /// Called by the login web view once it has captured a usable cookie jar.
     func completeLogin(with cookies: [HTTPCookie]) async {
         let credentials = Credentials(httpCookies: cookies)
         guard credentials.isUsable else { return }
@@ -99,7 +89,6 @@ final class AuthStore {
         generation += 1
     }
 
-    /// Best-effort: a failure here shouldn't change the signed-in state.
     private func loadAccountInfo() async {
         if let info = try? await InnerTubeClient.shared.accountInfo() {
             setAccount(info)
@@ -115,8 +104,6 @@ final class AuthStore {
         }
     }
 
-    /// Clears the login web view's persisted cookies so the next sign-in starts
-    /// fresh (and the browser session doesn't linger after sign-out).
     private static func clearWebData() async {
         let store = WKWebsiteDataStore.default()
         let types = WKWebsiteDataStore.allWebsiteDataTypes()

@@ -2,8 +2,6 @@
 //  AccountInfoTests.swift
 //  YT MusicTests
 //
-//  Tests for parsing the account/account_menu response.
-//
 
 import Testing
 import Foundation

@@ -2,9 +2,6 @@
 //  WatchNextParserTests.swift
 //  YT MusicTests
 //
-//  Verifies the `next`-endpoint decode + parse used by "Start radio", against a
-//  fixture shaped like the real response (no network).
-//
 
 import Testing
 import Foundation
@@ -54,7 +51,7 @@ struct WatchNextParserTests {
         #expect(WatchNextParser.continuationToken(response) == nil)
     }
 
-    // A follow-up `next` response fetched by resending a continuation token —
+    // A follow-up `next` response fetched by resending a continuation token:
     // same panel shape, nested under `continuationContents` instead.
     private let continuationFixture = """
     {"continuationContents":{"playlistPanelContinuation":{"contents":[
@@ -80,7 +77,6 @@ struct WatchNextParserTests {
         #expect(WatchNextParser.parse(response).isEmpty)
     }
 
-    // Like state lives in the player overlay, scoped to a target videoId.
     private let likeFixture = """
     {"playerOverlays":{"playerOverlayRenderer":{"actions":[
     {"likeButtonRenderer":{"likeStatus":"LIKE","target":{"videoId":"vid"}}}
@@ -96,7 +92,7 @@ struct WatchNextParserTests {
     @Test("Like status defaults to indifferent when absent or for a different video")
     func likeStatusDefaults() throws {
         let response = try JSONDecoder().decode(WatchNextResponse.self, from: Data(likeFixture.utf8))
-        // Mismatched videoId → don't mislabel this track.
+        // Mismatched videoId: do not mislabel this track.
         #expect(WatchNextParser.likeStatus(response, expecting: "other") == .indifferent)
 
         let empty = try JSONDecoder().decode(WatchNextResponse.self, from: Data("{}".utf8))

@@ -2,8 +2,7 @@
 //  PlaybackIntents.swift
 //  YT Music
 //
-//  App Intents for Shortcuts, Siri, and Spotlight. They drive the shared
-//  PlayerState registered with AppDependencyManager in YT_MusicApp.
+//  App Intents for Shortcuts, Siri and Spotlight.
 //
 
 import AppIntents

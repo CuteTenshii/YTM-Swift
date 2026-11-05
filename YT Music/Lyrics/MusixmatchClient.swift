@@ -2,17 +2,6 @@
 //  MusixmatchClient.swift
 //  YT Music
 //
-//  A lyrics provider backed by Musixmatch. Unlike LRCLIB and YT Music, it can
-//  return *word-level* ("richsync") timing, which drives the word-by-word
-//  highlight in the lyrics UI.
-//
-//  NOTE: Musixmatch has no public lyrics API; this uses the same unofficial
-//  `apic-desktop` endpoints their desktop app uses (obtain a user token, match
-//  the track, then fetch richsync / subtitles / plain lyrics in that order of
-//  preference). It is therefore best-effort — it can rate-limit or change
-//  without notice — and, like all networking here, isn't exercised by tests
-//  (the sandbox blocks live calls); only the pure richsync/LRC parsing is.
-//
 
 import Foundation
 
@@ -26,7 +15,7 @@ actor MusixmatchClient: LyricsProviding {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
-    /// The desktop user token, fetched once and reused (it's stable per client).
+    /// Desktop user token, fetched once and reused.
     private var cachedToken: String?
 
     init(session: URLSession? = nil) {
@@ -38,7 +27,7 @@ actor MusixmatchClient: LyricsProviding {
         guard !title.isEmpty, !query.artist.isEmpty else { return nil }
         let token = try await token()
 
-        // Match the track first so we can request word-level richsync by id.
+        // Match the track first so richsync can be requested by id.
         var match = [
             URLQueryItem(name: "q_track", value: query.title),
             URLQueryItem(name: "q_artist", value: query.artist),
@@ -51,7 +40,7 @@ actor MusixmatchClient: LyricsProviding {
         else { return nil }
         let commontrack = [URLQueryItem(name: "commontrack_id", value: String(id))]
 
-        // Preference: word-timed richsync → line-timed subtitles → plain.
+        // Preference: richsync, then subtitles, then plain.
         if track.has_richsync == 1,
            let body: RichSyncBody = try await get("track.richsync.get", token: token, items: commontrack),
            let raw = body.richsync?.richsync_body {
@@ -93,8 +82,6 @@ actor MusixmatchClient: LyricsProviding {
 
     // MARK: - Networking
 
-    /// Issues a GET against `endpoint`, unwraps Musixmatch's `message` envelope,
-    /// and returns the typed body — or nil for a non-200 outer/inner status.
     private func get<Body: Decodable>(
         _ endpoint: String, token: String?, items: [URLQueryItem]
     ) async throws -> Body? {
@@ -128,11 +115,7 @@ actor MusixmatchClient: LyricsProviding {
             init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 header = try container.decodeIfPresent(Header.self, forKey: .header)
-                // Musixmatch returns `body: ""` (an empty string, not an object)
-                // when a request has no result — e.g. a track it doesn't carry.
-                // A typed decode of that throws "isn't in the correct format", so
-                // treat any body that doesn't match the expected shape as absent;
-                // callers already handle a nil body (→ "no lyrics").
+                // Musixmatch returns `body: ""` when there is no result; treat as absent.
                 body = try? container.decodeIfPresent(Body.self, forKey: .body)
             }
 

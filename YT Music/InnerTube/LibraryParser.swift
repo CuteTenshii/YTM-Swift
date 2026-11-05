@@ -2,12 +2,6 @@
 //  LibraryParser.swift
 //  YT Music
 //
-//  Parses the library browse pages (`FEmusic_library_landing` and each filter
-//  chip's page, e.g. `FEmusic_liked_playlists`) into shelves. They mix grids
-//  (playlists/albums) and flat list shelves (songs/artists), all built from the
-//  same card renderers as Home, so we reuse `Shelf` / `ShelfItem` and
-//  `HomeFeedParser.makeItem`. Each listing is paginated via continuations.
-//
 
 import Foundation
 
@@ -40,8 +34,6 @@ nonisolated enum LibraryParser {
         return LibraryPage(shelves: shelves, tracks: tracks, chips: chips, continuation: continuation)
     }
 
-    /// The next page of a listing: song rows as tracks, anything else as a
-    /// single untitled shelf.
     static func parseContinuation(_ response: BrowseResponse) -> LibraryPage {
         let grid = response.continuationContents?.gridContinuation
         let list = response.continuationContents?.musicShelfContinuation
@@ -61,7 +53,6 @@ nonisolated enum LibraryParser {
         return !items.isEmpty && items.allSatisfy { $0.kind == .song || $0.kind == .video }
     }
 
-    /// Song rows parsed like a playlist's tracks, numbered from 1.
     private static func songs(_ contents: [CarouselItem]?) -> [Track] {
         let header = EntityHeader(title: "", subtitle: "", description: "", thumbnailURL: nil, content: .feed)
         return EntityPageParser.parseItems(contents ?? [], startIndex: 1, header: header)
@@ -102,8 +93,7 @@ nonisolated enum LibraryParser {
         return Shelf(title: title.isEmpty ? "Library" : title, items: items)
     }
 
-    /// Drops action tiles ("New playlist", "Shuffle all", "Add podcast") that
-    /// neither play nor open a page.
+    /// Drops action tiles ("New playlist", "Shuffle all", "Add podcast") that neither play nor open a page.
     private static func playableItems(_ contents: [CarouselItem]?) -> [ShelfItem] {
         (contents ?? [])
             .compactMap { HomeFeedParser.makeItem(from: $0) }

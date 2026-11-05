@@ -121,7 +121,6 @@ struct HistoryView: View {
     }
 }
 
-/// One date bucket: a title followed by its track rows.
 private struct HistorySectionView: View {
     let section: HistorySection
     let model: HistoryViewModel
@@ -146,8 +145,6 @@ private struct HistorySectionView: View {
     }
 }
 
-/// A single history entry. Clicking it (once or twice, per `AppSettings.playOnSingleClick`)
-/// plays this date bucket as the queue, starting at the tapped track.
 private struct HistoryTrackRow: View {
     @Environment(PlayerState.self) private var player
     @Environment(AppSettings.self) private var settings
@@ -158,7 +155,6 @@ private struct HistoryTrackRow: View {
 
     @State private var hovering = false
 
-    /// Whether this row is the track currently loaded in the player.
     private var isCurrent: Bool {
         track.videoId != nil && track.videoId == player.nowPlaying?.videoId
     }

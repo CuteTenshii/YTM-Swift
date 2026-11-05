@@ -8,22 +8,15 @@
 
 import SwiftUI
 
-/// A single fetched batch of a mix/radio: its tracks, plus a continuation
-/// token to fetch the mix's next batch (nil once it's exhausted).
+/// A batch of a mix/radio plus a token for its next batch (nil when exhausted).
 struct RadioPage: Sendable {
     let tracks: [Track]
     let continuation: String?
 }
 
-/// Supplies an endless radio queue for a seed video. Abstracted so PlayerState
-/// can be driven by a fake in tests (no network).
 protocol RadioProviding: Sendable {
     func radio(for videoId: String) async throws -> RadioPage
-    /// Continues an already-fetched radio from its last batch, instead of
-    /// starting a new, unrelated single-song radio.
     func continueRadio(_ token: String) async throws -> RadioPage
-    /// The ordered watch queue for a `next` endpoint (a "Play all" button, or a
-    /// playlist/album radio). Defaults to the plain radio for `videoId`.
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track]
 }
 
@@ -35,8 +28,6 @@ extension RadioProviding {
 
 extension InnerTubeClient: RadioProviding {}
 
-/// Playlist-id builders shared by the playback paths (the queue context the
-/// player request reports so listens attribute to their source).
 enum MixIds {
     /// A song's auto-generated radio: `RDAMVM<videoId>`.
     static func songRadio(for videoId: String) -> String { "RDAMVM\(videoId)" }
@@ -53,9 +44,7 @@ final class PlayerState {
         var album: String
         var thumbnailURL: URL?
         var videoId: String
-        /// Navigable artist links (empty when unknown, e.g. a one-off play).
         var artists: [EntityLink] = []
-        /// Navigable album link, if known.
         var albumLink: EntityLink?
 
         init(title: String, subtitle: String, album: String, thumbnailURL: URL?,
@@ -69,8 +58,7 @@ final class PlayerState {
             self.albumLink = albumLink
         }
 
-        // Custom decode so snapshots persisted before links existed still load
-        // (the new keys default to empty rather than failing the whole restore).
+        // Custom decode so older snapshots without links still load.
         init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             title = try c.decode(String.self, forKey: .title)
@@ -83,21 +71,18 @@ final class PlayerState {
         }
     }
 
-    /// How playback continues at the end of a track.
     enum RepeatMode: String, Codable {
-        case off   // stop at the end of the queue
-        case all   // loop the whole queue
-        case one   // loop the current track
+        case off
+        case all
+        case one
     }
 
     private(set) var nowPlaying: NowPlaying?
     private(set) var isLoading = false
-    /// The stream is with the audio engine but not yet audible; `isLoading`
-    /// stays up until it starts or the user pauses.
+    /// The stream is with the engine but not yet audible.
     private var awaitingAudio = false
     private(set) var loadError: String?
     private(set) var repeatMode: RepeatMode = .off
-    /// The current item is a podcast episode: speed and skip controls apply.
     private(set) var isEpisode = false
     /// How the current track's stream was chosen; may lag `nowPlaying` while a track loads.
     private(set) var streamDetails: StreamDetails?
@@ -111,42 +96,22 @@ final class PlayerState {
             applyPlaybackRate()
         }
     }
-    /// Whether the queue is currently playing in shuffled order.
     private(set) var isShuffled = false
-    /// The queue's order captured when shuffle was turned on, so turning it off
-    /// restores the original sequence. Empty when not shuffled.
     private var orderBeforeShuffle: [Track] = []
 
-    /// The current track's like rating. When a track starts it's seeded to
-    /// `.indifferent` and then refreshed from the server (`fetchLikeStatus`);
-    /// `toggleLike` updates it optimistically.
+    /// Seeded to `.indifferent`, then refreshed from the server.
     private(set) var likeStatus: LikeStatus = .indifferent
-    /// The current track's like count without the account's own vote; nil until
-    /// fetched or when unavailable.
     private(set) var likeCount: Int?
-    /// True while a like request is in flight (disables the button).
     private(set) var isUpdatingLike = false
-    /// Set once the user toggles the like for the current track, so a slower
-    /// background status fetch doesn't clobber their action. Reset per track.
+    /// Set when the user toggles like, so a slower status fetch doesn't overwrite it.
     private var likeInteracted = false
-    /// Like ratings learned for tracks other than the one playing, so a row's
-    /// context menu can offer "Remove from Likes" without a fresh fetch. Keyed
-    /// by videoId; the current track's live `likeStatus` takes precedence.
+    /// Ratings of non-current tracks by videoId; the current track's `likeStatus` wins.
     private var likeStatusCache: [String: LikeStatus] = [:]
 
-    /// The playable tracks (those with a videoId) for the current context, and
-    /// the index within it that is currently playing. Empty for one-off plays.
     private(set) var queue: [Track] = []
     private(set) var currentIndex = 0
     private var albumContext = ""
-    /// The playlist the current queue was started from (a "Play all" playlist
-    /// or a radio's mix id), when known — sent with the player request so the
-    /// listen is attributed to it. nil for one-off plays and track listings
-    /// with no known playlist id.
     private var playlistContext: String?
-    /// The continuation token to fetch the next batch of the radio currently
-    /// backing the queue, if any. Cleared whenever the queue is rebuilt from
-    /// something other than that radio.
     private var radioContinuation: String?
 
     private let audio: AudioOutput
@@ -160,42 +125,26 @@ final class PlayerState {
     private var loadTask: Task<Void, Never>?
     private var radioTask: Task<Void, Never>?
     private var likeFetchTask: Task<Void, Never>?
-    /// True after restoring a snapshot until the user actually starts playback:
-    /// the track is shown but no stream is loaded yet, so the first play resolves
-    /// and starts it rather than toggling an empty engine.
+    /// After restore until first play: track shown, no stream loaded.
     private var awaitingResume = false
-    /// The restored track's saved position and duration, shown until it's resumed.
     private var restoredPosition: Double = 0
     private var restoredDuration: Double = 0
-    /// Position at the last progress-driven snapshot, to throttle saves.
     private var lastPersistedPosition: Double = 0
-    /// Set once per track when a crossfade into the next track has been kicked
-    /// off, so the approaching-end window only triggers it once. Re-armed when a
-    /// new track starts playing from the top.
+    /// Set once per track when a crossfade is armed; re-armed when a new track starts.
     private var crossfadeArmed = false
-    /// True between arming a crossfade and the incoming track actually taking
-    /// over, so the outgoing track's natural end doesn't double-advance.
+    /// True from arming a crossfade until the incoming track takes over.
     private(set) var crossfadeLoading = false
     private var preparedVideoId: String?
     private var preparedStream: ResolvedStream?
     private var preloadTask: Task<Void, Never>?
 
-    /// The current track's resolved stream, kept so its history beacons can be
-    /// fired from real playback progress (not at load). nil until resolved.
     private var pendingHistory: ResolvedStream?
-    /// Set once the `playback` beacon has fired for the current track.
     private var playbackPinged = false
-    /// Position (seconds) of the last `watchtime` heartbeat; -1 before the first.
     private var lastWatchtimeAt: Double = -1
 
-    /// Notified whenever the now-playing track or play/pause state changes, so
-    /// plugins (Discord Rich Presence, etc.) can mirror it. Carries nil when
-    /// playback stops.
     var onPlaybackChange: ((PlaybackSnapshot?) -> Void)?
-    /// Notified on every playhead tick (~0.5s) with (currentTime, duration).
     var onPlaybackProgress: ((Double, Double) -> Void)?
 
-    /// Live audio spectrum for the immersive visualizer (nil under a test fake).
     var spectrum: SpectrumAnalyzer? { audio.spectrum }
 
     init(audio: AudioOutput? = nil, resolver: StreamResolving? = nil,
@@ -220,8 +169,6 @@ final class PlayerState {
             self?.handleProgress(current: current, duration: duration)
         }
 
-        // Drive the audio engine's equalizer from settings: apply the persisted
-        // configuration now, and re-apply whenever the user changes it.
         if let settings {
             self.audio.applyEqualizer(settings.equalizerSettings)
             settings.onEqualizerChange = { [weak self] eq in self?.audio.applyEqualizer(eq) }
@@ -238,9 +185,6 @@ final class PlayerState {
 
     // MARK: - Playback intent
 
-    /// Plays a single track with no surrounding queue (next/previous become no-ops).
-    /// Not part of any album, so a stale album context from a previous play is
-    /// dropped along with the old queue.
     func play(title: String, subtitle: String, album: String = "", thumbnailURL: URL?, videoId: String,
               artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         queue = []
@@ -267,17 +211,10 @@ final class PlayerState {
         )
     }
 
-    /// Plays `tracks` as a queue, starting at the track at `startAt` (an index
-    /// into `tracks`). Unplayable tracks (no videoId) are filtered out; if the
-    /// requested track isn't playable, the next playable one is used.
-    /// `playlistId` is the playlist the listing belongs to, when the caller
-    /// knows it — plays are then attributed to that playlist.
     func play(_ tracks: [Track], startAt: Int, album: String = "", playlistId: String? = nil) {
         let playable = tracks.filter { $0.videoId != nil }
         guard !playable.isEmpty else { return }
 
-        // Map the requested position to the filtered queue: the requested track,
-        // else the first playable track at or after it, else the first overall.
         let startTrack = (startAt..<tracks.count).lazy
             .map { tracks[$0] }
             .first { $0.videoId != nil }
@@ -293,10 +230,6 @@ final class PlayerState {
         startCurrent()
     }
 
-    /// Inserts a track to play right after the current one. With nothing
-    /// playing it just plays the track. For a one-off play (empty queue) it
-    /// seeds the queue with the current track so the inserted track follows it
-    /// (and `previous` still returns to it).
     func playNext(title: String, subtitle: String, thumbnailURL: URL?, videoId: String,
                   artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         guard let nowPlaying else {
@@ -322,11 +255,6 @@ final class PlayerState {
         persist()
     }
 
-    /// "Start radio": plays the seed track immediately, then fetches an endless
-    /// radio queue from it and installs that as the queue (so next/previous walk
-    /// the radio) without interrupting the already-playing seed. If the seed is
-    /// already the track playing, playback is left untouched (no restart from
-    /// 0:00) — only the queue is rebuilt into a radio around it.
     func startRadio(title: String, subtitle: String, thumbnailURL: URL?, videoId: String,
                     artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
         if nowPlaying?.videoId != videoId {
@@ -337,24 +265,18 @@ final class PlayerState {
         radioTask = Task { await installRadio(seed: videoId) }
     }
 
-    /// Fetches the radio queue for `videoId` and installs it (keeping the seed
-    /// playing). Split out from `startRadio` so tests can await it directly.
     func installRadio(seed videoId: String) async {
         guard let page = try? await radioProvider.radio(for: videoId) else { return }
         let playable = page.tracks.filter { $0.videoId != nil }
         // Only install if the user is still on the seed track.
         guard !playable.isEmpty, let nowPlaying, nowPlaying.videoId == videoId else { return }
         radioContinuation = page.continuation
-        // The queue is now the seed's radio — attribute plays to the mix.
         playlistContext = MixIds.songRadio(for: videoId)
         if let index = playable.firstIndex(where: { $0.videoId == videoId }) {
             queue = playable
             currentIndex = index
         } else {
-            // Some radio responses (premieres, live videos) omit the seed itself —
-            // keep it as the queue's head so the row marked "current" still
-            // matches what's actually playing, instead of defaulting to whatever
-            // track happens to come first.
+            // Some radio responses omit the seed; keep it as head so the current row matches.
             let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
                                   duration: nil, thumbnailURL: nowPlaying.thumbnailURL, videoId: videoId,
                                   artists: nowPlaying.artists, albumLink: nowPlaying.albumLink)
@@ -366,18 +288,12 @@ final class PlayerState {
         persist()
     }
 
-    /// "Play all" for a shelf header button: fetches the button's watch queue (a
-    /// real playlist/album) and plays it as the queue. Unlike a single-seed play
-    /// this yields real per-track metadata (title/artist/artwork) instead of the
-    /// button's own label.
     func playAll(videoId: String?, playlistId: String, shuffled: Bool = false) {
         loadTask?.cancel()
         radioTask?.cancel()
         radioTask = Task { await loadAndPlayAll(videoId: videoId, playlistId: playlistId, shuffled: shuffled) }
     }
 
-    /// Fetches then plays a "Play all" queue, starting at the seed track when it's
-    /// present in the returned queue. Split out so tests can await it directly.
     func loadAndPlayAll(videoId: String?, playlistId: String, shuffled: Bool = false) async {
         guard let tracks = try? await radioProvider.watchQueue(videoId: videoId ?? "", playlistId: playlistId),
               !tracks.isEmpty else { return }
@@ -388,13 +304,10 @@ final class PlayerState {
         if shuffled { toggleShuffle() }
     }
 
-    /// Queues a playlist/album right after the current track (`next`) or at the
-    /// end of the queue. With nothing playing it just plays it.
     func enqueueAll(playlistId: String, next: Bool) {
         Task { await loadAndEnqueueAll(playlistId: playlistId, next: next) }
     }
 
-    /// Fetches then queues a playlist/album. Split out so tests can await it.
     func loadAndEnqueueAll(playlistId: String, next: Bool) async {
         guard let tracks = try? await radioProvider.watchQueue(videoId: "", playlistId: playlistId) else { return }
         let playable = tracks.filter { $0.videoId != nil }
@@ -415,10 +328,6 @@ final class PlayerState {
         persist()
     }
 
-    /// Autoplay: when the current track has nothing after it (a one-off play, or
-    /// the last track of an album/playlist) and repeat is off, fetch a radio
-    /// based on it and append it so playback keeps going. No-op when more tracks
-    /// already follow or the user explicitly started a radio.
     private func maybeContinueWithRadio() {
         guard autoplayEnabled, repeatMode == .off, currentIndex >= queue.count - 1,
               let seed = nowPlaying?.videoId else { return }
@@ -428,17 +337,9 @@ final class PlayerState {
 
     private var autoplayEnabled: Bool { settings?.autoplay ?? true }
 
-    /// Fetches a radio for `videoId` and appends its (new) tracks to the queue.
-    /// Continues the radio already backing the queue via its token (the real
-    /// "keep this mix going" path) when one is held; otherwise falls back to a
-    /// fresh single-song radio (e.g. autoplay off the end of an album, which
-    /// never held a radio continuation to begin with).
-    /// Split out so tests can await it directly. Re-checks state after the fetch
-    /// in case the user moved on meanwhile.
     func appendRadio(seed videoId: String) async {
         let page: RadioPage?
-        // A fresh radio (autoplay off a one-off/album) re-attributes the queue
-        // to the new mix; continuing an existing one keeps its attribution.
+        // A fresh radio re-attributes the queue to the new mix; continuing keeps its attribution.
         let isFreshRadio = radioContinuation == nil
         if let token = radioContinuation {
             page = try? await radioProvider.continueRadio(token)
@@ -446,7 +347,6 @@ final class PlayerState {
             page = try? await radioProvider.radio(for: videoId)
         }
         guard let page else { return }
-        // Still on the seed, still nothing queued after it, still not repeating.
         guard autoplayEnabled, nowPlaying?.videoId == videoId, repeatMode == .off,
               currentIndex >= queue.count - 1 else { return }
 
@@ -458,12 +358,9 @@ final class PlayerState {
         guard !continuation.isEmpty else { return }
 
         radioContinuation = page.continuation
-        // The appended tracks are radio, not part of any album.
         albumContext = ""
         if isFreshRadio { playlistContext = MixIds.songRadio(for: videoId) }
         if queue.isEmpty {
-            // One-off play: the seed becomes the head of a fresh queue, radio
-            // follows it (so `previous` still returns to the seed).
             guard let nowPlaying else { return }
             let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
                                   duration: nil, thumbnailURL: nowPlaying.thumbnailURL, videoId: videoId,
@@ -484,7 +381,6 @@ final class PlayerState {
     var duration: Double { awaitingResume ? restoredDuration : audio.duration }
     var bufferedTime: Double { audio.bufferedTime }
 
-    /// Output volume, 0...1. Forwards to the engine and persists via settings.
     var volume: Double {
         get { level }
         set {
@@ -494,7 +390,6 @@ final class PlayerState {
         }
     }
 
-    /// Silences output while keeping `volume` as the level to return to.
     var isMuted = false {
         didSet {
             audio.volume = isMuted ? 0 : level
@@ -508,8 +403,6 @@ final class PlayerState {
     var canGoPrevious: Bool { !queue.isEmpty && (currentIndex > 0 || repeatMode == .all) }
 
     func togglePlayPause() {
-        // A track restored from a previous session isn't loaded yet — the first
-        // play resolves and starts it.
         if awaitingResume {
             resumeRestored()
             return
@@ -531,14 +424,13 @@ final class PlayerState {
         emitPlaybackChange()
     }
     func seek(to seconds: Double) {
-        // Moves where the not-yet-loaded restored track will resume.
         if awaitingResume {
             restoredPosition = restoredDuration > 0 ? min(max(0, seconds), restoredDuration) : max(0, seconds)
             persist()
             return
         }
         audio.seek(to: seconds)
-        emitPlaybackChange()   // keep plugin-presence timestamps in sync
+        emitPlaybackChange()
     }
 
     func skip(by seconds: Double) {
@@ -567,8 +459,7 @@ final class PlayerState {
     }
 
     func previous() {
-        // Match the common player behaviour: restart the current track if we're
-        // more than a few seconds in, otherwise step back.
+        // Restart the current track when more than a few seconds in, otherwise step back.
         if currentTime > 3 {
             seek(to: 0)
             return
@@ -594,11 +485,6 @@ final class PlayerState {
         persist()
     }
 
-    /// Toggles shuffle. Turning it on shuffles everything after the current track
-    /// (which stays playing as the new queue head); turning it off restores the
-    /// pre-shuffle order, keeping the current track current. Tracks queued while
-    /// shuffled (radio/play-next) are preserved at the end on restore. No-op with
-    /// an empty queue (one-off plays can't shuffle).
     func toggleShuffle() {
         guard !queue.isEmpty, queue.indices.contains(currentIndex) else { return }
         let current = queue[currentIndex]
@@ -620,8 +506,6 @@ final class PlayerState {
         persist()
     }
 
-    /// Clears shuffle state when a brand-new queue replaces the current one, so a
-    /// fresh album/playlist plays in its natural order.
     private func resetShuffle() {
         isShuffled = false
         orderBeforeShuffle = []
@@ -629,17 +513,12 @@ final class PlayerState {
 
     // MARK: - Queue editing
 
-    /// Jumps to and plays the track at `index` (tapping a row in the queue
-    /// panel). No-op for an out-of-range index.
     func playQueueItem(at index: Int) {
         guard queue.indices.contains(index) else { return }
         currentIndex = index
         startCurrent()
     }
 
-    /// Removes the track at `index`. Removing the current track advances to
-    /// whatever slides into its place (or stops if it was the last); removing an
-    /// earlier track keeps the current one playing.
     func removeFromQueue(at index: Int) {
         guard queue.indices.contains(index) else { return }
         let removed = queue.remove(at: index)
@@ -659,8 +538,6 @@ final class PlayerState {
         persist()
     }
 
-    /// Reorders the queue (drag-to-reorder in the queue panel), keeping the
-    /// currently-playing track current wherever it lands.
     func moveInQueue(fromOffsets source: IndexSet, toOffset destination: Int) {
         let current = queue.indices.contains(currentIndex) ? queue[currentIndex] : nil
         queue.move(fromOffsets: source, toOffset: destination)
@@ -670,13 +547,8 @@ final class PlayerState {
         persist()
     }
 
-    /// Likes the current track, or removes the like if it's already liked.
-    /// Rating changes update the UI optimistically and reverts if the request fails (e.g.
-    /// signed out). No-op while a previous like request is still in flight.
     func toggleLike() { toggleRating(.liked) }
 
-    /// Dislikes the current track and skips to the next one, or removes the
-    /// dislike if it's already disliked.
     func toggleDislike() { toggleRating(.disliked) }
 
     private func toggleRating(_ rating: LikeStatus) {
@@ -692,7 +564,6 @@ final class PlayerState {
             do {
                 try await likeProvider.setLikeStatus(videoId: videoId, status: target)
             } catch {
-                // Revert only if we're still on the same track.
                 likeStatusCache[videoId] = previous
                 if nowPlaying?.videoId == videoId { likeStatus = previous }
             }
@@ -700,9 +571,6 @@ final class PlayerState {
         if target == .disliked { next() }
     }
 
-    /// Refreshes `likeStatus` from the server for `videoId`. Applied only if the
-    /// user is still on that track and hasn't toggled it meanwhile (their action
-    /// wins over a slower fetch). No-op result when signed out.
     private func fetchLikeStatus(for videoId: String) {
         likeFetchTask?.cancel()
         likeFetchTask = Task {
@@ -716,27 +584,17 @@ final class PlayerState {
         }
     }
 
-    /// The known like rating for a row's context menu, without a network call:
-    /// the live status for the current track (so in-session toggles show), else
-    /// an in-session cached toggle, else `fallback` — the rating the row's
-    /// response already carried.
     func knownLikeStatus(for videoId: String, default fallback: LikeStatus = .indifferent) -> LikeStatus {
         if videoId == nowPlaying?.videoId { return likeStatus }
         return likeStatusCache[videoId] ?? fallback
     }
 
-    /// The rating for `videoId` only when we actually know it — the current
-    /// track's live rating, or one learned this session — else nil. Unlike
-    /// `knownLikeStatus` it invents no `.indifferent` fallback, so callers can
-    /// tell "not liked" apart from "unknown".
+    /// Like rating only when known (no `.indifferent` fallback), so "not liked" differs from "unknown".
     func likeStatusIfKnown(for videoId: String) -> LikeStatus? {
         if videoId == nowPlaying?.videoId { return likeStatus }
         return likeStatusCache[videoId]
     }
 
-    /// Sets a specific track's like rating (from a row's context menu, which may
-    /// target a track other than the one playing). Mirrors the change onto the
-    /// now-playing UI, and reverts it, when it's the current track.
     func setLikeStatus(for videoId: String, to status: LikeStatus) {
         let isCurrent = videoId == nowPlaying?.videoId
         let previous = knownLikeStatus(for: videoId)
@@ -756,20 +614,17 @@ final class PlayerState {
     }
 
     private func handleTrackFinished() {
-        // A crossfade has already advanced the queue and is loading the next
-        // track; the just-ended track is the one we faded out of, so ignore its
-        // end rather than advancing a second time.
+        // Crossfade already advanced; ignore the faded-out track's end.
         if crossfadeLoading { return }
         reportFinalWatchtime()
         switch repeatMode {
         case .one:        audio.restart()
-        case .off, .all:  next()   // next() only wraps when .all; otherwise stops
+        case .off, .all:  next()
         }
     }
 
     // MARK: - Persistence
 
-    /// Loads the last session's snapshot into a paused, ready-to-resume state.
     private func restore() {
         guard let snapshot = store?.load() else { return }
         nowPlaying = snapshot.nowPlaying
@@ -801,8 +656,6 @@ final class PlayerState {
         ))
     }
 
-    /// Starts the restored track (resolving its stream for the first time),
-    /// from its saved position.
     private func resumeRestored() {
         let position = restoredPosition > 0 ? restoredPosition : nil
         if !queue.isEmpty {
@@ -870,8 +723,6 @@ final class PlayerState {
         maybeContinueWithRadio()
     }
 
-    /// Resolves the stream and hands it to the audio engine. Split out from
-    /// `startTrack` so tests can await it directly (no Task race).
     func loadStream(videoId: String, startAt position: Double? = nil) async {
         do {
             let preferences = settings?.streamPreferences ?? StreamPreferences()
@@ -907,8 +758,7 @@ final class PlayerState {
             awaitingAudio = true
             if let position { audio.seek(to: position) }
             emitPlaybackChange()
-            // Don't ping history yet — the real client reports a live position once
-            // the listener is actually into the track. Arm it; handleProgress fires.
+            // History is armed here; handleProgress fires it once the listener is underway.
             armHistory(resolved)
         } catch {
             if !Task.isCancelled {
@@ -918,10 +768,6 @@ final class PlayerState {
         }
     }
 
-    /// Arms history reporting for a freshly loaded stream. The beacons fire from
-    /// real playback progress (see `reportHistoryProgress`), mirroring the web
-    /// client, rather than at load time. No-op (logs) if the player response
-    /// carried no stats URL.
     private func armHistory(_ resolved: ResolvedStream) {
         guard resolved.historyURL != nil || resolved.watchtimeURL != nil, resolved.cpn != nil else {
             return
@@ -931,9 +777,6 @@ final class PlayerState {
         lastWatchtimeAt = -1
     }
 
-    /// Fires the history beacons as the current track plays: the `playback` beacon
-    /// once, then `watchtime` heartbeats with the live position every ~20s — the
-    /// shape the real YT Music client uses, and what makes a play land in history.
     private func reportHistoryProgress(current: Double, duration: Double) {
         guard let pending = pendingHistory, let cpn = pending.cpn else { return }
         guard audio.isPlaying, current >= 1 else { return }
@@ -951,8 +794,6 @@ final class PlayerState {
         }
     }
 
-    /// Sends a closing `watchtime` heartbeat at the track's end, so the listen is
-    /// recorded as completed. Only when the track actually started reporting.
     private func reportFinalWatchtime() {
         guard playbackPinged, let pending = pendingHistory, let cpn = pending.cpn,
               let watchtimeURL = pending.watchtimeURL else { return }
@@ -964,11 +805,7 @@ final class PlayerState {
 
     // MARK: - Crossfade
 
-    /// Called each playback tick. Drives history reporting, and — when crossfade
-    /// is enabled and the current track is within the crossfade window of its end
-    /// — kicks off an overlap into the next track.
     private func handleProgress(current: Double, duration: Double) {
-        // History beacons fire from real progress regardless of crossfade settings.
         reportHistoryProgress(current: current, duration: duration)
         onPlaybackProgress?(current, duration)
 
@@ -986,7 +823,7 @@ final class PlayerState {
         let seconds = settings.crossfadeSeconds
         guard seconds > 0, duration > 0 else { return }
 
-        // Re-arm once the freshly-started track is underway again.
+        // Re-arm once the freshly-started track is underway.
         if current < 1.0 { crossfadeArmed = false }
 
         // Repeat-one loops the same track, so never crossfade out of it.
@@ -1074,8 +911,6 @@ final class PlayerState {
             emitPlaybackChange()
             armHistory(resolved)
         } catch {
-            // Couldn't resolve the next track in time — fall back to a plain
-            // load of the now-current track once the old one ends.
             crossfadeLoading = false
             if !Task.isCancelled { startCurrent() }
         }
@@ -1126,7 +961,6 @@ final class PlayerState {
 
     // MARK: - Plugin hook
 
-    /// A point-in-time view of playback for plugins. nil means nothing is playing.
     var currentSnapshot: PlaybackSnapshot? {
         guard let nowPlaying else { return nil }
         return PlaybackSnapshot(
@@ -1149,26 +983,16 @@ final class PlayerState {
         onPlaybackChange?(snapshot)
     }
 
-    /// The display artist for the current track (structured links if known, else
-    /// parsed from the subtitle). Empty when nothing is playing. Cheap to read
-    /// from a view without observing per-tick playback state.
     var nowPlayingArtist: String { Self.cleanedArtist(nowPlaying) }
 
-    /// The artist name for Now Playing / plugins. Prefers the structured artist
-    /// links; otherwise parses it out of the subtitle.
     private static func cleanedArtist(_ nowPlaying: NowPlaying?) -> String {
         guard let nowPlaying else { return "" }
         let names = nowPlaying.artists.map(\.name).filter { !$0.isEmpty }
         if !names.isEmpty { return names.joined(separator: ", ") }
-        // No links: take just the first component ("Artist") of the subtitle.
         return withoutTypeLabel(nowPlaying.subtitle).components(separatedBy: " • ").first ?? ""
     }
 
-    /// YT Music subtitles often lead with a content-type label
-    /// ("Song • Artist • Album • Year"); videos additionally stuff a view count
-    /// and length into the byline ("femtanyl • 3.5M views • 2:46"). Drop the
-    /// type label, any view-count, and any bare duration component so the line
-    /// reads as a clean "Artist • Album" byline everywhere it's shown.
+    /// Strips the type label, view counts and bare durations from a subtitle.
     static func withoutTypeLabel(_ subtitle: String) -> String {
         var components = subtitle.components(separatedBy: " • ")
         let labels: Set<String> = ["Song", "Video", "Episode", "Podcast"]
@@ -1179,16 +1003,14 @@ final class PlayerState {
         return components.joined(separator: " • ")
     }
 
-    /// A view-count component like "3.5M views" / "1,234 views" — a leading
-    /// number token followed by "view"/"views".
+    /// A view-count component like "3.5M views".
     private static func isViewCount(_ component: String) -> Bool {
         let text = component.trimmingCharacters(in: .whitespaces).lowercased()
         guard text.hasSuffix(" views") || text.hasSuffix(" view") else { return false }
         return text.first?.isNumber ?? false
     }
 
-    /// A bare duration component like "2:46" or "1:02:30" — colon-separated
-    /// groups of digits and nothing else.
+    /// A bare duration like "2:46" or "1:02:30".
     private static func isDuration(_ component: String) -> Bool {
         let parts = component.trimmingCharacters(in: .whitespaces).split(separator: ":")
         guard parts.count >= 2 else { return false }

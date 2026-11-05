@@ -2,9 +2,6 @@
 //  SongInsightViewModelTests.swift
 //  YT MusicTests
 //
-//  Drives the "About this song" view model with fakes, verifying its state
-//  transitions without the on-device model or the network.
-//
 
 import Testing
 import Foundation
@@ -63,7 +60,6 @@ struct SongInsightViewModelTests {
         await model.load(query: query())
         guard case .unavailable = model.state else { return #expect(Bool(false)) }
 
-        // Blank lyric text is treated the same as none.
         let blank = SongInsightViewModel(
             insightProvider: FakeInsight(),
             lyricsProvider: FakeLyrics(stored: Lyrics(text: "")))

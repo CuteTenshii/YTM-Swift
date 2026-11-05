@@ -2,13 +2,6 @@
 //  AccountMenuResponse.swift
 //  YT Music
 //
-//  Decodable models + parser for the InnerTube `account/account_menu` endpoint,
-//  which (when authenticated) returns the active account's name, handle, and
-//  avatar in an `activeAccountHeaderRenderer`.
-//
-//  Path:
-//    actions[].openPopupAction.popup.multiPageMenuRenderer.header
-//      .activeAccountHeaderRenderer { accountName, channelHandle/email, accountPhoto }
 //
 
 import Foundation

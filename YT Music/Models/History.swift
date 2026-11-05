@@ -9,10 +9,8 @@
 
 import Foundation
 
-/// One date bucket of listening history: a title and the tracks played in it.
-/// Each section is its own playable queue.
 struct HistorySection: Identifiable, Sendable {
     let id = UUID()
-    var title: String    // "Today", "Yesterday", "This week", …
+    var title: String
     var tracks: [Track]
 }

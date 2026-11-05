@@ -2,13 +2,6 @@
 //  SignatureDecipherTests.swift
 //  YT MusicTests
 //
-//  Exercises the full signature + n-parameter decipher pipeline against a
-//  synthetic player — no network, fully deterministic. The fixture mimics the
-//  shape of a real modern base.js: a module IIFE exposing a `g` namespace with a
-//  URL class (get/set/clone + a descramble method) and a signer function that
-//  builds that URL and sets the `alr=yes` flag (the fingerprint the solver finds).
-//  Here the descramble reverses `s` and uppercases `n`, so outputs are trivial.
-//
 
 import Testing
 import Foundation

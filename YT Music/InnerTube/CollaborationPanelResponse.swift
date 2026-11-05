@@ -2,21 +2,6 @@
 //  CollaborationPanelResponse.swift
 //  YT Music
 //
-//  Decodable model for `get_panel` with an owned playlist's collaboration panel
-//  (`PAplaylist_collaborate`, opened from its edit header).
-//
-//  Response path:
-//    content.engagementPanelSectionListRenderer.content.playlistCollaborationViewModel {
-//      playlistCollaborationFormSchema.initialValues
-//        { isCollaborationEnabled, isAllowNewCollaboratorsEnabled }
-//      copyLinkButton.buttonViewModel.onTap.innertubeCommand.copyLinkCommand.shortUrl
-//        <- the invite link, "" when none
-//      playlistCollaborators[].contentListItemViewModel {
-//        title.content, metadata…metadataParts[].text.content ("Owner"),
-//        avatar.avatarViewModel.image.sources[].url,
-//        rendererContext.commandContext.onTap.innertubeCommand.browseEndpoint.browseId
-//      }
-//    }
 //
 
 import Foundation

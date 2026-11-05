@@ -12,7 +12,7 @@ final class SongInsightViewModel {
         case idle
         case loading
         case loaded(SongInsight)
-        case unavailable   // no lyrics to work from
+        case unavailable
         case failed(String)
     }
 
@@ -20,12 +20,8 @@ final class SongInsightViewModel {
 
     private let insightProvider: SongInsightProviding
     private let lyricsProvider: LyricsProviding
-    /// The track being loaded, so a slow generation for a previous track can't
-    /// overwrite the state after the user has moved on.
     private var currentVideoId: String?
 
-    /// Whether the on-device model is available at all — the card hides entirely
-    /// when false, so unsupported Macs never see it.
     var isSupported: Bool { insightProvider.isSupported }
 
     init(insightProvider: SongInsightProviding = SongInsightService(),
@@ -34,9 +30,6 @@ final class SongInsightViewModel {
         self.lyricsProvider = lyricsProvider
     }
 
-    /// Fetches the track's lyrics, then generates an on-device insight from them.
-    /// No-op when the model is unsupported; `.unavailable` when the track has no
-    /// lyrics to interpret.
     func load(query: LyricsQuery?) async {
         guard insightProvider.isSupported, let query else { state = .idle; return }
         currentVideoId = query.videoId

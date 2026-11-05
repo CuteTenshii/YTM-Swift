@@ -2,10 +2,6 @@
 //  LastfmPlugin.swift
 //  YT Music
 //
-//  Scrobbles played tracks to Last.fm while enabled. Feeds the PlaybackSnapshot
-//  stream through a `ScrobbleTracker`, which decides when to send `nowPlaying`
-//  and `scrobble`; the configuration UI takes the user's API account, runs the
-//  desktop auth flow (approve in the browser), and shows the connected account.
 //
 
 import SwiftUI
@@ -22,11 +18,8 @@ final class LastfmPlugin: Plugin {
     private var tracker = ScrobbleTracker()
     private var active = false
 
-    /// The connected account, or nil when signed out. Drives the config UI.
     var session: LastfmSession?
-    /// True once the auth flow has opened the browser and is awaiting completion.
     var awaitingAuthorization = false
-    /// True while an auth request is in flight (disables the buttons).
     var working = false
     var statusMessage: String?
 
@@ -41,8 +34,7 @@ final class LastfmPlugin: Plugin {
     }
 
     func playbackDidChange(_ snapshot: PlaybackSnapshot?) {
-        // Always advance the tracker so its time accounting stays correct, but
-        // only dispatch network actions while enabled and connected.
+        // Always advance the tracker; only dispatch network actions while enabled and connected.
         let actions = tracker.update(snapshot, now: Date())
         guard active, session != nil else { return }
         for action in actions {
@@ -57,8 +49,7 @@ final class LastfmPlugin: Plugin {
 
     // MARK: - Auth flow (driven by the config UI)
 
-    /// Step 1: get a token for the user's API account and open the browser to
-    /// approve it. The password is never entered here — it's typed on last.fm.
+    /// Step 1: request a token and open the browser to approve it.
     func beginAuthorization(apiKey: String, secret: String) {
         statusMessage = nil
         working = true
@@ -109,7 +100,6 @@ final class LastfmPlugin: Plugin {
     var configuration: AnyView? { AnyView(LastfmConfigView(plugin: self)) }
 }
 
-/// Connect / disconnect controls shown under the toggle.
 private struct LastfmConfigView: View {
     @Bindable var plugin: LastfmPlugin
 
@@ -133,7 +123,7 @@ private struct LastfmConfigView: View {
                 Text("Approve YT Music in the browser tab that just opened, then finish here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button(plugin.working ? "Finishing…" : "I've approved — finish connecting") {
+                Button(plugin.working ? "Finishing…" : "I've approved - finish connecting") {
                     plugin.completeAuthorization()
                 }
                 .disabled(plugin.working)

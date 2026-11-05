@@ -2,29 +2,20 @@
 //  SpectrumAnalyzer.swift
 //  YT Music
 //
-//  A lightweight FFT spectrum meter for the immersive visualizer. It piggybacks
-//  on the equalizer's audio tap (which already sees every item's decoded PCM):
-//  the tap feeds one channel's samples in via `ingest` on the realtime audio
-//  thread, we window + FFT each block with Accelerate, fold the bins into a few
-//  log-spaced bands, and publish them behind a lock for the UI to read.
-//
-//  Like the equalizer DSP it's `nonisolated` so it runs off the main actor, and
-//  the bin→band mapping is a pure function exercised in tests. The realtime
-//  plumbing (as with the EQ tap) is the untested layer.
+//  FFT spectrum meter fed by the equalizer tap, folded into log-spaced bands for the visualizer.
 //
 
 import Accelerate
 import Foundation
 
 nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
-    /// Number of bars the visualizer draws.
     let bandCount: Int
     private let fftSize: Int
     private let half: Int
     private let log2n: vDSP_Length
     private let setup: FFTSetup
 
-    // Preallocated scratch — nothing is allocated on the audio thread.
+    // Preallocated scratch: nothing is allocated on the audio thread.
     private let window: UnsafeMutablePointer<Float>
     private let input: UnsafeMutablePointer<Float>
     private let windowed: UnsafeMutablePointer<Float>
@@ -35,8 +26,7 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
     private var fill = 0
     private var sampleRate: Double = 44_100
 
-    /// Guards `published` (and serializes the two taps that briefly overlap
-    /// during a crossfade, so their `ingest` calls can't race the input buffer).
+    /// Guards `published` and serializes overlapping crossfade taps.
     private let lock = NSLock()
     private var published: [Float]
 
@@ -70,7 +60,6 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
         realp.deallocate(); imagp.deallocate(); mags.deallocate()
     }
 
-    /// Resets for a new stream's sample rate. Called from the tap's prepare.
     func prepare(sampleRate: Double) {
         lock.lock(); defer { lock.unlock() }
         self.sampleRate = sampleRate > 0 ? sampleRate : 44_100
@@ -78,15 +67,11 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
         for i in published.indices { published[i] = 0 }
     }
 
-    /// The latest band levels (0…1, low→high frequency). Safe to call from any
-    /// thread; the UI polls it each frame.
     func magnitudes() -> [Float] {
         lock.lock(); defer { lock.unlock() }
         return published
     }
 
-    /// Feeds `frames` samples of one channel (interleaved buffers pass their
-    /// channel count as `stride`). Accumulates a window and runs an FFT when full.
     func ingest(_ samples: UnsafePointer<Float>, frames: Int, stride: Int) {
         lock.lock(); defer { lock.unlock() }
         var i = 0
@@ -98,8 +83,6 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
         }
     }
 
-    /// Windows the accumulated block, FFTs it, and folds the magnitudes into
-    /// bands. Caller holds `lock`.
     private func computeAndPublish() {
         vDSP_vmul(input, 1, window, 1, windowed, 1, vDSP_Length(fftSize))
 
@@ -121,8 +104,6 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
         }
     }
 
-    /// Folds `binCount` FFT magnitudes into `bandCount` log-spaced, level-scaled
-    /// bands (0…1). Pure and deterministic — the tested seam.
     static func mapBands(mags: UnsafePointer<Float>, binCount: Int,
                          sampleRate: Double, fftSize: Int, bandCount: Int) -> [Float] {
         var out = [Float](repeating: 0, count: bandCount)
@@ -143,7 +124,7 @@ nonisolated final class SpectrumAnalyzer: @unchecked Sendable {
             for bin in lo...hi { sum += mags[bin] }
             let avg = sum / Float(hi - lo + 1)
 
-            // Normalize by transform size, then log-compress to a 0…1 level.
+            // Normalize by transform size, then log-compress to a 0...1 level.
             let norm = avg / Float(fftSize)
             let db = 20 * log10(norm + 1e-6)          // roughly -120…0 dB
             out[b] = min(max((db + 60) / 60, 0), 1)   // -60…0 dB → 0…1

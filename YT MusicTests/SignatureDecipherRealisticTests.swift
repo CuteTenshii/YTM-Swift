@@ -2,16 +2,6 @@
 //  SignatureDecipherRealisticTests.swift
 //  YT MusicTests
 //
-//  Exercises the run-the-player solver against fixtures shaped like a real modern
-//  base.js (player 5b27766f generation): a module IIFE with a `g` namespace, a
-//  URL class, and the signature/n transforms living as a URL-class method — there
-//  is no standalone `n` function to extract. These cover the tricky bits the
-//  production code must survive:
-//    • a DECOY signer that also sets `alr=yes` but throws — must be probed and
-//      rejected in favour of the working one;
-//    • the real signer written in DECLARATION form (`function NAME(...)`);
-//    • the transform reached only by running the player's own URL class.
-//
 
 import Testing
 import Foundation

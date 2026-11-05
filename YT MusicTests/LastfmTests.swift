@@ -2,12 +2,6 @@
 //  LastfmTests.swift
 //  YT MusicTests
 //
-//  Tests for the Last.fm scrobbler's pure pieces: the api_sig signature, the
-//  scrobble-eligibility rule, and the ScrobbleTracker state machine that turns
-//  the discrete PlaybackSnapshot stream into nowPlaying/scrobble actions. The
-//  network/auth/Keychain layer (LastfmClient) needs live network and is not
-//  covered, matching the rest of the suite.
-//
 
 import Testing
 import Foundation
@@ -31,7 +25,6 @@ struct LastfmSignatureTests {
         let withFormat = base.merging(["format": "json", "callback": "cb"]) { a, _ in a }
         #expect(LastfmSignature.sign(base, secret: "mysecret")
                 == LastfmSignature.sign(withFormat, secret: "mysecret"))
-        // And matches the externally-computed md5 of the canonical string.
         #expect(LastfmSignature.sign(base, secret: "mysecret") == "6d6cf663d3890b563f3e055171b20656")
     }
 }
@@ -49,14 +42,13 @@ struct LastfmEligibilityTests {
 
     @Test("Needs half the duration for tracks under 8 minutes")
     func halfDurationThreshold() {
-        // 200s track → threshold 100s.
         #expect(!lastfmScrobbleEligible(playedSeconds: 99, duration: 200))
         #expect(lastfmScrobbleEligible(playedSeconds: 100, duration: 200))
     }
 
     @Test("Caps the threshold at 4 minutes for long tracks")
     func fourMinuteCap() {
-        // 1000s track → half is 500s, but the cap is 240s.
+        // 1000s track: half is 500s, but the cap is 240s.
         #expect(!lastfmScrobbleEligible(playedSeconds: 239, duration: 1000))
         #expect(lastfmScrobbleEligible(playedSeconds: 240, duration: 1000))
     }
@@ -94,7 +86,6 @@ struct ScrobbleTrackerTests {
     func scrobblesPreviousOnChange() {
         var tracker = ScrobbleTracker()
         _ = tracker.update(snapshot("a", duration: 200), now: t0)
-        // 120s later (> half of 200s) the next track starts.
         let actions = tracker.update(snapshot("b", duration: 200), now: at(120))
         let scrobbles = actions.filter { if case .scrobble = $0 { return true } else { return false } }
         #expect(scrobbles.count == 1)
@@ -102,7 +93,6 @@ struct ScrobbleTrackerTests {
             #expect(track.title == "Song")
             #expect(track.startedAt == Int(t0.timeIntervalSince1970))
         }
-        // And the new track gets its nowPlaying.
         #expect(actions.contains { if case .nowPlaying = $0 { return true } else { return false } })
     }
 
@@ -118,9 +108,8 @@ struct ScrobbleTrackerTests {
     func pauseStopsAccumulation() {
         var tracker = ScrobbleTracker()
         _ = tracker.update(snapshot("a", duration: 200), now: t0)
-        // Pause after 40s; total threshold is 100s.
         _ = tracker.update(snapshot("a", playing: false, duration: 200), now: at(40))
-        // Stay paused a long while, then resume — paused span must not count.
+        // Stay paused a long while, then resume: paused span must not count.
         _ = tracker.update(snapshot("a", playing: true, duration: 200), now: at(400))
         // Only 50 more seconds of real play (40 + 50 = 90s < 100s).
         let actions = tracker.update(snapshot("b", duration: 200), now: at(450))
@@ -131,7 +120,6 @@ struct ScrobbleTrackerTests {
     func scrobblesOnce() {
         var tracker = ScrobbleTracker()
         _ = tracker.update(snapshot("a", duration: 200), now: t0)
-        // Pause past the threshold → eligible mid-track.
         let mid = tracker.update(snapshot("a", playing: false, duration: 200), now: at(150))
         #expect(mid.filter { if case .scrobble = $0 { return true } else { return false } }.count == 1)
         // Resume and then change tracks: must not scrobble "a" again.

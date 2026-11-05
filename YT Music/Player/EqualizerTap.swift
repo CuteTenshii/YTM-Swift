@@ -2,27 +2,18 @@
 //  EqualizerTap.swift
 //  YT Music
 //
-//  Bridges the (pure) EqualizerProcessor into AVPlayer playback via an
-//  MTAudioProcessingTap. AVPlayer has no built-in EQ, so we install an audio
-//  tap on the item's audio track: the tap's `process` callback fires on a
-//  realtime audio thread with the decoded PCM, which we filter in place before
-//  it reaches the output.
-//
-//  The C-style callbacks can't capture Swift context, so the processor is passed
-//  through the tap's storage as a retained pointer (released in `finalize`).
+//  Installs an MTAudioProcessingTap that runs EqualizerProcessor over each item's audio.
 //
 
 import AVFoundation
 import CoreMedia
 
-/// Builds an `AVAudioMix` that runs `processor` over the item's first audio
-/// track. Returns nil if no audio track is available or the tap can't be
-/// created (in which case playback proceeds un-equalized).
+/// Returns nil when there is no audio track or the tap can't be created.
 @MainActor
 func makeEqualizerAudioMix(for track: AVAssetTrack, processor: EqualizerProcessor) -> AVAudioMix? {
     var callbacks = MTAudioProcessingTapCallbacks(
         version: kMTAudioProcessingTapCallbacksVersion_0,
-        // Retain the processor for the tap's lifetime; tapFinalize releases it.
+        // Retained for the tap's lifetime; tapFinalize releases it.
         clientInfo: UnsafeMutableRawPointer(Unmanaged.passRetained(processor).toOpaque()),
         `init`: tapInit,
         finalize: tapFinalize,
@@ -37,7 +28,7 @@ func makeEqualizerAudioMix(for track: AVAssetTrack, processor: EqualizerProcesso
         kMTAudioProcessingTapCreationFlag_PostEffects, &tap
     )
     guard status == noErr, let tap else {
-        // Balance the passRetained above if tap creation failed.
+        // Balance the passRetained when tap creation fails.
         Unmanaged<EqualizerProcessor>.fromOpaque(callbacks.clientInfo!).release()
         return nil
     }
@@ -58,7 +49,7 @@ func makeEqualizerAudioMix(for track: AVAssetTrack, processor: EqualizerProcesso
 private nonisolated func tapInit(tap: MTAudioProcessingTap,
                                  clientInfo: UnsafeMutableRawPointer?,
                                  tapStorageOut: UnsafeMutablePointer<UnsafeMutableRawPointer?>) {
-    // Carry the retained processor pointer over into the tap's storage.
+    // C callbacks can't capture; carry the retained processor via tap storage.
     tapStorageOut.pointee = clientInfo
 }
 
@@ -94,14 +85,13 @@ private nonisolated func tapProcess(tap: MTAudioProcessingTap,
 
     let buffers = UnsafeMutableAudioBufferListPointer(bufferListInOut)
     if buffers.count > 1 {
-        // Planar / non-interleaved: one buffer per channel.
         for channel in 0..<buffers.count {
             guard let data = buffers[channel].mData else { continue }
             let samples = data.assumingMemoryBound(to: Float.self)
             processor.processPlanar(samples, frames: frames, channel: channel)
         }
     } else if let buffer = buffers.first, let data = buffer.mData {
-        // Interleaved: a single buffer with mNumberChannels channels per frame.
+        // Interleaved: one buffer with mNumberChannels channels per frame.
         let channels = Int(buffer.mNumberChannels)
         let samples = data.assumingMemoryBound(to: Float.self)
         if channels <= 1 {

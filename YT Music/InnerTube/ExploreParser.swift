@@ -2,12 +2,6 @@
 //  ExploreParser.swift
 //  YT Music
 //
-//  Parses the `FEmusic_explore` browse response into shelves. Explore uses the
-//  same single-column layout and carousel/grid renderers as Home and Library
-//  (new releases, charts, trending, top music videos), so we reuse `Shelf`
-//  and `HomeFeedParser.makeItem`. The mood/genre chip grids (built from
-//  `musicNavigationButtonRenderer`, which carries no card) yield no items and are
-//  skipped.
 //
 
 import Foundation

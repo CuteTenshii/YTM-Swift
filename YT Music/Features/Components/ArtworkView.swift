@@ -43,10 +43,8 @@ struct ArtworkView: View {
     }
 }
 
-// MARK: - Type-erased shape
+// MARK: Type-erased shape
 
-/// Type-erased `InsettableShape` so artwork can swap between circle and rounded
-/// rect while still using `strokeBorder`.
 struct AnyInsettableShape: InsettableShape {
     private let pathBuilder: @Sendable (CGRect) -> Path
     private let insetBuilder: @Sendable (CGFloat) -> AnyInsettableShape

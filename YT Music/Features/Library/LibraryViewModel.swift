@@ -15,12 +15,8 @@ final class LibraryViewModel {
         case failed(String)
     }
 
-    /// The landing page (every kind, most recent first): the sidebar's list and
-    /// the Library tab's "All" chip.
     private(set) var state: State = .loading
-    /// The server's filter chips (Playlists, Songs, Albums, …).
     private(set) var chips: [FeedChip] = []
-    /// The chip showing in the Library tab; nil for "All" (the landing page).
     private(set) var selectedChip: FeedChip?
     private(set) var chipState: State = .loading
 
@@ -33,7 +29,6 @@ final class LibraryViewModel {
         self.client = client
     }
 
-    /// What the Library tab shows for the current chip.
     var visibleState: State { selectedChip == nil ? state : chipState }
 
     func load(isSignedIn: Bool) async {
@@ -71,8 +66,6 @@ final class LibraryViewModel {
         }
     }
 
-    /// Appends the landing page's next batch (the sidebar reached its end, or
-    /// the "All" grid did).
     func loadMoreLanding() async {
         guard !isLoadingMoreLanding, case .loaded(let page) = state,
               let token = page.continuation else { return }
@@ -83,7 +76,6 @@ final class LibraryViewModel {
         state = .loaded(current.appending(next))
     }
 
-    /// Appends the next batch of whatever the Library tab is showing.
     func loadMoreVisible() async {
         guard let chip = selectedChip else { return await loadMoreLanding() }
         guard !isLoadingMoreChip, case .loaded(let page) = chipState,
@@ -95,8 +87,6 @@ final class LibraryViewModel {
         chipState = .loaded(current.appending(next))
     }
 
-    /// Renames one of the user's own playlists (from a card's context menu),
-    /// then reloads the library so the grid reflects it.
     func renamePlaylist(_ playlistId: String, to title: String, isSignedIn: Bool) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -104,7 +94,6 @@ final class LibraryViewModel {
         await load(isSignedIn: isSignedIn)
     }
 
-    /// Deletes one of the user's own playlists, then reloads the library.
     func deletePlaylist(_ playlistId: String, isSignedIn: Bool) async {
         try? await client.deletePlaylist(playlistId: playlistId)
         await load(isSignedIn: isSignedIn)

@@ -2,9 +2,6 @@
 //  EntityPageParser.swift
 //  YT Music
 //
-//  Maps a raw `EntityBrowseResponse` into the clean `EntityPage` model. Handles
-//  album/playlist/artist headers (three renderer variants) and bodies in both
-//  the single-column and newer two-column layouts.
 //
 
 import Foundation
@@ -13,8 +10,7 @@ nonisolated enum EntityPageParser {
 
     static func parse(_ response: EntityBrowseResponse, fallback: EntityDestination) -> EntityPage {
         let sections = collectSections(response.contents)
-        // Non-uploaded albums/playlists carry no top-level `header`; their
-        // responsive header sits inside the body's section list instead.
+        // Non-uploaded albums/playlists have no top-level `header`; it sits in the body's section list.
         let bodyHeader = sections.compactMap(\.responsiveHeader).first
         var header = parseHeader(response.header, bodyResponsive: bodyHeader, fallback: fallback)
         let editableHeader = sections.lazy.compactMap(\.musicEditablePlaylistDetailHeaderRenderer).first
@@ -45,7 +41,6 @@ nonisolated enum EntityPageParser {
             } else if let carousel = section.carousel {
                 if let shelf = makeShelf(from: carousel) { shelves.append(shelf) }
             } else if let card = section.musicCardShelfRenderer {
-                // A single highlighted item, like a profile's "Personal mix".
                 if let item = HomeFeedParser.makeItem(
                     title: card.title?.text ?? "",
                     subtitle: card.subtitle?.text ?? "",
@@ -55,8 +50,7 @@ nonisolated enum EntityPageParser {
                     shelves.append(Shelf(title: card.headerTitle.isEmpty ? "More" : card.headerTitle, items: [item]))
                 }
             } else if let grid = section.gridRenderer {
-                // Feed pages (e.g. a shelf's "More" → "Listen again") lay their
-                // content out as grids rather than carousels.
+                // Feed pages lay their content out as grids rather than carousels.
                 if let shelf = makeShelf(from: grid) { shelves.append(shelf) }
             }
         }
@@ -76,9 +70,6 @@ nonisolated enum EntityPageParser {
         )
     }
 
-    /// A filter or sort reload of a playlist's track section. The reloaded
-    /// section carries its own filters and sort options (with the new
-    /// selection, and tokens that keep it combined with the other control).
     static func parseTrackReload(_ response: EntityBrowseResponse, header: EntityHeader) -> EntityPage {
         let section = response.continuationContents?.sectionListContinuation
         let shelf = section?.contents?.lazy.compactMap(\.listShelf).first
@@ -105,8 +96,6 @@ nonisolated enum EntityPageParser {
         }
     }
 
-    /// A podcast show's sort chip: its popup menu lists the orders, the current
-    /// one marked with a check icon.
     private static func popupSortOptions(_ cloud: ChipCloudRenderer?) -> [PlaylistSortOption] {
         let items = (cloud?.chips ?? [])
             .compactMap { $0.chipCloudChipRenderer?.navigationEndpoint?.openPopupAction?.popup?
@@ -174,7 +163,7 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Sections
 
-    /// Gathers section content from whichever layout the response used.
+    /// Gathers sections from either the single-column or two-column layout.
     private static func collectSections(
         _ contents: EntityBrowseResponse.EntityContents?
     ) -> [BrowseResponse.SectionContent] {
@@ -211,7 +200,6 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Header
 
-    /// An album's strapline artist(s), else a playlist's facepile owner.
     private static func byline(
         _ header: EntityBrowseResponse.HeaderContainer.ResponsiveHeader
     ) -> EntityByline? {
@@ -251,8 +239,7 @@ nonisolated enum EntityPageParser {
             )
         }
 
-        // The responsive header appears either at the top level or nested in the
-        // body (the newer two-column album/playlist layout).
+        // The responsive header is top-level or nested in the body (two-column layout).
         if let responsive = container?.musicResponsiveHeaderRenderer ?? bodyResponsive {
             let subtitle = joinNonEmpty(responsive.subtitle?.text, responsive.secondSubtitle?.text)
             let artists = ((responsive.straplineTextOne?.entityLinks ?? [])
@@ -273,9 +260,7 @@ nonisolated enum EntityPageParser {
         }
 
         if let immersive = container?.musicImmersiveHeaderRenderer {
-            // The immersive header's `thumbnail` is a wide background image — the
-            // artist banner. `foregroundThumbnail`, when present, is the circular
-            // artist portrait; otherwise the banner doubles as the avatar.
+            // `thumbnail` is a wide banner; `foregroundThumbnail`, when present, is the circular portrait.
             let radioPlaylistId = immersive.playButton?.buttonRenderer?.navigationEndpoint?
                 .playlistId
                 ?? immersive.startRadioButton?.buttonRenderer?.navigationEndpoint?
@@ -299,9 +284,7 @@ nonisolated enum EntityPageParser {
             )
         }
 
-        // Plain YouTube channels (a video/song byline target) use a lighter
-        // header: avatar (`foregroundThumbnail`) + subscribe button + subscriber
-        // count, but no bio. Reuse the artist subscribe parsing.
+        // Plain channels use a lighter header (no bio); reuse the artist subscribe parsing.
         if let visual = container?.musicVisualHeaderRenderer {
             let subscribers = visual.subscriptionButton?.subscribeButtonRenderer?
                 .subscriberCountText?.text ?? ""
@@ -315,7 +298,6 @@ nonisolated enum EntityPageParser {
             )
         }
 
-        // No recognizable header — fall back to what navigation gave us.
         return EntityHeader(
             title: fallback.title,
             subtitle: fallback.subtitle,
@@ -325,7 +307,7 @@ nonisolated enum EntityPageParser {
         )
     }
 
-    /// The content for a kind when the response had no matching header renderer; songs, videos and unknown are a bare feed page.
+    /// Bare feed page for songs, videos and unknown kinds.
     private static func collectionContent(
         _ kind: ShelfItem.Kind,
         _ info: CollectionInfo
@@ -340,9 +322,7 @@ nonisolated enum EntityPageParser {
         }
     }
 
-    /// Formats a subscriber count for display. YouTube sometimes returns just the
-    /// number ("79") and sometimes the full "1.2M subscribers"; append the noun
-    /// only when it's missing.
+    /// YouTube returns either "79" or "1.2M subscribers"; append the noun only when missing.
     private static func formatSubscribers(_ text: String) -> String {
         guard !text.isEmpty else { return "" }
         return text.lowercased().contains("subscrib") ? text : "\(text) subscribers"
@@ -388,19 +368,14 @@ nonisolated enum EntityPageParser {
             let albumLink = links.first { $0.kind == .album }
             let rowArtists = links.filter { $0.kind == .artist }
 
-            // Default: artists + subtitle come from the row itself. On an album
-            // page, a column linking to an album is the page's own album.
+            // On an album page, a column linking to an album is the page's own album.
             var artists = rowArtists
             var subtitle = row.textColumnRuns.dropFirst()
                 .filter { header.kind != .album || !$0.entityLinks.contains { $0.kind == .album } }
                 .map(\.text)
                 .joined(separator: " • ")
 
-            // Album tracks usually omit a per-row artist — it's the album artist,
-            // carried only in the header. Adopt the header artist for the links so
-            // the context menu / Now Playing resolve correctly. Only overwrite the
-            // visible byline when the row would otherwise be blank; real albums put
-            // a useful "plays" column here, so keep it.
+            // Album rows omit the artist; adopt the header artist for links but keep a real "plays" column.
             if rowArtists.isEmpty, header.kind == .album, !header.artists.isEmpty {
                 artists = header.artists
                 if subtitle.isEmpty {
@@ -413,8 +388,7 @@ nonisolated enum EntityPageParser {
                 title: title,
                 subtitle: subtitle,
                 duration: row.durationText,
-                // Album/uploaded track rows carry no per-row artwork — fall back
-                // to the album cover instead of a blank placeholder.
+                // Album/uploaded rows have no artwork: fall back to the album cover.
                 thumbnailURL: row.thumbnail?.bestURL ?? header.thumbnailURL,
                 videoId: row.trackVideoId,
                 artists: artists,
@@ -429,9 +403,6 @@ nonisolated enum EntityPageParser {
 
     // MARK: - Subscription
 
-    /// Turns the artist header's subscribe button into our `ArtistSubscription`,
-    /// pulling the channel id, current subscribed state, and the params for the
-    /// subscribe / unsubscribe service endpoints.
     private static func parseSubscription(
         _ button: EntityBrowseResponse.HeaderContainer.ImmersiveHeader.SubscriptionButton?
     ) -> ArtistSubscription? {

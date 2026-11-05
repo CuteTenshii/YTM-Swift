@@ -2,10 +2,6 @@
 //  EntityPageParserTests.swift
 //  YT MusicTests
 //
-//  Verifies entity-page parsing against fixtures shaped like the real `browse`
-//  response (no network). Focuses on the artist immersive header's subscribe
-//  button, which drives the Subscribe/Subscribed toggle.
-//
 
 import Testing
 import Foundation
@@ -195,7 +191,7 @@ struct EntityPageParserTests {
         #expect(EntityPageParser.parse(response, fallback: playlistDestination).header.collection?.isSaved == nil)
     }
 
-    /// A bare feed page — a shelf's "More" landing (e.g. "Listen again") — has no
+    /// A bare feed page (a shelf's "More" landing, e.g. "Listen again") has no
     /// entity header and lays its cards out as a grid rather than a track list.
     private let feedFixture = """
     {"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
@@ -276,7 +272,7 @@ struct EntityPageParserTests {
     /// An uploaded album, shaped like the real `privately_owned_release_detail`
     /// response: the artist link is only in the header (with a
     /// `MUSIC_PAGE_TYPE_UNKNOWN` page type, its kind inferred from the browse id),
-    /// and the track row carries no artist and no thumbnail — only the album link.
+    /// and the track row carries no artist and no thumbnail, only the album link.
     private let uploadedAlbumFixture = """
     {
       "header":{"musicDetailHeaderRenderer":{
@@ -324,19 +320,15 @@ struct EntityPageParserTests {
         )
         let page = EntityPageParser.parse(response, fallback: albumDestination)
 
-        // The header artist link resolves despite the UNKNOWN page type.
         #expect(page.header.artists.first?.name == "David Vendetta")
         #expect(page.header.artists.first?.kind == .artist)
 
         let track = try #require(page.tracks.first)
         #expect(track.title == "Freaky Girl")
         #expect(track.videoId == "tYk0G1gzMg8")
-        // Artist inherited from the header — not the album name.
         #expect(track.subtitle == "David Vendetta")
         #expect(track.artists.first?.name == "David Vendetta")
-        // Cover falls back to the album artwork instead of a blank placeholder.
         #expect(track.thumbnailURL?.absoluteString == "https://img/cover.jpg")
-        // The row's album link is still captured.
         #expect(track.albumLink?.name == "Rendez-vous")
     }
 
@@ -433,12 +425,10 @@ struct EntityPageParserTests {
         )
         let page = EntityPageParser.parse(response, fallback: albumDestination)
 
-        // Header details recovered from the body's responsive header.
         #expect(page.header.title == "MG Ultra")
         #expect(page.header.subtitle.contains("2024"))
         #expect(page.header.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
         #expect(page.header.artists.first?.name == "Some Artist")
-        // The artist is shown as a linked byline, not repeated in the subtitle.
         #expect(page.header.collection?.byline?.runs.first?.link?.browseId == "UCartist")
         #expect(page.header.collection?.byline?.avatarURLs.map(\.absoluteString) == ["https://img/artist.jpg"])
         #expect(!page.header.subtitle.contains("Some Artist"))
@@ -446,13 +436,9 @@ struct EntityPageParserTests {
         let track = try #require(page.tracks.first)
         #expect(track.title == "Until I Die")
         #expect(track.videoId == "vid1")
-        // The row's "plays" byline is kept (not overwritten by the artist name)…
         #expect(track.subtitle == "1.3M plays")
-        // …but the artist link is still adopted from the header for context menus.
         #expect(track.artists.first?.name == "Some Artist")
-        // Track artwork falls back to the album cover.
         #expect(track.thumbnailURL?.absoluteString == "https://img/mgultra.jpg")
-        // The current like rating is read straight from the row's menu.
         #expect(track.likeStatus == .liked)
     }
 
@@ -497,7 +483,7 @@ struct EntityPageParserTests {
         #expect(next.continuationToken == nil)
     }
 
-    @Test("A remove-from-playlist menu action — not a bare setVideoId — marks a row removable")
+    @Test("A remove-from-playlist menu action (not a bare setVideoId) marks a row removable")
     func playlistRemovalPermissionComesFromTheRowMenu() throws {
         let fixture = """
         {
@@ -528,9 +514,7 @@ struct EntityPageParserTests {
         )
         let page = EntityPageParser.parse(response, fallback: destination)
 
-        // Both rows carry the removal plumbing (setVideoId)…
         #expect(page.tracks.allSatisfy { $0.playlistSetVideoId != nil })
-        // …but only the one whose menu offers the remove action is removable:
         #expect(page.tracks[0].canRemoveFromPlaylist == true)
         #expect(page.tracks[1].canRemoveFromPlaylist == false)
     }

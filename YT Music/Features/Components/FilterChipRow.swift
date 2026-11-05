@@ -5,7 +5,6 @@
 
 import SwiftUI
 
-/// A pill-shaped filter toggle. Selected = solid, otherwise a faint translucent fill.
 struct FilterChip: View {
     let title: String
     let isSelected: Bool
@@ -25,8 +24,6 @@ struct FilterChip: View {
     }
 }
 
-/// Horizontal row of selectable filter chips (YT Music style), optionally led by
-/// an "All" chip (no filter, `nil`). Tapping the selected chip deselects it.
 struct FilterChipRow<Chip: Identifiable & Equatable>: View {
     let chips: [Chip]
     let title: KeyPath<Chip, String>

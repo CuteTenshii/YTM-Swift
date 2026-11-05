@@ -47,9 +47,6 @@ struct EntityView: View {
             searchResults = await model.searchPlaylist(searchText)
             searchCompleted = !Task.isCancelled
         }
-        // Re-check subscription state when auth changes (sign-in/out) or the page
-        // is revisited, so the subscribe button reflects the server, not a stale
-        // optimistic value.
         .task(id: auth.generation) { await model.revalidateSubscription() }
     }
 
@@ -93,7 +90,6 @@ struct EntityView: View {
     }
 
     private func content(_ page: EntityPage) -> some View {
-        // Tracks played from an album page carry the album name into Now Playing.
         let album = page.header.kind == .album ? page.header.title : ""
         let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let visibleTracks: [Track]
@@ -103,18 +99,12 @@ struct EntityView: View {
             visibleTracks = searchResults ?? []
         }
 
-        // Read the titlebar inset, then let the scroll content ignore it so the
-        // header gradient bleeds under the (transparent) window toolbar. The
-        // header pads itself back down by that inset to clear the back button.
-        // A List rather than a ScrollView so playlist tracks reorder like the queue.
         return GeometryReader { proxy in
             let topInset = proxy.safeAreaInsets.top
 
+            // List, not ScrollView, so playlist tracks reorder like the queue.
             List {
                 if page.isFeed {
-                    // A bare feed (a shelf's "More"): skip the album-style
-                    // artwork header, just title the page above its shelves,
-                    // whose cards wrap into a grid rather than scrolling.
                     Text(page.header.title)
                         .font(.system(size: 40, weight: .bold))
                         .foregroundStyle(.primary)
@@ -160,11 +150,11 @@ struct EntityView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 0)
+            // Header gradient bleeds under the toolbar; the header re-pads by `topInset`.
             .ignoresSafeArea(.container, edges: .top)
         }
     }
 
-    /// The track rows, or the loading / empty state in their place.
     @ViewBuilder
     private func tracksSection(_ page: EntityPage, tracks visibleTracks: [Track],
                                album: String, isSearching: Bool) -> some View {
@@ -193,8 +183,6 @@ struct EntityView: View {
         }
     }
 
-    /// The numbered track rows, draggable to reorder when the playlist allows
-    /// it, followed by a sentinel that loads the next page.
     @ViewBuilder
     private func trackRows(_ tracks: [Track], album: String, isSearching: Bool, hasMore: Bool) -> some View {
         ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
@@ -225,8 +213,6 @@ struct EntityView: View {
 
     // MARK: - States
 
-    /// Removes a playlist row via the model, then drops it from any live search
-    /// results so both listings stay in sync.
     private func removeTrack(_ track: Track) {
         Task {
             if await model.removeFromPlaylist(track) {
@@ -235,8 +221,6 @@ struct EntityView: View {
         }
     }
 
-    /// Drag-to-reorder for rows, unless the list is a search result or the
-    /// playlist can't be reordered.
     private func moveAction(searching: Bool) -> ((IndexSet, Int) -> Void)? {
         guard !searching, model.canReorder else { return nil }
         return { source, destination in
@@ -262,17 +246,13 @@ struct EntityView: View {
 }
 
 private extension View {
-    /// A full-width List row without inset, separator, or background, so the
-    /// page reads like a plain scroll view.
     func plainListRow() -> some View {
-        // Cancels the macOS table's built-in 17pt cell spacing (8 + 9), which
-        // zero insets and content margins leave in place.
+        // Cancels the macOS table's built-in 17pt cell spacing.
         listRowInsets(EdgeInsets(top: 0, leading: -8, bottom: 0, trailing: -9))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
     }
 
-    /// A page section: a plain List row followed by the gap between sections.
     func sectionSpacing() -> some View {
         padding(.bottom, 28).plainListRow()
     }
@@ -280,11 +260,7 @@ private extension View {
 
 // MARK: - Loading skeleton
 
-/// Placeholder mirroring the loaded layout — header (artwork + text bars +
-/// buttons) above a list of track rows — so the page keeps its shape while the
-/// entity loads, instead of a bare spinner.
 private struct EntitySkeleton: View {
-    /// Artist pages use circular artwork; albums/playlists a rounded square.
     let circular: Bool
 
     var body: some View {
@@ -340,7 +316,6 @@ private struct EntitySkeleton: View {
     }
 
     private func row(index: Int) -> some View {
-        // Vary the title width per row so the list doesn't read as a uniform grid.
         let titleWidths: [CGFloat] = [220, 300, 180, 260, 200, 320, 240, 190]
         return HStack(spacing: 14) {
             SkeletonBox(width: 16, height: 14)
@@ -373,13 +348,9 @@ private struct HeaderView: View {
     let shufflePlaylistId: String?
     let album: String
     let model: EntityViewModel
-    /// Height of the window titlebar the header extends under, so its content
-    /// can be padded down to clear the back button while the gradient bleeds up.
     let topInset: CGFloat
 
-    /// Prominent colours pulled from the cover art, driving the header gradient.
     @State private var palette: [PaletteColor] = []
-    /// Edit-sheet / delete-confirmation state for the edit menu.
     @State private var editingPlaylist = false
     @State private var confirmingDelete = false
     @State private var collaborating = false
@@ -444,8 +415,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// The default header: circular/square artwork beside title, subtitle,
-    /// description, and the action buttons, over a gradient tinted to the art.
     private var standardHeader: some View {
         HStack(alignment: .bottom, spacing: 24) {
             ArtworkView(
@@ -484,7 +453,6 @@ private struct HeaderView: View {
         .background(alignment: .top) { artworkGradient }
     }
 
-    /// The album artist(s) or playlist owner: avatar plus linked names.
     private func bylineRow(_ byline: EntityByline) -> some View {
         let font = Font.callout.weight(.semibold)
         return HStack(spacing: 8) {
@@ -509,7 +477,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// Overlapping avatars for a playlist with several collaborators.
     private func avatarPill(_ urls: [URL]) -> some View {
         HStack(spacing: -8) {
             ForEach(urls, id: \.self) { url in
@@ -521,10 +488,6 @@ private struct HeaderView: View {
         .background(.quaternary, in: .capsule)
     }
 
-    /// A vertical wash built from the two most prominent cover-art colours,
-    /// fading to clear at the bottom so it melts into the page and the
-    /// track list below. Fills the header's frame (which the ScrollView extends
-    /// under the titlebar), so the tint reaches the window's top edge.
     private var artworkGradient: some View {
         let top = vivid(palette.first, brightness: 0.85)
         let mid = vivid(palette.dropFirst().first ?? palette.first, brightness: 0.7)
@@ -540,10 +503,6 @@ private struct HeaderView: View {
         .animation(.easeInOut(duration: 0.5), value: palette)
     }
 
-    /// Scales a palette colour so its brightest channel hits `brightness`,
-    /// preserving hue. Unlike `adjusted(brightness:)` (which only darkens), this
-    /// also lifts dark, muddy tints — the common case for dim cover art — into a
-    /// vivid wash that actually reads over the page.
     private func vivid(_ color: PaletteColor?, brightness target: Double) -> Color {
         guard let color else { return Color.primary.opacity(0.12) }
         let mx = max(color.red, color.green, color.blue)
@@ -555,7 +514,6 @@ private struct HeaderView: View {
                      blue: min(1, color.blue * k))
     }
 
-    /// Fetches the cover art and extracts its palette off the main actor.
     private func loadPalette() async {
         guard let url = header.thumbnailURL else {
             palette = []
@@ -569,8 +527,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// Full-bleed artist banner: the wide artwork fills the width, fading into
-    /// the page at the bottom, with the title and actions overlaid.
     private func bannerHeader(_ url: URL) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(header.title)
@@ -626,8 +582,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// The action-button row (play / subscribe / save / download), shared by
-    /// both header layouts.
     @ViewBuilder
     private var actions: some View {
         if !tracks.isEmpty || showsSubscribe || showsSave || header.artistPage?.radioPlaylistId != nil
@@ -698,25 +652,18 @@ private struct HeaderView: View {
         }
     }
 
-    /// Whether to offer the subscribe toggle: artist pages, signed in, with an
-    /// enabled subscribe button (disabled on the user's own channel).
     private var showsSubscribe: Bool {
         header.kind == .artist && auth.isSignedIn && model.subscription?.isEnabled == true
     }
 
-    /// Whether to offer the "Save to library" toggle: only when the header has
-    /// one (playlists the user owns don't).
     private var showsSave: Bool {
         auth.isSignedIn && model.savablePlaylistId != nil && header.isSaved != nil
     }
 
-    /// Whether to offer playlist editing (rename / delete): one of the signed-in
-    /// user's own playlists, per the row `setVideoId` signal.
     private var showsEditMenu: Bool {
         auth.isSignedIn && model.isEditablePlaylist
     }
 
-    /// The page's official share URL once loaded, else one built from its ids.
     private var link: URL? {
         if case .loaded(let page) = model.state, let url = page.shareURL { return url }
         return MusicLinks.url(
@@ -726,7 +673,6 @@ private struct HeaderView: View {
         )
     }
 
-    /// Overflow menu for an owned playlist: metadata editing and deletion.
     private var editMenu: some View {
         Menu {
             editActions
@@ -738,8 +684,6 @@ private struct HeaderView: View {
         .buttonStyle(.bordered)
     }
 
-    /// The owned-playlist edit affordances, shared by the "More" menu and the
-    /// header's right-click menu.
     @ViewBuilder
     private var editActions: some View {
         Button {
@@ -759,7 +703,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// Subscribe / Subscribed toggle for artist pages.
     @ViewBuilder
     private var subscribeButton: some View {
         if let subscription = model.subscription {
@@ -779,7 +722,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// Save / Saved toggle for playlist pages ("Add to library").
     @ViewBuilder
     private var saveButton: some View {
         Button {
@@ -814,7 +756,6 @@ private struct HeaderView: View {
         .disabled(downloader.isBusy)
     }
 
-    /// The download button's title; nil on pages that aren't a collection.
     private var downloadTitle: String? {
         switch header.kind {
         case .album:    "Download album"
@@ -823,7 +764,6 @@ private struct HeaderView: View {
         }
     }
 
-    /// Live batch progress while a multi-track download runs.
     private var downloadProgress: String? {
         guard case .running(let progress) = downloader.status, progress.total > 1 else { return nil }
         return "Downloading \(progress.index)/\(progress.total)…"

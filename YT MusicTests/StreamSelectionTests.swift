@@ -2,8 +2,6 @@
 //  StreamSelectionTests.swift
 //  YT MusicTests
 //
-//  Tests for audio-format selection and the Format flags that drive it.
-//
 
 import Testing
 import Foundation

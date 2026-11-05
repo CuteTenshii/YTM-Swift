@@ -2,8 +2,6 @@
 //  HistoryParserTests.swift
 //  YT MusicTests
 //
-//  Tests for parsing the listening-history page (date-grouped track shelves).
-//
 
 import Testing
 import Foundation

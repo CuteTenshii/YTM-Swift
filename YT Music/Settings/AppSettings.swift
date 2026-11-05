@@ -2,22 +2,15 @@
 //  AppSettings.swift
 //  YT Music
 //
-//  App-wide user preferences, backed by UserDefaults. Lives for the whole
-//  process (env-injected like PlayerState/AuthStore). Each stored property
-//  reads its initial value from UserDefaults and writes back on change, so the
-//  settings survive relaunches without an explicit save step.
-//
 
 import SwiftUI
 
-/// Preferred audio fidelity. The resolver maps this onto the available adaptive
-/// streams (which are ranked by bitrate) rather than fixed kbps values, since
-/// YouTube's ladder varies per track.
+/// Mapped onto bitrate-ranked adaptive streams, not fixed kbps (YouTube's ladder varies).
 nonisolated enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifiable {
     case low
     case medium
     case high
-    case auto   // always the best available
+    case auto
 
     var id: Self { self }
 
@@ -31,12 +24,9 @@ nonisolated enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifi
     }
 }
 
-/// The subset of settings the (nonisolated) stream resolver needs. A plain
-/// Sendable value so it can be passed across the actor boundary on each resolve.
 nonisolated struct StreamPreferences: Sendable, Equatable {
     var audioQuality: AudioQuality = .auto
-    /// When true, music videos are played as audio-only adaptive streams and a
-    /// muxed (video+audio) stream is used only as a last resort.
+    /// Prefer audio-only adaptive streams; muxed is a last resort.
     var preferAudioOverVideo: Bool = true
 }
 
@@ -61,38 +51,31 @@ final class AppSettings {
         }
     }
 
-    /// Set by PlayerState so toggling normalization applies to the playing track.
     @ObservationIgnored var onVolumeNormalizationChange: ((Bool) -> Void)?
 
-    /// When the queue runs out, continue with a radio based on the last track.
     var autoplay: Bool {
         didSet { store(autoplay, for: .autoplay) }
     }
 
-    /// Optional HTTP(S) proxy used by YouTube requests and stream downloads.
-    /// Leave blank to use the system network configuration.
+    /// Optional HTTP(S) proxy; blank uses the system configuration.
     var proxyURL: String {
         didSet { store(proxyURL.isEmpty ? nil : proxyURL, for: .proxyURL) }
     }
 
     // MARK: Track lists
 
-    /// Play a track row on a single click instead of a double click.
     var playOnSingleClick: Bool {
         didSet { store(playOnSingleClick, for: .playOnSingleClick) }
     }
 
-    /// Clicks on a track row needed to start playback from it.
     var playClickCount: Int { playOnSingleClick ? 1 : 2 }
 
     // MARK: Lyrics
 
-    /// Where the lyrics panel fetches from.
     var lyricsProvider: LyricsProvider {
         didSet { store(lyricsProvider.rawValue, for: .lyricsProvider) }
     }
 
-    /// Output volume, 0...1. Persisted so the level survives relaunches.
     var volume: Double {
         didSet { store(volume, for: .volume) }
     }
@@ -112,7 +95,6 @@ final class AppSettings {
         didSet { store(crossfadeEnabled, for: .crossfadeEnabled) }
     }
 
-    /// Overlap duration, in seconds, between consecutive tracks.
     var crossfadeSeconds: Double {
         didSet { store(crossfadeSeconds, for: .crossfadeSeconds) }
     }
@@ -131,7 +113,6 @@ final class AppSettings {
         }
     }
 
-    /// Per-band gain in dB (one entry per `EqualizerBands` frequency).
     var equalizerGains: [Double] {
         didSet {
             store(try? JSONEncoder().encode(equalizerGains), for: .equalizerGains)
@@ -139,16 +120,12 @@ final class AppSettings {
         }
     }
 
-    /// Called whenever the equalizer configuration changes so the audio engine
-    /// can re-equalize the playing track. Set by PlayerState at startup.
     @ObservationIgnored var onEqualizerChange: ((EqualizerSettings) -> Void)?
 
-    /// Snapshot consumed by the audio engine's equalizer taps.
     var equalizerSettings: EqualizerSettings {
         EqualizerSettings(isEnabled: equalizerEnabled, gains: equalizerGains)
     }
 
-    /// Replaces every band gain at once (e.g. when picking a preset).
     func applyEqualizerPreset(_ preset: EqualizerPreset) {
         equalizerGains = preset.gains
     }
@@ -166,19 +143,15 @@ final class AppSettings {
 
     // MARK: Downloader
 
-    /// Where the downloader writes files. nil → the user's Downloads folder.
-    /// Persisted as a security-scoped bookmark so write access (granted via the
-    /// open panel) survives relaunches under the App Sandbox. Set it through
-    /// `setDownloadDirectory(_:)`, which mints the bookmark.
+    /// Security-scoped bookmark; set via `setDownloadDirectory(_:)`. nil uses Downloads.
+    /// Persisted so write access survives relaunches under the sandbox.
     private(set) var downloadDirectory: URL?
 
-    /// Snapshot consumed by the resolver on each track load.
     var streamPreferences: StreamPreferences {
         StreamPreferences(audioQuality: audioQuality,
                           preferAudioOverVideo: preferAudioOverVideo)
     }
 
-    /// Effective download destination, falling back to ~/Downloads.
     var effectiveDownloadDirectory: URL {
         downloadDirectory ?? FileManager.default
             .urls(for: .downloadsDirectory, in: .userDomainMask).first
@@ -189,7 +162,6 @@ final class AppSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        // Read persisted values, falling back to sensible defaults.
         self.audioQuality = (defaults.string(forKey: Key.audioQuality.rawValue)
             .flatMap(AudioQuality.init)) ?? .auto
         self.preferAudioOverVideo = defaults.object(forKey: Key.preferAudioOverVideo.rawValue) as? Bool ?? true
@@ -211,8 +183,7 @@ final class AppSettings {
         self.openAtLogin = LoginItem.isEnabled
     }
 
-    /// Decodes persisted band gains, falling back to a flat curve if absent or
-    /// malformed. Always returns exactly `EqualizerBands.count` entries.
+    /// Always returns exactly `EqualizerBands.count` entries.
     private static func decodeGains(_ data: Data?) -> [Double] {
         guard let data,
               let gains = try? JSONDecoder().decode([Double].self, from: data) else {
@@ -221,8 +192,6 @@ final class AppSettings {
         return EqualizerSettings(isEnabled: false, gains: gains).normalizedGains
     }
 
-    /// Records a user-chosen download folder, minting a security-scoped bookmark
-    /// so the grant persists. Pass nil to revert to the Downloads folder.
     func setDownloadDirectory(_ url: URL?) {
         guard let url else {
             downloadDirectory = nil
@@ -238,8 +207,7 @@ final class AppSettings {
         store(bookmark, for: .downloadDirectory)
     }
 
-    /// Resolves a stored security-scoped bookmark and begins accessing it (held
-    /// for the app's lifetime — there's only ever one download folder).
+    /// Held open for the app's lifetime.
     private static func resolveBookmark(_ data: Data?) -> URL? {
         guard let data else { return nil }
         var stale = false

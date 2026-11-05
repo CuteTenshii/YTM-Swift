@@ -30,8 +30,6 @@ final class LyricsViewModel {
         self.musixmatch = musixmatch
     }
 
-    /// Loads lyrics for the given track from the chosen provider. A nil query
-    /// (nothing playing) or a provider with no match resolves to `.unavailable`.
     func load(query: LyricsQuery?, provider: LyricsProvider) async {
         guard let query else { state = .unavailable; return }
         state = .loading

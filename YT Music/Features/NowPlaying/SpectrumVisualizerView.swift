@@ -2,21 +2,15 @@
 //  SpectrumVisualizerView.swift
 //  YT Music
 //
-//  A Winamp-style bar spectrum for the immersive view, an alternative to the
-//  lyrics. It polls the shared `SpectrumAnalyzer` every frame via a
-//  `TimelineView` and draws the current band levels as tinted bars in a Canvas,
-//  coloured from the cover-art palette.
+//  Bar spectrum visualizer for the immersive view.
 //
 
 import SwiftUI
 
 struct SpectrumVisualizerView: View {
     let analyzer: SpectrumAnalyzer?
-    /// Accent colours (from the artwork); a default gradient is used when empty.
     var colors: [Color]
 
-    /// Cyan→violet default when the artwork yields no palette — reads as a
-    /// classic analyzer.
     private var palette: [Color] {
         colors.isEmpty
             ? [Color(red: 0.35, green: 0.8, blue: 1.0), Color(red: 0.65, green: 0.4, blue: 1.0)]
@@ -25,9 +19,7 @@ struct SpectrumVisualizerView: View {
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            // Poll the analyzer here (not inside the Canvas renderer): capturing
-            // the fresh sample — and the tick's date — into the Canvas is what
-            // makes SwiftUI redraw each frame instead of caching a frozen image.
+            // Polled outside the Canvas; capturing the sample and tick date makes SwiftUI redraw each frame.
             let bands = analyzer?.magnitudes() ?? []
             Canvas { context, size in
                 _ = timeline.date
@@ -47,7 +39,6 @@ struct SpectrumVisualizerView: View {
 
         for i in 0..<n {
             let level = CGFloat(min(max(bands[i], 0), 1))
-            // A gentle floor so idle bars still read as a baseline.
             let h = max(barW * 0.5, level * maxH)
             let x = CGFloat(i) * (barW + spacing)
             let rect = CGRect(x: x, y: maxH - h, width: barW, height: h)
@@ -63,8 +54,6 @@ struct SpectrumVisualizerView: View {
         }
     }
 
-    /// Interpolates the bar colour across the palette so the spectrum spans the
-    /// artwork's hues left-to-right.
     private func color(at index: Int, count: Int) -> Color {
         let p = palette
         guard p.count > 1 else { return p.first ?? .white }

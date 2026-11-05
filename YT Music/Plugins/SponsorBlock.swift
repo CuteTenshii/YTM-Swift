@@ -2,8 +2,6 @@
 //  SponsorBlock.swift
 //  YT Music
 //
-//  SponsorBlock segment lookup: the pure, unit-tested pieces (categories,
-//  request URL, response decoding, skip decision) plus the network client.
 //
 
 import Foundation
@@ -75,7 +73,6 @@ nonisolated enum SponsorBlockAPI {
         }
     }
 
-    /// The segment the playhead is inside and that hasn't been skipped yet.
     static func segmentToSkip(at time: Double, in segments: [SponsorSegment], skipped: Set<String>) -> SponsorSegment? {
         segments.first { time >= $0.start && time < $0.end && !skipped.contains($0.id) }
     }

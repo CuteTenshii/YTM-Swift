@@ -2,11 +2,6 @@
 //  EqualizerTests.swift
 //  YT MusicTests
 //
-//  Tests for the equalizer: the biquad DSP (flat = passthrough, a peaking band
-//  amplifies its center frequency by the requested dB), the settings model
-//  (preset matching, gain normalization), and the settings → audio-engine
-//  wiring through PlayerState. All network- and AVPlayer-free.
-//
 
 import Testing
 import Foundation
@@ -50,11 +45,9 @@ struct EqualizerDSPTests {
         let coefficients = Biquad.peaking(sampleRate: sampleRate, frequency: frequency,
                                           gainDB: gainDB, q: 1.41)
 
-        // A long enough tone for the IIR to reach steady state.
         let input = (0..<8_000).map { sin(2 * Double.pi * frequency * Double($0) / sampleRate) }
         let output = run(coefficients, over: input)
 
-        // At the center frequency the magnitude response equals the dB gain.
         let expectedRatio = pow(10, gainDB / 20)   // ~3.98×
         let ratio = steadyAmplitude(output) / steadyAmplitude(input)
         #expect(abs(ratio - expectedRatio) < 0.1)
@@ -113,7 +106,6 @@ struct EqualizerProcessorTests {
             processor.processPlanar($0.baseAddress!, frames: $0.count, channel: 0)
         }
         #expect(samples != original)
-        // A boost should raise the peak amplitude of a 64 Hz tone.
         let before = original.map(abs).max() ?? 0
         let after = samples.suffix(2_000).map(abs).max() ?? 0
         #expect(after > before)
@@ -125,7 +117,6 @@ struct EqualizerProcessorTests {
         let processor = EqualizerProcessor(box: box)
         processor.prepare(sampleRate: 44_100, channels: 1)
 
-        // Flat: passthrough.
         var flat: [Float] = (0..<512).map { Float(sin(2 * Double.pi * 1_000 * Double($0) / 44_100)) }
         let original = flat
         flat.withUnsafeMutableBufferPointer {
@@ -133,7 +124,6 @@ struct EqualizerProcessorTests {
         }
         #expect(flat == original)
 
-        // Flip on a boost; the same processor should now alter the signal.
         box.settings = EqualizerSettings(isEnabled: true, gains: EqualizerPreset.trebleBoost.gains)
         var boosted: [Float] = (0..<512).map { Float(sin(2 * Double.pi * 8_000 * Double($0) / 44_100)) }
         let boostedOriginal = boosted

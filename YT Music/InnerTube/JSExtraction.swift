@@ -2,10 +2,6 @@
 //  JSExtraction.swift
 //  YT Music
 //
-//  Text-processing helpers for pulling data out of YouTube's minified base.js.
-//  These are `nonisolated` so the `SignatureDecipher` actor can call them
-//  synchronously.
-//
 
 import Foundation
 
@@ -13,7 +9,6 @@ extension SignatureDecipher {
 
     // MARK: - Regex
 
-    /// First capture group of the first match, or nil.
     nonisolated func firstMatch(in text: String, pattern: String, group: Int) -> String? {
         guard let regex = try? NSRegularExpression(
             pattern: pattern,
@@ -29,7 +24,6 @@ extension SignatureDecipher {
         return String(text[captured])
     }
 
-    /// The capture group `group` of every match, in order.
     nonisolated func allMatches(in text: String, pattern: String, group: Int) -> [String] {
         guard let regex = try? NSRegularExpression(
             pattern: pattern,

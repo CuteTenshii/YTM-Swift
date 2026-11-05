@@ -2,36 +2,19 @@
 //  WatchNextResponse.swift
 //  YT Music
 //
-//  Decodable models for the InnerTube `next` endpoint, which powers "Start
-//  radio": given a seed video it returns a batch (~50) of related tracks plus
-//  a continuation token to fetch the next batch of the same mix. We only
-//  model the keys we consume; all optional.
-//
-//  Response path:
-//    contents.singleColumnMusicWatchNextResultsRenderer
-//      .tabbedRenderer.watchNextTabbedResultsRenderer
-//      .tabs[0].tabRenderer.content
-//      .musicQueueRenderer.content.playlistPanelRenderer
-//        .contents[].playlistPanelVideoRenderer { videoId, title, longBylineText, lengthText, thumbnail }
-//        .continuations[0].nextRadioContinuationData.continuation
-//  A follow-up `next` call with `{"continuation": <token>}` in the body
-//  returns the same panel shape at `continuationContents.playlistPanelContinuation`.
-//
 
 import Foundation
 
 struct WatchNextResponse: Decodable {
     let contents: Contents?
-    /// Carries the seed track's like button (account-relative rating).
+    // Carries the seed track's like button (account-relative rating).
     let playerOverlays: PlayerOverlays?
 
     struct Contents: Decodable {
         let singleColumnMusicWatchNextResultsRenderer: SingleColumn?
     }
 
-    // Like state lives at
-    //   playerOverlays.playerOverlayRenderer.actions[].likeButtonRenderer
-    //     { likeStatus: LIKE | DISLIKE | INDIFFERENT, target: { videoId } }
+    // Like state: playerOverlays.playerOverlayRenderer.actions[].likeButtonRenderer
     struct PlayerOverlays: Decodable {
         let playerOverlayRenderer: PlayerOverlayRenderer?
     }
@@ -41,9 +24,7 @@ struct WatchNextResponse: Decodable {
         let videoActionBar: VideoActionBar?
     }
 
-    // The like count lives at
-    //   videoActionBar.videoActionBarViewModel.buttons[].buttonViewModel
-    //     .segmentedLikeDislikeButtonViewModel.likeCountEntity.likeCountIfIndifferentNumber
+    // Like count: videoActionBar...segmentedLikeDislikeButtonViewModel.likeCountEntity
     struct VideoActionBar: Decodable {
         let videoActionBarViewModel: ViewModel?
 
@@ -98,9 +79,7 @@ struct WatchNextResponse: Decodable {
     }
 
     struct TabRenderer: Decodable {
-        /// Tab label ("Up next", "Lyrics", "Related").
         let title: String?
-        /// The browse endpoint a non-content tab (Lyrics/Related) points at.
         let endpoint: NavigationEndpoint?
         let content: TabContent?
     }
@@ -119,11 +98,7 @@ struct WatchNextResponse: Decodable {
 
     struct PlaylistPanelRenderer: Decodable {
         let contents: [PanelItem]?
-        /// Present once the panel's ~50-track batch is exhausted; its token,
-        /// resent as `{"continuation": …}` to `next`, fetches the mix's next
-        /// batch (see `RadioContinuationResponse`). Verified against the live
-        /// endpoint: WEB_REMIX returns a full batch upfront, not the smaller
-        /// per-call pages yt-dlp's classic-YouTube mix pagination assumes.
+        /// Present once the ~50-track batch is exhausted; resend its token to `next`. WEB_REMIX returns a full batch upfront.
         let continuations: [Continuation]?
     }
 
@@ -146,8 +121,7 @@ struct WatchNextResponse: Decodable {
         let lengthText: InnerTubeText?
         let thumbnail: ThumbnailList?
 
-        /// Plain `{ thumbnails: [...] }` (unlike browse, which wraps it in a
-        /// musicThumbnailRenderer).
+        /// Plain `{ thumbnails: [...] }`, unlike browse's musicThumbnailRenderer wrapper.
         struct ThumbnailList: Decodable {
             let thumbnails: [Thumbnail]?
 
@@ -166,10 +140,6 @@ struct WatchNextResponse: Decodable {
     }
 }
 
-/// A follow-up `next` response fetched by resending a `playlistPanelRenderer`
-/// continuation token — shares the same panel-item shape as the initial
-/// `WatchNextResponse`, just nested under `continuationContents` instead of
-/// the full watch-next tab layout.
 struct RadioContinuationResponse: Decodable {
     let continuationContents: ContinuationContents?
 
@@ -179,23 +149,18 @@ struct RadioContinuationResponse: Decodable {
 }
 
 nonisolated enum WatchNextParser {
-    /// Flattens the queue's panel into playable Tracks (the seed is first).
     static func parse(_ response: WatchNextResponse) -> [Track] {
         parse(panel(of: response))
     }
 
-    /// Flattens a continuation batch into playable Tracks.
     static func parse(_ response: RadioContinuationResponse) -> [Track] {
         parse(response.continuationContents?.playlistPanelContinuation)
     }
 
-    /// The token to fetch the mix's next batch, if the current one isn't the
-    /// last (see `PlaylistPanelRenderer.continuations`).
     static func continuationToken(_ response: WatchNextResponse) -> String? {
         continuationToken(panel(of: response))
     }
 
-    /// The token to fetch yet another batch beyond this continuation, if any.
     static func continuationToken(_ response: RadioContinuationResponse) -> String? {
         continuationToken(response.continuationContents?.playlistPanelContinuation)
     }
@@ -232,10 +197,7 @@ nonisolated enum WatchNextParser {
         panel?.continuations?.first?.nextRadioContinuationData?.continuation
     }
 
-    /// The seed track's like rating from the watch-next overlay, scoped to the
-    /// expected `videoId` so a mismatched response doesn't mislabel the track.
-    /// Defaults to `.indifferent` when absent (e.g. signed out, or likes not
-    /// allowed for the video).
+    /// Scoped to `videoId`; defaults to `.indifferent` when absent.
     static func likeStatus(_ response: WatchNextResponse, expecting videoId: String) -> LikeStatus {
         let button = response.playerOverlays?.playerOverlayRenderer?
             .actions?.compactMap(\.likeButtonRenderer)
@@ -243,8 +205,6 @@ nonisolated enum WatchNextParser {
         return LikeStatus(innerTube: button?.likeStatus)
     }
 
-    /// The track's like count excluding the account's own vote; nil when the
-    /// response carries none.
     static func likeCount(_ response: WatchNextResponse) -> Int? {
         response.playerOverlays?.playerOverlayRenderer?.videoActionBar?
             .videoActionBarViewModel?.buttons?
@@ -253,21 +213,14 @@ nonisolated enum WatchNextParser {
             .compactMap { Int($0) }.first
     }
 
-    /// The browse id of the watch-next "Lyrics" tab, if the track has lyrics.
-    /// Fed to a follow-up `browse` call to fetch the lyric text. nil when the
-    /// track exposes no lyrics tab.
     static func lyricsBrowseId(_ response: WatchNextResponse) -> String? {
         browseId(of: "Lyrics", in: response)
     }
 
-    /// The browse id of the watch-next "Related" tab. Fed to a follow-up `browse`
-    /// call to fetch the track's related-music shelves (similar songs, artists,
-    /// recommended playlists). nil when the track exposes no related tab.
     static func relatedBrowseId(_ response: WatchNextResponse) -> String? {
         browseId(of: "Related", in: response)
     }
 
-    /// The browse id of the watch-next tab with the given title, if present.
     private static func browseId(of title: String, in response: WatchNextResponse) -> String? {
         let tabs = response.contents?
             .singleColumnMusicWatchNextResultsRenderer?

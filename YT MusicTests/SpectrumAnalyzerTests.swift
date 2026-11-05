@@ -2,11 +2,6 @@
 //  SpectrumAnalyzerTests.swift
 //  YT MusicTests
 //
-//  Tests for the FFT spectrum meter behind the immersive visualizer: a pure
-//  sine tone should light up the band containing its frequency, higher tones
-//  should peak in higher bands than lower tones, and silence should read flat.
-//  Network- and audio-hardware-free (feeds synthetic PCM straight in).
-//
 
 import Foundation
 import Testing
@@ -63,7 +58,6 @@ struct SpectrumAnalyzerTests {
 
     @Test("Band mapping is ordered low→high and clamped to 0…1")
     func mappingBounds() {
-        // A magnitude buffer that ramps up with bin index.
         let binCount = fftSize / 2
         var mags = [Float](repeating: 0, count: binCount)
         for i in 0..<binCount { mags[i] = Float(i) }

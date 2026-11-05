@@ -2,9 +2,6 @@
 //  PlaylistHeaderAndOrderTests.swift
 //  YT MusicTests
 //
-//  Playlist owner bylines, the manual-ordering signal, and drag-to-reorder
-//  moves, against fixtures shaped like live `browse` responses.
-//
 
 import Testing
 import Foundation

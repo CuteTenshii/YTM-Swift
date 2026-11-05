@@ -2,10 +2,6 @@
 //  MenuTokenParsingTests.swift
 //  YT MusicTests
 //
-//  Tests that the overflow-menu token miners on the shared renderers pull out the
-//  history feedback token and the uploaded-item delete entity id — both directly
-//  on a service item and behind a confirm-delete dialog.
-//
 
 import Testing
 import Foundation

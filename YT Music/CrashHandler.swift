@@ -1,9 +1,6 @@
 import Foundation
 import Darwin
 
-/// Saves the small amount of diagnostic information that is still available
-/// when the process terminates unexpectedly. This is intentionally local-only:
-/// crash reports can contain URLs and playback details.
 nonisolated enum CrashHandler {
     private static let reportURL: URL = {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -19,8 +16,7 @@ nonisolated enum CrashHandler {
         return "\(formatter.string(from: Date())).log"
     }()
 
-    // The descriptor is opened before installing signal handlers. The signal
-    // path writes a fixed message without formatting crash-time details.
+    // Descriptor opened before installing signal handlers; the signal path writes a fixed message.
     nonisolated(unsafe) private static var reportDescriptor: Int32 = -1
     private static let fatalSignals: [Int32] = [SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV, SIGTRAP]
 
@@ -29,6 +25,7 @@ nonisolated enum CrashHandler {
 
         let directory = reportURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // Opened before installing handlers; the signal path only writes a fixed message.
         reportDescriptor = open(reportURL.path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0o600)
 
         NSSetUncaughtExceptionHandler(ytmUncaughtExceptionHandler)

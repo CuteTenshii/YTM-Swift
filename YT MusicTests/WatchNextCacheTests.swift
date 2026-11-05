@@ -2,8 +2,6 @@
 //  WatchNextCacheTests.swift
 //  YT MusicTests
 //
-//  Verifies like status and like count share one cached `next` request.
-//
 
 import Testing
 import Foundation

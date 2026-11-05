@@ -2,20 +2,13 @@
 //  ArtworkPalette.swift
 //  YT Music
 //
-//  Pulls a small palette of prominent colours out of cover art so the immersive
-//  lyrics view can paint an ambient gradient tinted to the current track (the
-//  way Apple Music does), instead of a flat blurred thumbnail.
-//
-//  The pixel-crunching is `nonisolated` and framework-agnostic (plain RGB, no
-//  SwiftUI) so it can run off the main actor and the bucketing logic is unit
-//  tested against synthetic pixel buffers.
+//  Extracts a small colour palette from cover art for the ambient lyrics background.
 //
 
 import CoreGraphics
 import Foundation
 import ImageIO
 
-/// One sampled colour, sRGB components in 0…1. Deliberately UI-agnostic.
 nonisolated struct PaletteColor: Equatable, Sendable {
     var red: Double
     var green: Double
@@ -23,17 +16,11 @@ nonisolated struct PaletteColor: Equatable, Sendable {
 }
 
 nonisolated enum ArtworkPalette {
-    /// Extracts up to `count` prominent, reasonably-distinct colours from encoded
-    /// image data, favouring vibrant hues over the muddy grey a plain average
-    /// produces. Returns `[]` when the data can't be decoded.
     static func extract(from data: Data, count: Int = 4, sampleSize: Int = 48) -> [PaletteColor] {
         guard let pixels = downsample(data, maxPixelSize: sampleSize) else { return [] }
         return palette(from: pixels, count: count)
     }
 
-    /// Buckets RGBA8 pixels (`[r,g,b,a, r,g,b,a, …]`) into a coarse colour cube,
-    /// scores each bucket by how much vibrant coverage it has, and returns the
-    /// top `count` bucket centroids that are visually distinct from one another.
     static func palette(from pixels: [UInt8], count: Int, bins: Int = 6) -> [PaletteColor] {
         struct Bucket { var r = 0.0, g = 0.0, b = 0.0, weight = 0.0, n = 0.0 }
         var buckets: [Int: Bucket] = [:]
@@ -47,8 +34,6 @@ nonisolated enum ArtworkPalette {
             let g = Double(pixels[i + 1]) / 255
             let b = Double(pixels[i + 2]) / 255
 
-            // Vibrant, mid-bright pixels drive the palette; near-white and
-            // near-black still count a little so monochrome art isn't empty.
             let sat = saturation(r, g, b)
             let bright = max(r, g, b)
             let vibrancy = 0.12 + sat * bright
@@ -65,8 +50,6 @@ nonisolated enum ArtworkPalette {
                     weight: $0.weight) }
             .sorted { $0.weight > $1.weight }
 
-        // Greedily keep the heaviest buckets, skipping any too close to one we
-        // already took, so the palette spans the art instead of clustering.
         var chosen: [PaletteColor] = []
         for candidate in ranked where chosen.allSatisfy({ distanceSquared($0, candidate.color) > 0.02 }) {
             chosen.append(candidate.color)
@@ -94,8 +77,6 @@ nonisolated enum ArtworkPalette {
         return dr * dr + dg * dg + db * db
     }
 
-    /// Decodes `data` to a small RGBA8 pixel buffer via ImageIO's thumbnail path
-    /// (cheap, and downsamples in one step). Returns nil if decoding fails.
     private static func downsample(_ data: Data, maxPixelSize: Int) -> [UInt8]? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [

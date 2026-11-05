@@ -9,10 +9,8 @@
 
 import SwiftUI
 
-// MARK: - Skeleton box
+// MARK: Skeleton box
 
-/// A solid placeholder block matching the artwork-placeholder grey. Used to
-/// stand in for a piece of text, artwork, or a button in a loading layout.
 struct SkeletonBox: View {
     var width: CGFloat? = nil
     var height: CGFloat
@@ -32,10 +30,8 @@ struct SkeletonBox: View {
     }
 }
 
-// MARK: - Shimmer
+// MARK: Shimmer
 
-/// A diagonal highlight that sweeps across the modified view forever. Apply once
-/// to a full skeleton layout (not per box) so the whole page shimmers in sync.
 private struct Shimmer: ViewModifier {
     @State private var animating = false
 
@@ -64,8 +60,6 @@ private struct Shimmer: ViewModifier {
 }
 
 extension View {
-    /// Sweeps a soft highlight across this view forever. Apply to a whole
-    /// skeleton layout so its boxes shimmer together.
     func shimmering() -> some View {
         modifier(Shimmer())
     }

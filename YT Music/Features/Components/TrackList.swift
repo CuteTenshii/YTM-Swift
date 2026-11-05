@@ -5,13 +5,10 @@
 
 import SwiftUI
 
-/// A numbered track listing (album / playlist style rows). Clicking a row (once
-/// or twice, per `AppSettings.playOnSingleClick`) plays from it with the whole list as the queue.
 struct TrackListView: View {
     let tracks: [Track]
     let album: String
     let hasMore: Bool
-    /// Whether rows may offer "Remove from Playlist" (an editable playlist).
     var canRemove = false
     var onRemove: (Track) -> Void = { _ in }
     let onReachedEnd: () -> Void
@@ -53,20 +50,14 @@ struct TrackRow: View {
     let album: String
     let canRemove: Bool
     let onRemove: (Track) -> Void
-    /// Shows the row's vote buttons, on playlists with voting turned on.
     var onVote: ((Track, PlaylistItemVote.Status) -> Void)?
 
     @State private var hovering = false
 
-    /// Whether this row is the track currently loaded in the player.
     private var isCurrent: Bool {
         track.videoId != nil && track.videoId == player.nowPlaying?.videoId
     }
 
-    /// "Remove from Playlist" shows when the server said this row can be
-    /// removed — its menu carried the remove action (only rows of playlists
-    /// the signed-in user can edit get one) — and the row carries the
-    /// playlist-scoped `setVideoId` the remove request needs.
     private var showsRemoveFromPlaylist: Bool {
         auth.isSignedIn
             && canRemove

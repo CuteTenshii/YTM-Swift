@@ -2,9 +2,6 @@
 //  AddToPlaylistParserTests.swift
 //  YT MusicTests
 //
-//  Tests parsing the `playlist/get_add_to_playlist` response — the editable
-//  playlists YT Music offers when adding a track — into `EditablePlaylist`s.
-//
 
 import Testing
 import Foundation

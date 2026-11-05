@@ -2,10 +2,6 @@
 //  LyricsProviderTests.swift
 //  YT MusicTests
 //
-//  Verifies the lyrics view model routes to the selected provider, and the
-//  LRCLIB plain-lyrics shaping. Network-free (providers are faked / no live
-//  request is made).
-//
 
 import Testing
 import Foundation

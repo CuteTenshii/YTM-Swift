@@ -72,8 +72,6 @@ struct UploadsView: View {
         .task(id: auth.generation) { await model.load(isSignedIn: auth.isSignedIn) }
     }
 
-    /// Uploads a picked file, keeping its security-scoped access open for the
-    /// duration of the transfer.
     private func upload(_ url: URL) {
         Task {
             let scoped = url.startAccessingSecurityScopedResource()
@@ -102,7 +100,6 @@ struct UploadsView: View {
         }
     }
 
-    /// A slim banner reflecting an in-flight or just-finished upload.
     @ViewBuilder
     private var uploadBanner: some View {
         switch model.uploadPhase {
@@ -149,7 +146,6 @@ struct UploadsView: View {
         .foregroundStyle(.secondary)
     }
 
-    /// `showsTitle` is false for a page's only shelf, whose title repeats the page's.
     private func shelfSection(_ shelf: Shelf, showsTitle: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if showsTitle {

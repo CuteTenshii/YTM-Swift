@@ -2,9 +2,6 @@
 //  DownloaderPlugin.swift
 //  YT Music
 //
-//  Wraps the Downloader service as a plugin: the toggle gates downloading
-//  (album/playlist buttons appear in entity pages when enabled), and its
-//  configuration UI picks the folder and downloads the current song.
 //
 
 import SwiftUI
@@ -31,7 +28,6 @@ final class DownloaderPlugin: Plugin {
     }
 }
 
-/// Folder picker + "download current song" controls, shown under the toggle.
 private struct DownloaderConfigView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(PlayerState.self) private var player

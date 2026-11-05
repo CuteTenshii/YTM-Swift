@@ -35,9 +35,7 @@ struct ContentView: View {
     @Environment(Navigator.self) private var navigator
     @Environment(PlaylistCoordinator.self) private var playlists
 
-    /// Comments loader for the panel's Comments tab.
     @State private var comments = CommentsViewModel()
-    /// Shared by the Library tab and the sidebar's library list.
     @State private var library = LibraryViewModel()
     /// Held here, not in the toolbar item, which AppKit recreates on relayout.
     @State private var avatar: NSImage?
@@ -83,7 +81,7 @@ struct ContentView: View {
                                         navigate: navigator.open, comments: comments)
                 }
 
-                // Docked transport bar: a permanent full-width row, never an overlay.
+                // Docked full-width row, never an overlay.
                 if player.nowPlaying != nil {
                     NowPlayingBar(
                         player: player,
@@ -95,18 +93,11 @@ struct ContentView: View {
                     )
                 }
             }
-            // The window toolbar (sidebar toggle + navigation title) is drawn in
-            // the titlebar. Hide it while the immersive view is up so nothing
-            // floats over the full-window overlay.
+            // Hidden while immersive is up so nothing floats over the overlay.
             .toolbar(navigator.showingImmersiveLyrics ? .hidden : .automatic, for: .windowToolbar)
-            // Pages draw their own toolbar title (`pageTitle`); the window title is the song.
             .toolbar(removing: .title)
 
-            // The immersive view is a sibling layer (not an `.overlay` on the
-            // inset content) so `.ignoresSafeArea()` can bleed it edge-to-edge —
-            // otherwise the menu-bar / notch region stays black in full screen.
-            // A GeometryReader captures the top inset (read before ignoring it)
-            // so the header can still clear the notch.
+            // Sibling layer, not an overlay, so .ignoresSafeArea() bleeds edge-to-edge; the GeometryReader reads the top inset for the notch.
             if navigator.showingImmersiveLyrics {
                 GeometryReader { geo in
                     ImmersiveLyricsView(player: player,
@@ -134,15 +125,11 @@ struct ContentView: View {
         .task(id: auth.account?.avatarURL) { avatar = await AvatarBadge.load(auth.account?.avatarURL) }
     }
 
-    /// Presents the "Add to Playlist" picker while the coordinator has a pending
-    /// track (dismissing clears it).
     private var playlistSheetBinding: Binding<Bool> {
         Binding(get: { playlists.pending != nil }, set: { if !$0 { playlists.dismiss() } })
     }
 }
 
-/// A slim warning bar shown when the signed-in session has expired (a 401 came
-/// back), prompting the user to sign in again.
 private struct SessionExpiredBanner: View {
     let auth: AuthStore
 
@@ -171,7 +158,6 @@ private struct SessionExpiredBanner: View {
     }
 }
 
-/// The signed-in user's library items, listed under the sidebar sections.
 private struct SidebarLibraryItems: View {
     let model: LibraryViewModel
 
@@ -232,7 +218,6 @@ private struct SidebarLibraryItems: View {
     }
 }
 
-/// Sidebar toolbar avatar: sign in, or a menu with the profile, settings and sign out.
 private struct AccountControl: View {
     @Environment(Navigator.self) private var navigator
     let auth: AuthStore
@@ -273,7 +258,6 @@ private struct AccountControl: View {
         return "\(name) (\(handle))"
     }
 
-    /// The channel handle, when the account has one (it may be an email).
     private var profileHandle: String? {
         auth.account?.handle.hasPrefix("@") == true ? auth.account?.handle : nil
     }
@@ -297,9 +281,6 @@ private struct AccountControl: View {
     }
 }
 
-/// Renders an image as a small circular avatar badge with the mask baked into
-/// the bitmap (2x-pixel rep shown at `side` points, crisp on Retina). Needed
-/// wherever an avatar lives inside a menu label; elsewhere use `ArtworkView`.
 private enum AvatarBadge {
     static func load(_ url: URL?) async -> NSImage? {
         guard let url else { return nil }
@@ -312,6 +293,7 @@ private enum AvatarBadge {
         return circular(image, side: 22)
     }
 
+    /// Mask baked into the bitmap (2x pixels) so it renders inside a menu label; elsewhere use `ArtworkView`.
     static func circular(_ image: NSImage, side: CGFloat) -> NSImage {
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(side * 2), pixelsHigh: Int(side * 2),
@@ -322,7 +304,6 @@ private enum AvatarBadge {
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         let rect = NSRect(x: 0, y: 0, width: side, height: side)
         NSBezierPath(ovalIn: rect).addClip()
-        // Aspect-fill the source into the badge square.
         let src = image.size
         if src.width > 0, src.height > 0 {
             let scale = max(rect.width / src.width, rect.height / src.height)
@@ -337,27 +318,20 @@ private enum AvatarBadge {
     }
 }
 
-/// Persistent transport bar reflecting the current track and playback state.
 private struct NowPlayingBar: View {
     @Environment(PluginHost.self) private var pluginHost
     let player: PlayerState
-    /// Whether the user is signed in (the like action requires a session).
     let isSignedIn: Bool
-    /// Opens an artist/album page (the bar lives outside the nav stack).
     let navigate: (EntityDestination) -> Void
-    /// Drives the queue/lyrics inspector visibility and selected page.
     @Binding var showingPanel: Bool
     @Binding var panelTab: NowPlayingPanelTab
-    /// Opens the immersive full-window lyrics view.
     @Binding var showingImmersiveLyrics: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             Divider().overlay(.primary.opacity(0.1))
             HStack(spacing: 16) {
-                // Left and right clusters grow equally around the fixed-size
-                // transport block, so it stays centered and the track info gets
-                // all the spare width.
+                // Side clusters grow equally so the transport block stays centered.
                 HStack(spacing: 14) {
                     trackInfo
                     if isSignedIn || votes != nil || player.likeCount != nil {
@@ -367,7 +341,6 @@ private struct NowPlayingBar: View {
                 }
                 .frame(minWidth: sideWidth, maxWidth: .infinity, alignment: .leading)
 
-                // Transport controls sit directly above the scrubber.
                 VStack(spacing: 6) {
                     transportControls
                     scrubber
@@ -394,7 +367,6 @@ private struct NowPlayingBar: View {
         .background(.ultraThinMaterial)
     }
 
-    /// Opens the immersive, full-window lyrics view.
     private var immersiveLyricsButton: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.3)) { showingImmersiveLyrics = true }
@@ -407,8 +379,6 @@ private struct NowPlayingBar: View {
         .help("Full-screen lyrics")
     }
 
-    /// Toggles the queue/lyrics inspector: opens it to `tab`, or closes it if
-    /// that page is already showing.
     private func panelButton(_ tab: NowPlayingPanelTab) -> some View {
         let active = showingPanel && panelTab == tab
         return Button {
@@ -427,8 +397,6 @@ private struct NowPlayingBar: View {
         .help(tab.rawValue)
     }
 
-    /// Minimum width of the track-info (left) and volume (right) clusters; they
-    /// grow equally from here so the transport block stays at the midpoint.
     private let sideWidth: CGFloat = 300
 
     // MARK: - Track info (with clickable artists / album)
@@ -451,8 +419,6 @@ private struct NowPlayingBar: View {
         }
     }
 
-    /// The artist/album line: shows an error, then clickable
-    /// links when we have them, otherwise the plain subtitle text.
     @ViewBuilder
     private func subtitle(_ nowPlaying: PlayerState.NowPlaying) -> some View {
         if let error = player.loadError {
@@ -461,27 +427,18 @@ private struct NowPlayingBar: View {
                 .foregroundStyle(.red)
                 .lineLimit(1)
         } else if !nowPlaying.artists.isEmpty {
-            // Only use the clickable links row when we actually have artist links.
-            // A track whose artist is plain text (no channel page) but whose album
-            // is linked would otherwise render as a stray "• Album" with the artist
-            // name dropped — fall through to the full subtitle text instead.
+            // Plain-text artist with a linked album would render a stray bullet album; fall back to the full subtitle.
             linksRow(artists: nowPlaying.artists, album: nowPlaying.albumLink)
         } else {
             let text = PlayerState.withoutTypeLabel(nowPlaying.subtitle)
-            Text(text.isEmpty ? "—" : text)
+            Text(text.isEmpty ? "-" : text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
     }
 
-    /// Artists are comma-separated; the album (if any) follows after a bullet —
-    /// matching YT Music's own "Artist, Artist • Album" convention.
-    ///
-    /// Layout priority decreases left-to-right so an over-long line truncates
-    /// from the right as a whole (album first, then trailing artists) instead of
-    /// each link getting its own ellipsis the way independent `lineLimit(1)`
-    /// children in an HStack otherwise would.
+    /// Layout priority falls left to right so an over-long line truncates from the right as a whole.
     private func linksRow(artists: [EntityLink], album: EntityLink?) -> some View {
         let total = artists.count + (album == nil ? 0 : 1)
         return HStack(spacing: 0) {
@@ -707,8 +664,6 @@ private struct NowPlayingBar: View {
     }
 }
 
-/// A single artist/album link in the now-playing bar: secondary text that turns
-/// white and underlines on hover to read as clickable.
 struct EntityLinkButton: View {
     let link: EntityLink
     var font: Font = .caption
@@ -730,9 +685,6 @@ struct EntityLinkButton: View {
     }
 }
 
-/// A custom playback scrubber that shows played progress (red), cached/buffered
-/// progress (lighter fill), and the remaining track, with a draggable thumb.
-/// Replaces a plain Slider so the "cache progress" can sit behind the playhead.
 struct SeekBar: View {
     let currentTime: Double
     let bufferedTime: Double

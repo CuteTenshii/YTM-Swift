@@ -2,13 +2,6 @@
 //  EpisodeDetailsResponse.swift
 //  YT Music
 //
-//  Decodable model for browsing `MPPE<videoId>` (a podcast episode's "Details" tab).
-//
-//  Response path:
-//    contents.sectionListRenderer.contents[].musicDescriptionShelfRenderer
-//      .header.runs[].text      <- episode title
-//      .subheader.runs[]        <- show name + browse endpoint
-//      .description.runs[]      <- text, with urlEndpoint runs for links
 //
 
 import Foundation

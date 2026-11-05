@@ -2,8 +2,6 @@
 //  ReturnYouTubeDislikePlugin.swift
 //  YT Music
 //
-//  Shows like and dislike counts from Return YouTube Dislike beside the
-//  now-playing bar's rating buttons.
 //
 
 import Foundation
@@ -15,7 +13,6 @@ final class ReturnYouTubeDislikePlugin: Plugin {
     let name = "Return YouTube Dislike"
     let summary = "Show like and dislike counts for the playing track, using the Return YouTube Dislike database."
 
-    /// Counts for `videoId`; nil while loading or when the API has none.
     private(set) var votes: VoteCounts?
     private(set) var videoId: String?
 

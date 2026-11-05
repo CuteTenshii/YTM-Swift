@@ -2,19 +2,6 @@
 //  BrowseResponse.swift
 //  YT Music
 //
-//  Decodable models mirroring the (deeply nested, polymorphic) JSON returned by
-//  the InnerTube `browse` endpoint. We only model the keys we actually consume;
-//  everything is optional because YouTube's renderers are wildly inconsistent.
-//
-//  Response path for the home feed:
-//    contents
-//      .singleColumnBrowseResultsRenderer
-//      .tabs[0].tabRenderer.content
-//      .sectionListRenderer.contents[]            <- array of shelves
-//        .musicCarouselShelfRenderer
-//          .header.musicCarouselShelfBasicHeaderRenderer.title.runs[].text
-//          .contents[]                            <- array of cards
-//            .musicTwoRowItemRenderer / .musicResponsiveListItemRenderer
 //
 
 import Foundation
@@ -26,30 +13,25 @@ struct BrowseResponse: Decodable {
     let contents: Contents?
     let continuationContents: ContinuationContents?
 
-    /// Anonymous continuations only resolve when sent with the visitor id of
-    /// the response that issued their token.
+    /// Anonymous continuations only resolve with the visitor id of the response that issued the token.
     struct ResponseContext: Decodable {
         let visitorData: String?
     }
 
-    /// The next page of a paginated grid or list (e.g. a library listing).
     struct ContinuationContents: Decodable {
         let gridContinuation: GridRenderer?
         let musicShelfContinuation: MusicShelfRenderer?
-        /// More shelves of a feed page (the home feed).
         let sectionListContinuation: SectionList?
     }
 
     struct Contents: Decodable {
         let singleColumnBrowseResultsRenderer: SingleColumn?
         let twoColumnBrowseResultsRenderer: TwoColumn?
-        /// Some pages (the watch-next "Related" browse) return their shelves as a
-        /// section list directly under `contents`, with no tab wrapper.
+        // Some pages (watch-next "Related") put the section list directly under `contents`, with no tab wrapper.
         let sectionListRenderer: SectionList?
     }
 
-    /// Newer auth-gated pages (and artist pages) return a two-column layout: the
-    /// primary column under `tabs`, plus a `secondaryContents` section list.
+    // Auth-gated and artist pages: primary column under `tabs`, plus `secondaryContents`.
     struct TwoColumn: Decodable {
         let tabs: [Tab]?
         let secondaryContents: Secondary?
@@ -69,9 +51,7 @@ struct BrowseResponse: Decodable {
 
     struct TabRenderer: Decodable {
         let content: TabContent?
-        /// Whether this is the tab the page opens on. The uploads landing page
-        /// returns several tabs (Library / Downloads / Uploads) but only the
-        /// selected one carries content; the rest are lazy `continuations`.
+        /// Only the selected tab carries content; the rest are lazy `continuations`.
         let selected: Bool?
     }
 
@@ -87,7 +67,6 @@ struct BrowseResponse: Decodable {
 
         struct Header: Decodable {
             let chipCloudRenderer: ChipCloudRenderer?
-            /// The library pages' header: filter chips on the start side.
             let musicSideAlignedItemRenderer: SideAligned?
 
             struct SideAligned: Decodable {
@@ -95,7 +74,6 @@ struct BrowseResponse: Decodable {
 
                 struct StartItem: Decodable {
                     let chipCloudRenderer: ChipCloudRenderer?
-                    /// A playlist track shelf's "Sort" menu.
                     let sortFilterSubMenuRenderer: SortMenu?
                 }
 
@@ -106,8 +84,7 @@ struct BrowseResponse: Decodable {
                         let title: String?
                         let selected: Bool?
                         let navigationEndpoint: Endpoint?
-                        /// On playlists the user owns, picking an order edits
-                        /// the playlist instead of reloading it.
+                        // On owned playlists, picking an order edits the playlist instead of reloading it.
                         let serviceEndpoint: ServiceEndpoint?
 
                         /// The `playlistVideoOrder` this item sets; 0 is manual.
@@ -147,7 +124,6 @@ struct BrowseResponse: Decodable {
                         let playlistDynamicSortPreference: Int?
                     }
 
-                    /// Resolved through the response's `frameworkUpdates`.
                     struct Endpoint: Decodable {
                         let executeEntityCommand: EntityCommand?
 
@@ -164,13 +140,7 @@ struct BrowseResponse: Decodable {
         }
     }
 
-    /// A single entry in a section list. Home shelves arrive as carousels;
-    /// album/playlist/artist pages also use `musicShelfRenderer` (a track list)
-    /// and `musicPlaylistShelfRenderer`; the Library uses `gridRenderer`.
-    ///
-    /// Modeled as a `final class` (reference type): this node aggregates several
-    /// large renderer structs, and copying it by value tripped a value-witness
-    /// miscompile in the current toolchain.
+    /// A `final class`: by-value copies of this aggregate hit a toolchain value-witness miscompile.
     nonisolated final class SectionContent: Decodable, @unchecked Sendable {
         let musicCarouselShelfRenderer: MusicCarouselShelfRenderer?
         let musicImmersiveCarouselShelfRenderer: MusicCarouselShelfRenderer?
@@ -180,10 +150,9 @@ struct BrowseResponse: Decodable {
         let itemSectionRenderer: ItemSectionRenderer?
         let musicCardShelfRenderer: MusicCardShelfRenderer?
         let chipCloudRenderer: ChipCloudRenderer?
-        // Real (non-uploaded) albums/playlists put their header inside the body's
-        // section list rather than the top-level `header` key.
+        // Real albums/playlists put their header in the body's section list, not top-level `header`.
         let musicResponsiveHeaderRenderer: EntityBrowseResponse.HeaderContainer.ResponsiveHeader?
-        /// Playlists the user owns wrap that header in an editable one.
+        // Owned playlists wrap that header in an editable one.
         let musicEditablePlaylistDetailHeaderRenderer: EditableHeader?
 
         struct EditableHeader: Decodable {
@@ -271,7 +240,6 @@ struct BrowseResponse: Decodable {
             musicCarouselShelfRenderer ?? musicImmersiveCarouselShelfRenderer
         }
 
-        /// A flat track-list shelf (album / playlist tracks, artist top songs).
         var listShelf: MusicShelfRenderer? {
             musicShelfRenderer ?? musicPlaylistShelfRenderer
         }
@@ -295,9 +263,8 @@ nonisolated struct ChipCloudRenderer: Decodable {
     struct Endpoint: Decodable {
         let browseEndpoint: NavigationEndpoint.BrowseEndpoint?
         let commandExecutorCommand: CommandExecutor?
-        /// Playlist filter chips reload the track section from a continuation.
+        // Playlist filter chips reload the track section from a continuation.
         let browseSectionListReloadEndpoint: ReloadEndpoint?
-        /// A sort chip opens a menu of orders, each reloading the section.
         let openPopupAction: OpenPopupAction?
 
         struct OpenPopupAction: Decodable {
@@ -346,21 +313,16 @@ nonisolated struct ChipCloudRenderer: Decodable {
             }
         }
 
-        /// Library chips wrap their browse in a command executor.
         var browse: NavigationEndpoint.BrowseEndpoint? {
             browseEndpoint ?? commandExecutorCommand?.commands?.lazy.compactMap(\.browseEndpoint).first
         }
     }
 }
 
-/// Search wraps each ungrouped result row in its own `itemSectionRenderer`; its
-/// `contents` are the usual card/row renderers.
 nonisolated struct ItemSectionRenderer: Decodable {
     let contents: [CarouselItem]?
 }
 
-/// The "top result" hero card at the head of a search response. Its tap target
-/// (artist/album/song) lives in `onTap`.
 nonisolated struct MusicCardShelfRenderer: Decodable {
     let header: Header?
     let title: InnerTubeText?
@@ -376,13 +338,11 @@ nonisolated struct MusicCardShelfRenderer: Decodable {
         }
     }
 
-    /// The shelf's own heading ("Personal mix"), distinct from the card's title.
     var headerTitle: String {
         header?.musicCardShelfHeaderBasicRenderer?.title?.text ?? ""
     }
 }
 
-/// A wrapping grid of cards. Used by the Library landing page.
 nonisolated struct GridRenderer: Decodable {
     let header: GridHeader?
     let items: [CarouselItem]?
@@ -400,13 +360,11 @@ nonisolated struct GridRenderer: Decodable {
     var title: String { header?.gridHeaderRenderer?.title?.text ?? "" }
 }
 
-/// A flat list shelf whose `contents` are list rows. Used for track listings.
 struct MusicShelfRenderer: Decodable {
     let title: InnerTubeText?
     let header: BrowseResponse.SectionList.Header?
     let contents: [CarouselItem]?
     let continuations: [BrowseContinuation]?
-    /// Library artist pages put their sort dropdown here.
     let subheaders: [Subheader]?
 
     struct Subheader: Decodable {
@@ -473,8 +431,7 @@ nonisolated struct MusicCarouselShelfRenderer: Decodable {
             /// Small label above the title, with the avatar ("TENSHII" on "Listen again").
             let strapline: InnerTubeText?
             let thumbnail: ThumbnailRendererWrapper?
-            /// The "More" button beside the shelf title, navigating to a fuller
-            /// listing (e.g. all of an artist's albums, or a home feed page).
+            // The "More" button navigates to a fuller listing.
             let moreContentButton: MoreButton?
 
             struct MoreButton: Decodable {
@@ -495,15 +452,12 @@ nonisolated struct MusicCarouselShelfRenderer: Decodable {
         header?.musicCarouselShelfBasicHeaderRenderer?.thumbnail?.bestURL
     }
 
-    /// Tappable header buttons ("More", "Play all", …) carried beside the title.
     var headerButtons: [ButtonRenderer] {
         [header?.musicCarouselShelfBasicHeaderRenderer?.moreContentButton?.buttonRenderer]
             .compactMap { $0 }
     }
 }
 
-/// A tappable button renderer. We consume its label text and navigation target,
-/// used for shelf-header actions like "More" (navigate) and "Play all" (play).
 nonisolated struct ButtonRenderer: Decodable {
     let text: InnerTubeText?
     let navigationEndpoint: NavigationEndpoint?
@@ -534,7 +488,6 @@ nonisolated struct ContinuationItemRenderer: Decodable {
 
 // MARK: - Card renderers
 
-/// The big square/circle cards used across most home shelves.
 nonisolated final class MusicTwoRowItemRenderer: Decodable, @unchecked Sendable {
     let title: InnerTubeText?
     let subtitle: InnerTubeText?
@@ -547,16 +500,11 @@ nonisolated final class MusicTwoRowItemRenderer: Decodable, @unchecked Sendable 
         thumbnailOverlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint
     }
 
-    /// The delete entity id for an uploaded album/release card, if present.
     var deleteEntityId: String? { menu?.deleteEntityId }
 
-    /// The track's current like rating from its menu, if signed in and present
-    /// (song/video cards carry it; albums/playlists don't).
     var likeStatus: LikeStatus? { menu?.likeStatus }
 }
 
-/// A podcast episode row: title, "views • date" subtitle, and a playback
-/// progress block that carries the duration.
 nonisolated final class MusicMultiRowListItemRenderer: Decodable, @unchecked Sendable {
     let title: InnerTubeText?
     let subtitle: InnerTubeText?
@@ -583,8 +531,6 @@ nonisolated final class MusicMultiRowListItemRenderer: Decodable, @unchecked Sen
     }
 }
 
-/// The compact list rows used in shelves like "Quick picks" and in album /
-/// playlist track listings.
 nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let flexColumns: [FlexColumn]?
     let fixedColumns: [FixedColumn]?
@@ -594,7 +540,7 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let playlistItemData: PlaylistItemData?
     let menu: RendererMenu?
     let customIndexColumn: CustomIndexColumn?
-    /// Up/down vote buttons, on playlists with voting turned on.
+    // Up/down vote buttons, on playlists with voting turned on.
     let engagementBar: EngagementBar?
 
     struct FlexColumn: Decodable {
@@ -614,8 +560,7 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
         }
     }
 
-    /// `engagementBarViewModel.actions[].votingViewModel`: each vote button
-    /// toggles, with a feedback token to cast the vote and one to undo it.
+    // Each vote button toggles, with a feedback token to cast the vote and one to undo it.
     struct EngagementBar: Decodable {
         let engagementBarViewModel: ViewModel?
 
@@ -681,7 +626,6 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
         }
     }
 
-    /// A chart row's rank column: the position plus a trend arrow icon.
     struct CustomIndexColumn: Decodable {
         let musicCustomIndexColumnRenderer: Renderer?
 
@@ -697,12 +641,10 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
 
     struct PlaylistItemData: Decodable {
         let videoId: String?
-        /// The playlist-scoped id needed to remove/reorder this row within an
-        /// owned playlist (distinct from the plain videoId).
+        /// Playlist-scoped id needed to remove/reorder a row (distinct from videoId).
         let playlistSetVideoId: String?
     }
 
-    /// The play button overlay carries the watch endpoint for these rows.
     struct Overlay: Decodable {
         let musicItemThumbnailOverlayRenderer: ThumbnailOverlay?
 
@@ -719,27 +661,22 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
         }
     }
 
-    /// Flattened, non-empty text columns (title first, then artist/subtitle).
     var textColumns: [String] {
         textColumnRuns.map(\.text)
     }
 
-    /// The non-empty text columns, with their runs (and links).
     var textColumnRuns: [InnerTubeText] {
         (flexColumns ?? [])
             .compactMap { $0.musicResponsiveListItemFlexColumnRenderer?.text }
             .filter { !$0.text.isEmpty }
     }
 
-    /// Track duration string, if present ("3:45").
     var durationText: String? {
         (fixedColumns ?? [])
             .compactMap { $0.musicResponsiveListItemFixedColumnRenderer?.text?.text }
             .first { !$0.isEmpty }
     }
 
-    /// Artist/album links carried by the flex-column text runs (the title column
-    /// is skipped; artist/album endpoints live in the byline columns).
     var entityLinks: [EntityLink] {
         (flexColumns ?? [])
             .dropFirst()
@@ -760,45 +697,30 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
         return ChartRank(rank: rank, trend: renderer.icon?.iconType.flatMap(ChartRank.Trend.init(iconType:)))
     }
 
-    /// Most reliable video id for a track row.
     var trackVideoId: String? {
         playlistItemData?.videoId ?? playEndpoint?.watchEndpoint?.videoId
     }
 
-    /// Playlist-scoped id for removing/reordering this row within an owned
-    /// playlist (nil for rows that aren't playlist items).
     var playlistSetVideoId: String? { playlistItemData?.playlistSetVideoId }
 
-    /// Whether the row's menu carries a remove-from-playlist action — the
-    /// server's own edit-permission signal, present only on rows of playlists
-    /// the signed-in user can edit (including the system playlists, which
-    /// allow item removal but no metadata edits).
+    /// Server's edit-permission signal: present only on rows of editable playlists.
     var offersPlaylistRemoval: Bool { menu?.offersPlaylistRemoval ?? false }
 
-    /// History-removal feedback token carried by the row's overflow menu.
     var feedbackToken: String? { menu?.feedbackToken }
 
-    /// The track's current like rating from its menu, if signed in and present.
     var likeStatus: LikeStatus? { menu?.likeStatus }
 
-    /// Delete entity id for an uploaded song row, if present.
     var deleteEntityId: String? { menu?.deleteEntityId }
 }
 
 // MARK: - Shared primitives
 
-/// A renderer's overflow ("⋯") menu. We mine two service tokens from it: the
-/// `feedbackToken` that removes a listening-history row, the `entityId` that
-/// deletes an uploaded item (which sits behind a confirm-delete dialog), and
-/// the `playlistEditEndpoint` that marks a row removable from its playlist.
-/// Only the keys we consume are modeled; the menu carries many more actions.
 nonisolated struct RendererMenu: Decodable {
     let menuRenderer: MenuRenderer?
 
     struct MenuRenderer: Decodable {
         let items: [Item]?
-        /// Prominent buttons above the overflow list — the track's like/dislike
-        /// toggle lives here, carrying its *current* rating.
+        // Holds the like/dislike toggle with its current rating.
         let topLevelButtons: [TopLevelButton]?
     }
 
@@ -806,7 +728,7 @@ nonisolated struct RendererMenu: Decodable {
         let likeButtonRenderer: LikeButton?
 
         struct LikeButton: Decodable {
-            /// "LIKE" / "DISLIKE" / "INDIFFERENT" — the account-relative rating.
+            /// "LIKE" / "DISLIKE" / "INDIFFERENT: the account-relative rating.
             let likeStatus: String?
         }
     }
@@ -814,9 +736,7 @@ nonisolated struct RendererMenu: Decodable {
     struct Item: Decodable {
         let menuServiceItemRenderer: ServiceItem?
         let menuNavigationItemRenderer: NavigationItem?
-        /// A toggle action (e.g. "Add to liked songs" ⇄ "Remove"). The card-style
-        /// (two-row) renderers carry the like state here rather than in a
-        /// top-level like button.
+        // Card-style rows carry their like state here, not in a top-level like button.
         let toggleMenuServiceItemRenderer: ToggleItem?
     }
 
@@ -824,10 +744,7 @@ nonisolated struct RendererMenu: Decodable {
         let serviceEndpoint: ServiceEndpoint?
     }
 
-    /// A menu toggle. The state it moves to when tapped is the *default*
-    /// endpoint, so the current state is its inverse (tapping a not-liked song
-    /// likes it). Home cards carry the like here; the "Listen again" feed carries
-    /// a "Pin" toggle instead (no like), so this is simply absent there.
+    /// Default endpoint is the state a tap moves to, so the current state is its inverse.
     struct ToggleItem: Decodable {
         let defaultServiceEndpoint: ToggleEndpoint?
 
@@ -841,8 +758,7 @@ nonisolated struct RendererMenu: Decodable {
             let target: Target?
 
             struct Target: Decodable {
-                /// A like toggle targets a videoId; a "save playlist" toggle
-                /// targets a playlistId — only the former is a track rating.
+                /// Only a videoId target is a track rating (a "save playlist" toggle targets a playlistId).
                 let videoId: String?
             }
         }
@@ -854,7 +770,6 @@ nonisolated struct RendererMenu: Decodable {
 
     struct NavEndpoint: Decodable {
         let confirmDialogEndpoint: ConfirmDialog?
-        /// "Edit playlist", offered only on the user's own playlists.
         let playlistEditorEndpoint: PlaylistEditor?
 
         struct PlaylistEditor: Decodable { let playlistId: String? }
@@ -887,41 +802,30 @@ nonisolated struct RendererMenu: Decodable {
 
         struct FeedbackEndpoint: Decodable { let feedbackToken: String? }
         struct DeleteEntity: Decodable { let entityId: String? }
-        /// The remove-from-playlist action ("Remove from <name>"). Only its
-        /// presence matters here — the remove request is rebuilt from the
-        /// row's `videoId` + `setVideoId`.
+        /// Only presence matters; the remove request is rebuilt from `videoId` + `setVideoId`.
         struct PlaylistEditEndpoint: Decodable {}
     }
 
-    /// The playlist id behind the menu's "Edit playlist" item, if any.
     var editablePlaylistId: String? {
         (menuRenderer?.items ?? []).lazy
             .compactMap { $0.menuNavigationItemRenderer?.navigationEndpoint?.playlistEditorEndpoint?.playlistId }
             .first
     }
 
-    /// The history-removal feedback token, if this menu carries one.
     var feedbackToken: String? {
         (menuRenderer?.items ?? [])
             .compactMap { $0.menuServiceItemRenderer?.serviceEndpoint?.feedbackEndpoint?.feedbackToken }
             .first
     }
 
-    /// Whether this menu carries a remove-from-playlist action — present only
-    /// on rows of playlists the signed-in user can edit, so it doubles as the
-    /// playlist-ownership signal (unlike `playlistSetVideoId`, which any
-    /// playlist's rows may carry).
+    /// Doubles as the playlist-ownership signal.
     var offersPlaylistRemoval: Bool {
         (menuRenderer?.items ?? []).contains {
             $0.menuServiceItemRenderer?.serviceEndpoint?.playlistEditEndpoint != nil
         }
     }
 
-    /// The track's current like rating from the menu, if present. Track-list rows
-    /// carry it in a top-level like button; card-style (two-row) rows instead
-    /// carry a like *toggle*, whose default action is the inverse of the current
-    /// state (tapping a not-liked song likes it). nil when neither is present
-    /// (signed out, or a non-track row) — the caller decides how to treat that.
+    /// Card rows carry a like toggle (inverse of current state); list rows carry a like button.
     var likeStatus: LikeStatus? {
         if let raw = (menuRenderer?.topLevelButtons ?? [])
             .compactMap(\.likeButtonRenderer?.likeStatus).first {
@@ -939,8 +843,6 @@ nonisolated struct RendererMenu: Decodable {
         return nil
     }
 
-    /// The delete entity id for an uploaded item — either directly on a service
-    /// item, or behind the confirm-delete dialog on a navigation item.
     var deleteEntityId: String? {
         for item in menuRenderer?.items ?? [] {
             if let id = item.menuServiceItemRenderer?.serviceEndpoint?
@@ -957,10 +859,8 @@ nonisolated struct RendererMenu: Decodable {
     }
 }
 
-/// YouTube wraps almost all display text in `{ "runs": [{ "text": ... }] }`.
 nonisolated struct InnerTubeText: Decodable {
     let runs: [Run]?
-    /// Some labels (chips, popup menu items) arrive flat instead of as runs.
     let simpleText: String?
 
     struct Run: Decodable {
@@ -976,8 +876,6 @@ nonisolated struct InnerTubeText: Decodable {
         simpleText ?? (runs ?? []).map(\.text).joined()
     }
 
-    /// Artist/album navigation links carried by individual runs (each run is a
-    /// distinct name with its own browse endpoint).
     var entityLinks: [EntityLink] {
         (runs ?? []).compactMap(\.entityLink)
     }
@@ -999,7 +897,6 @@ nonisolated struct ThumbnailRendererWrapper: Decodable {
             let height: Int?
         }
 
-        /// Highest-resolution thumbnail URL available.
         var bestURL: URL? {
             let thumbs = thumbnail?.thumbnails ?? []
             let best = thumbs.max { ($0.width ?? 0) < ($1.width ?? 0) }
@@ -1007,19 +904,15 @@ nonisolated struct ThumbnailRendererWrapper: Decodable {
         }
     }
 
-    /// Highest-resolution thumbnail URL available.
     var bestURL: URL? {
         musicThumbnailRenderer?.bestURL
     }
 }
 
 struct NavigationEndpoint: Decodable {
-    /// The playlist id of a watch or bare-playlist endpoint.
     var playlistId: String? { watchPlaylistEndpoint?.playlistId ?? watchEndpoint?.playlistId }
     let watchEndpoint: WatchEndpoint?
     let browseEndpoint: BrowseEndpoint?
-    /// Used by header-level "Shuffle"/"Start radio" buttons: a bare playlist id
-    /// with no video seed (e.g. `RDEM<channelId>` for an artist mix).
     let watchPlaylistEndpoint: WatchPlaylistEndpoint?
 
     struct WatchPlaylistEndpoint: Decodable {
@@ -1039,8 +932,6 @@ struct NavigationEndpoint: Decodable {
             }
         }
 
-        /// The track's "music video type", distinguishing a plain audio song
-        /// (`…_ATV`) from a music video (`…_OMV`/`…_UGC`) or podcast episode.
         var musicVideoType: String? {
             watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType
         }
@@ -1069,21 +960,16 @@ struct NavigationEndpoint: Decodable {
             return EntityLink(name: name, browseId: browseId, kind: kind)
         }
 
-        /// The domain kind this browse endpoint targets, if it's one we navigate
-        /// to (album / playlist / artist).
         var kind: ShelfItem.Kind? {
             switch pageType {
             case "MUSIC_PAGE_TYPE_ALBUM":    return .album
             case "MUSIC_PAGE_TYPE_PLAYLIST": return .playlist
             case "MUSIC_PAGE_TYPE_ARTIST":   return .artist
-            // A song/video byline often links to the uploader's channel rather
-            // than a music artist page; both browse to an artist-style page, so
-            // treat a channel as an artist (enables "Go to artist" on the row).
+            // A channel byline is treated as an artist (enables "Go to artist").
             case "MUSIC_PAGE_TYPE_USER_CHANNEL": return .artist
             default:                         break
             }
-            // Uploaded (privately owned) artists/albums report
-            // MUSIC_PAGE_TYPE_UNKNOWN, but their browse ids encode the kind.
+            // Uploaded artists/albums report MUSIC_PAGE_TYPE_UNKNOWN; their browse ids encode the kind.
             if let browseId {
                 if browseId.contains("privately_owned_artist") { return .artist }
                 if browseId.contains("privately_owned_release") { return .album }

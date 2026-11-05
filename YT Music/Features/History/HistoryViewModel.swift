@@ -39,14 +39,11 @@ final class HistoryViewModel {
         }
     }
 
-    /// Whether the currently-loaded history has any removable rows.
     var canClear: Bool {
         guard case .loaded(let sections) = state else { return false }
         return sections.contains { section in section.tracks.contains { $0.feedbackToken != nil } }
     }
 
-    /// Removes a single track from history (optimistically, then server-side via
-    /// its feedback token). No-op for a row that carries no token.
     func remove(_ track: Track) async {
         guard let token = track.feedbackToken, case .loaded(var sections) = state else { return }
         for index in sections.indices {
@@ -57,8 +54,6 @@ final class HistoryViewModel {
         try? await client.removeHistoryItems(feedbackTokens: [token])
     }
 
-    /// Clears the whole listening history by removing every row's feedback token
-    /// in one request. Optimistically empties the UI first.
     func clearAll() async {
         guard case .loaded(let sections) = state else { return }
         let tokens = sections.flatMap { $0.tracks.compactMap(\.feedbackToken) }

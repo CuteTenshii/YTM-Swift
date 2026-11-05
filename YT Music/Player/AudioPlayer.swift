@@ -2,14 +2,7 @@
 //  AudioPlayer.swift
 //  YT Music
 //
-//  @Observable wrapper around AVPlayer. Also publishes to the system Now Playing
-//  UI (Control Center / media keys) via MediaPlayer's MPNowPlayingInfoCenter and
-//  routes MPRemoteCommandCenter commands back to playback.
-//
-//  Uses two AVPlayers so consecutive tracks can be crossfaded: the incoming
-//  track starts on the idle player at volume 0 and the two volumes are ramped
-//  over the crossfade duration. With crossfade disabled only one player is ever
-//  active and the other stays idle.
+//  AVPlayer wrapper that publishes to Now Playing; two players enable crossfade.
 //
 
 import AVFoundation
@@ -22,7 +15,7 @@ import Observation
 final class AudioPlayer: AudioOutput {
     private let playerA = AVPlayer()
     private let playerB = AVPlayer()
-    /// The player currently driving the now-playing track. Crossfade swaps this.
+    /// Drives the now-playing track; crossfade swaps it.
     @ObservationIgnored private var active: AVPlayer
     @ObservationIgnored private var timeObservers: [(AVPlayer, Any)] = []
     @ObservationIgnored private var timeControlObservers: [NSKeyValueObservation] = []
@@ -30,43 +23,32 @@ final class AudioPlayer: AudioOutput {
     /// How far past the known length the playhead may run before the track counts as finished.
     private static let pastKnownEndTolerance: Double = 1.0
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
-    /// Bumped on every new crossfade so a just-superseded fade's cleanup can't
-    /// clear the newer `fadeTask` it races against.
+    /// Bumped per crossfade so a superseded fade's cleanup can't clear the newer `fadeTask`.
     @ObservationIgnored private var fadeGeneration = 0
-    /// Guards against firing "track finished" more than once for the same item
-    /// (the end notification and the tick backstop can both observe the end).
+    /// Ensures "track finished" fires once per item (notification and tick backstop both see the end).
     @ObservationIgnored private var hasSignalledEnd = false
     @ObservationIgnored private var preloadedURL: URL?
-    /// Routes stream fetches through the configured proxy; nil when there is none.
     @ObservationIgnored private let proxiedLoader = ProxiedStreamLoader()
     /// Loudness of the item loaded on each player, keyed by player identity.
     @ObservationIgnored private var loudness: [ObjectIdentifier: Double] = [:]
 
-    /// Live equalizer settings shared with every item's audio tap. Mutating its
-    /// `settings` re-equalizes the playing track on the next audio block.
+    /// Shared with every item's tap; changes apply on the next audio block.
     @ObservationIgnored private let equalizerBox = EqualizerSettingsBox()
 
-    /// Shared spectrum meter, fed by every item's tap and read by the visualizer.
     @ObservationIgnored let spectrum: SpectrumAnalyzer? = SpectrumAnalyzer()
 
     private(set) var isPlaying = false
-    /// The active player wants to play but is waiting on data (initial load or a stall).
     private(set) var isBuffering = false
-    /// The stored intent isn't enough: `load()` marks us playing before the
-    /// stream has started flowing. `isActuallyPlaying` is true only once AVPlayer
-    /// really advances (timeControlStatus == .playing), so consumers can wait
-    /// until audio is genuinely audible.
+    /// True only once AVPlayer really advances; `load()` marks playing before the stream flows.
     var isActuallyPlaying: Bool { isPlaying && active.timeControlStatus == .playing }
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
     private(set) var bufferedTime: Double = 0
 
-    /// Master output gain (0...1). The crossfade ramps are scaled by this, so
-    /// changing volume mid-fade still respects the user's level.
+    /// Master gain (0...1); crossfade ramps are scaled by it.
     var volume: Double = 1 {
         didSet {
-            // While a crossfade owns the per-player volumes, the fade loop picks
-            // up the new gain on its next step; otherwise apply it immediately.
+            // During a crossfade the fade loop picks up the new gain.
             if fadeTask == nil { active.volume = level(for: active) }
         }
     }
@@ -91,23 +73,19 @@ final class AudioPlayer: AudioOutput {
 
     private var clampedVolume: Float { Float(min(max(volume, 0), 1)) }
 
-    /// Master volume scaled by the normalization gain of `player`'s track.
     private func level(for player: AVPlayer) -> Float {
         guard normalizesVolume else { return clampedVolume }
         let gain = VolumeNormalization.gain(loudnessDb: loudness[ObjectIdentifier(player)])
         return clampedVolume * Float(gain)
     }
 
-    // Events handled by the owner (PlayerState); see AudioOutput.
     @ObservationIgnored var onTrackFinished: (() -> Void)?
     @ObservationIgnored var onNext: (() -> Void)?
     @ObservationIgnored var onPrevious: (() -> Void)?
     @ObservationIgnored var onTogglePlayPause: (() -> Void)?
     @ObservationIgnored var onProgress: ((Double, Double) -> Void)?
-    /// Fired when the current item transitions to genuinely playing (post-buffer).
     @ObservationIgnored var onPlaybackStart: (() -> Void)?
 
-    // Now Playing
     @ObservationIgnored private let infoCenter = MPNowPlayingInfoCenter.default()
     @ObservationIgnored private let commandCenter = MPRemoteCommandCenter.shared()
     @ObservationIgnored private var metadata = NowPlayingMetadata(title: "", artist: "", album: "", artworkURL: nil)
@@ -117,10 +95,7 @@ final class AudioPlayer: AudioOutput {
     init() {
         active = playerA
         for player in [playerA, playerB] {
-            // Start playback as soon as there's enough data rather than building a
-            // larger anti-stall cushion first — noticeably cuts time-to-first-audio
-            // on a decent connection (the stream is fetched progressively, so we
-            // don't wait on a full download). May stall more on poor networks.
+            // Start on first available data to cut time-to-first-audio; may stall more on poor networks.
             player.automaticallyWaitsToMinimizeStalling = false
             addPeriodicObserver(to: player)
             observeTimeControl(of: player)
@@ -128,16 +103,11 @@ final class AudioPlayer: AudioOutput {
         setupRemoteCommands()
     }
 
-    // No deinit: a single AudioPlayer lives for the app's lifetime (owned by
-    // PlayerState), so the AVPlayers are never deallocated and their observers
-    // don't need teardown — which also avoids touching main-actor state from deinit.
+    // No deinit: the single AudioPlayer lives for the app's lifetime.
 
     private var idle: AVPlayer { active === playerA ? playerB : playerA }
 
-    /// Builds a player item that starts without scanning the whole file for
-    /// precise duration/timing — we already pass an authoritative duration via
-    /// `knownDuration`, so AVFoundation doesn't need to read to the end of the
-    /// stream before playback can begin (which otherwise stalls the start).
+    /// Skips precise duration scanning; `knownDuration` is authoritative and the scan stalls the start.
     private func makeItem(url: URL) -> AVPlayerItem {
         let asset = AVURLAsset(url: proxiedLoader == nil ? url : ProxiedStreamLoader.loaderURL(for: url), options: [
             AVURLAssetPreferPreciseDurationAndTimingKey: false
@@ -146,16 +116,12 @@ final class AudioPlayer: AudioOutput {
             asset.resourceLoader.setDelegate(proxiedLoader, queue: proxiedLoader.queue)
         }
         let item = AVPlayerItem(asset: asset)
-        // Let AVPlayer start from the first available bytes. A large preferred
-        // buffer delays time-to-first-audio on slow connections.
         item.preferredForwardBufferDuration = 0
         installEqualizer(on: item, asset: asset)
         return item
     }
 
-    /// Attaches an equalizer tap to the item's audio track. The track loads
-    /// asynchronously, so the mix is set once it's available (before audio has
-    /// meaningfully started); if there's no audio track the item plays as-is.
+    /// The audio track loads asynchronously, so the mix is set once it's available.
     private func installEqualizer(on item: AVPlayerItem, asset: AVURLAsset) {
         let box = equalizerBox
         let meter = spectrum
@@ -172,7 +138,6 @@ final class AudioPlayer: AudioOutput {
     // MARK: - Transport
 
     func load(url: URL, metadata: NowPlayingMetadata) {
-        // A hard cut: abandon any in-flight crossfade and silence the idle player.
         cancelFade()
         clearIdlePlayer()
         preloadedURL = nil
@@ -223,8 +188,7 @@ final class AudioPlayer: AudioOutput {
         incoming.replaceCurrentItem(with: item)
         loudness[ObjectIdentifier(incoming)] = metadata.loudnessDb
 
-        // The incoming player becomes the source of truth before observing its
-        // end, so end-of-track routes from the track now in front.
+        // Swap before observing so end-of-track routes from the incoming track.
         active = incoming
         activate(item: item, metadata: metadata, volume: 0)
         startFade(outgoing: outgoing, incoming: incoming, seconds: duration, generation: generation)
@@ -273,7 +237,6 @@ final class AudioPlayer: AudioOutput {
                            generation: Int) {
         fadeTask = Task { [weak self] in
             await self?.runFade(outgoing: outgoing, incoming: incoming, seconds: seconds)
-            // Only this fade's own completion may clear `fadeTask`.
             if self?.fadeGeneration == generation { self?.fadeTask = nil }
         }
     }
@@ -289,9 +252,6 @@ final class AudioPlayer: AudioOutput {
         idle.volume = clampedVolume
     }
 
-    /// Linearly ramps `outgoing` 1→0 and `incoming` 0→1 over `seconds` (each
-    /// scaled by its own level), then parks the outgoing player so it's ready
-    /// to be reused for the next track.
     private func runFade(outgoing: AVPlayer, incoming: AVPlayer, seconds: Double) async {
         let stepInterval = 0.05
         let steps = max(1, Int(seconds / stepInterval))
@@ -324,13 +284,11 @@ final class AudioPlayer: AudioOutput {
 
     func seek(to seconds: Double) {
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
-        // A small tolerance lets AVPlayer snap to the nearest keyframe instead of
-        // decoding to the exact frame, which over a remote stream is the
-        // difference between instant scrubbing and a multi-second stall.
+        // Tolerance lets AVPlayer snap to a keyframe instead of decoding to the exact frame.
         let tolerance = CMTime(seconds: 0.75, preferredTimescale: 600)
         active.seek(to: time, toleranceBefore: tolerance, toleranceAfter: tolerance)
         currentTime = seconds
-        // Seeking away from the end re-arms end detection for this item.
+        // Seeking away from the end re-arms end detection.
         if duration <= 0 || seconds < duration - 0.5 { hasSignalledEnd = false }
         updateNowPlayingInfo()
     }
@@ -346,8 +304,6 @@ final class AudioPlayer: AudioOutput {
     }
 
     func applyEqualizer(_ settings: EqualizerSettings) {
-        // The shared box feeds every live tap; the change lands on the next
-        // audio block, so the playing track re-equalizes without reloading.
         equalizerBox.settings = settings
     }
 
@@ -453,10 +409,7 @@ final class AudioPlayer: AudioOutput {
 
     // MARK: - Observation
 
-    /// Fires `onPlaybackStart` when the active player actually starts producing
-    /// audio (timeControlStatus → .playing). AVPlayer reports `.playing` only once
-    /// it's really advancing, so this excludes the load/buffer phase — but not
-    /// brief mid-track stalls, which don't matter for presence.
+    /// `.playing` only once really advancing; excludes load/buffer but not brief mid-track stalls.
     private func observeTimeControl(of player: AVPlayer) {
         let observation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
             let status = player.timeControlStatus
@@ -475,7 +428,6 @@ final class AudioPlayer: AudioOutput {
             forInterval: interval,
             queue: .main
         ) { [weak self] time in
-            // Registered on the main queue, so main-actor access is safe.
             MainActor.assumeIsolated {
                 self?.tick(time, from: player)
             }
@@ -484,39 +436,33 @@ final class AudioPlayer: AudioOutput {
     }
 
     private func tick(_ time: CMTime, from player: AVPlayer) {
-        // Ignore ticks from the player that's fading out during a crossfade.
+        // Ignore ticks from the player fading out.
         guard player === active else { return }
         let raw = time.seconds.isFinite ? time.seconds : 0
-        // Prefer the authoritative length; only fall back to AVPlayer's estimate
-        // when we don't have one (it can over-report while buffering).
+        // AVPlayer's estimate can over-report while buffering.
         if let known = metadata.knownDuration, known > 0 {
             duration = known
         } else if let itemDuration = player.currentItem?.duration.seconds, itemDuration.isFinite {
             duration = itemDuration
         }
-        // Never let the displayed position run past the track length.
         currentTime = duration > 0 ? min(raw, duration) : raw
         bufferedTime = bufferedEnd(of: player.currentItem, around: currentTime, cappedTo: duration)
         updateNowPlayingInfo()
         onProgress?(currentTime, duration)
 
-        // Backstop: if the engine has stopped at (or past) the end but the end
-        // notification didn't arrive, treat the track as finished so playback
-        // still advances.
+        // Backstop for a missed end notification.
         if isPlaying, duration > 0, raw >= duration - 0.5,
            player.timeControlStatus != .playing {
             signalEnd()
         }
-        // Backstop for a playhead still running past the known length.
+        // Backstop for a playhead running past the known length.
         if isPlaying, let known = metadata.knownDuration, known > 0,
            raw >= known + Self.pastKnownEndTolerance {
             signalEnd()
         }
     }
 
-    /// The end (in seconds) of the buffered range covering `time`, so the UI can
-    /// show how far ahead the stream has cached. Falls back to the furthest
-    /// buffered range when none contains the playhead (e.g. just after a seek).
+    /// Falls back to the furthest range when none contains `time` (e.g. after a seek).
     private func bufferedEnd(of item: AVPlayerItem?, around time: Double, cappedTo duration: Double) -> Double {
         guard let item else { return 0 }
         var furthest = 0.0
@@ -547,7 +493,6 @@ final class AudioPlayer: AudioOutput {
         }
     }
 
-    /// Fires `onTrackFinished` exactly once per item.
     private func signalEnd() {
         guard !hasSignalledEnd else { return }
         hasSignalledEnd = true

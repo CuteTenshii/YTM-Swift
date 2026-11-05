@@ -16,46 +16,29 @@ final class EntityViewModel {
 
     private(set) var state: State = .loading
 
-    /// The page's title: the destination's at push time, replaced by the
-    /// server's once loaded and updated after a rename, so the toolbar title
-    /// stays in sync with the page.
     private(set) var title: String
 
-    /// Whether this page shows one of the signed-in user's own (editable)
-    /// playlists: rows of playlists the server lets the user edit carry a
-    /// remove-from-playlist action in their menus — the permission signal
-    /// (`playlistSetVideoId` alone isn't: any playlist's rows may carry one).
+    /// Editable playlist: `playlistSetVideoId` alone isn't a permission signal, remove actions are.
     var isEditablePlaylist: Bool {
         guard editablePlaylistId != nil, case .loaded(let page) = state else { return false }
         return page.tracks.contains { $0.canRemoveFromPlaylist }
     }
 
-    /// Whether rows can be dragged to reorder: an editable playlist shown in
-    /// its manual order, unfiltered.
     var canReorder: Bool {
         guard isEditablePlaylist, case .loaded(let page) = state else { return false }
         return page.isManuallyOrdered && selectedFilter == nil
     }
 
-    /// Artist subscribe-button state, mutated optimistically by `toggleSubscription`.
     private(set) var subscription: ArtistSubscription?
-    /// True while a subscribe/unsubscribe request is in flight (disables the button).
     private(set) var isUpdatingSubscription = false
 
-    /// "Save to library" toggle state for playlist pages: read from the page
-    /// header, then flipped only once a save/unsave request succeeds.
     private(set) var isSaved = false
-    /// True while a save/unsave request is in flight (disables the button).
     private(set) var isUpdatingSaved = false
     private(set) var isLoadingMore = false
-    /// True while a filter or sort reload of the track list is in flight.
     private(set) var isReloadingTracks = false
     private var reloadGeneration = 0
     private var playlistSearchIndex: [Track]?
 
-    /// The playlist id this page can save, derived from the browse id
-    /// (`VL<playlistId>`, or `MPSP<playlistId>` for a podcast show). Nil for
-    /// albums/artists.
     var savablePlaylistId: String? {
         let id = destination.browseId
         switch destination.kind {
@@ -65,10 +48,7 @@ final class EntityViewModel {
         }
     }
 
-    /// The id of one of the user's own, *editable* playlists when this page is
-    /// one — `savablePlaylistId` excluding the system playlists ("Liked
-    /// Music", saved episodes), which carry playlist-shaped data (even row
-    /// `setVideoId`s) but reject edits. Gates every edit affordance.
+    /// System playlists (Liked Music, saved episodes) carry playlist-shaped data but reject edits.
     var editablePlaylistId: String? {
         guard let id = savablePlaylistId, !id.isSystemPlaylistId else { return nil }
         return id
@@ -101,13 +81,11 @@ final class EntityViewModel {
         }
     }
 
-    /// The applied filter chip, per the server.
     var selectedFilter: PlaylistFilter? {
         guard case .loaded(let page) = state else { return nil }
         return page.filters.first(where: \.isSelected)
     }
 
-    /// Filters the track list by `filter`, or clears the filter when nil.
     func applyFilter(_ filter: PlaylistFilter?) async {
         guard filter != selectedFilter, let token = filter?.token ?? selectedFilter?.clearToken else { return }
         await reloadTracks(token)
@@ -131,14 +109,11 @@ final class EntityViewModel {
         }
     }
 
-    /// Re-fetches the page after an edit that changes its rows (order, voting).
     private func refreshPage() async {
         guard let page = try? await client.entity(destination) else { return }
         state = .loaded(page)
     }
 
-    /// Moves a row's vote toward `target`, showing it at once and reverting if
-    /// the request fails.
     func vote(_ track: Track, _ target: PlaylistItemVote.Status) async {
         guard case .loaded(var page) = state,
               let position = page.tracks.firstIndex(where: { $0.id == track.id }),
@@ -156,8 +131,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Replaces the track list (and the filters / sort options, which carry the
-    /// new selection) with a reload. The latest request wins.
     private func reloadTracks(_ token: String) async {
         guard case .loaded(let page) = state else { return }
         await reloadTracks { try await self.client.entityTrackReload(token, header: page.header) }
@@ -191,11 +164,9 @@ final class EntityViewModel {
                 startIndex: page.tracks.count + 1,
                 header: page.header
             )
-            // A filter may have replaced the list meanwhile.
             guard case .loaded(let current) = state, current.continuationToken == token else { return }
             state = .loaded(current.appending(next))
         } catch {
-            // Keep the current page and allow a later scroll attempt to retry.
         }
     }
 
@@ -231,9 +202,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Toggles the artist subscription, updating local state only once the request
-    /// succeeds (so a failed call leaves the button as it was), then reconciles
-    /// against the server's actual state so optimism can't drift.
     func toggleSubscription() async {
         guard let current = subscription, !isUpdatingSubscription else { return }
         let target = !current.isSubscribed
@@ -248,14 +216,9 @@ final class EntityViewModel {
             subscription?.isSubscribed = target
             await revalidateSubscription()
         } catch {
-            // Leave the previous state intact on failure.
         }
     }
 
-    /// Re-reads the artist's subscribe-button state from the server and updates
-    /// the local copy, so the button reflects reality after a toggle or an
-    /// external change (e.g. subscribing on another device, or signing in while
-    /// the page is open). No-op for non-artist pages or before the page loads.
     func revalidateSubscription() async {
         guard destination.kind == .artist, case .loaded = state else { return }
         guard let page = try? await client.entity(destination) else { return }
@@ -264,9 +227,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Adds the playlist to (or removes it from) the signed-in user's library,
-    /// updating local state only once the request succeeds (so a failed call
-    /// leaves the button as it was).
     func toggleSaved() async {
         guard let playlistId = savablePlaylistId, !isUpdatingSaved else { return }
         let target = !isSaved
@@ -276,15 +236,9 @@ final class EntityViewModel {
             try await client.setPlaylistSaved(playlistId: playlistId, saved: target)
             isSaved = target
         } catch {
-            // Leave the previous state intact on failure.
         }
     }
 
-    /// Removes a track from the playlist this page shows. Only called for rows
-    /// that carry a `playlistSetVideoId` (present exactly when the signed-in
-    /// user can edit the playlist); like the other toggles, the page is updated
-    /// only once the request succeeds, so a failed call leaves the list as it
-    /// was. Returns whether the row was removed.
     @discardableResult
     func removeFromPlaylist(_ track: Track) async -> Bool {
         guard let playlistId = editablePlaylistId,
@@ -309,8 +263,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Moves a row within the playlist (drag-to-reorder, with `List.onMove`
-    /// offsets). The list updates immediately and reverts if the request fails.
     func moveTrack(fromOffsets source: IndexSet, toOffset destination: Int) async {
         guard let playlistId = editablePlaylistId, canReorder,
               case .loaded(let page) = state,
@@ -332,12 +284,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Applies metadata edits (name / description / visibility) to the playlist
-    /// this page shows, updating the page and its title only once the request
-    /// succeeds (so a failed call leaves the page as it was). Only fields that
-    /// actually changed are sent; a nil `privacy` means "leave the visibility
-    /// alone" (also the case when the header didn't say). Returns whether the
-    /// edits were applied.
     @discardableResult
     func editPlaylist(name: String, description: String, privacy: PlaylistPrivacy?,
                       votePermission: Int?) async -> Bool {
@@ -361,7 +307,6 @@ final class EntityViewModel {
                 privacy: newPrivacy,
                 votePermission: newVotePermission
             )
-            // Voting adds or removes the rows' vote buttons and can change the order.
             if newVotePermission != nil, let fresh = try? await client.entity(destination) {
                 page = fresh
             }
@@ -376,9 +321,6 @@ final class EntityViewModel {
         }
     }
 
-    /// Deletes the playlist this page shows (owned playlists only — the server
-    /// rejects deleting a playlist you don't own). Returns whether it was
-    /// deleted; the caller pops the page when it was.
     @discardableResult
     func deletePlaylist() async -> Bool {
         guard let playlistId = editablePlaylistId else { return false }
@@ -391,18 +333,11 @@ final class EntityViewModel {
     }
 }
 
-/// A playlist row moved to a new position: the reordered, renumbered list,
-/// the moved row's `setVideoId`, and the `setVideoId` it now sits before (nil
-/// at the very end).
 struct PlaylistMove {
     let tracks: [Track]
     let setVideoId: String
     let successor: String?
 
-    /// `from` and `toOffset` follow `Array.move(fromOffsets:toOffset:)`. Nil
-    /// for a no-op, a row without a `setVideoId`, or a row landing after the
-    /// last loaded track while more remain unloaded (its real successor is
-    /// unknown).
     init?(tracks: [Track], from: Int, toOffset destination: Int, hasMore: Bool) {
         guard tracks.indices.contains(from), (0...tracks.count).contains(destination),
               let setVideoId = tracks[from].playlistSetVideoId else { return nil }
@@ -411,6 +346,7 @@ struct PlaylistMove {
         var moved = tracks
         moved.move(fromOffsets: [from], toOffset: destination)
         let successor = moved.indices.contains(landed + 1) ? moved[landed + 1].playlistSetVideoId : nil
+        // A row landing before unloaded rows has an unknown successor.
         if successor == nil && (hasMore || landed + 1 < moved.count) { return nil }
         for position in moved.indices { moved[position].index = position + 1 }
         self.tracks = moved

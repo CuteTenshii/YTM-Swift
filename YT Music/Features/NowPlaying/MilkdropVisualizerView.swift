@@ -2,14 +2,7 @@
 //  MilkdropVisualizerView.swift
 //  YT Music
 //
-//  A MilkDrop-style feedback visualizer (an alternative to the lyrics and the
-//  bar spectrum). A Metal ping-pong render loop warps and fades the previous
-//  frame each tick and injects an audio-driven radial spectrum, producing the
-//  flowing, liquid look. It reads the shared `SpectrumAnalyzer` (the same tap
-//  that feeds the bars) and tints itself from the cover-art palette.
-//
-//  The shaders live in MilkdropShaders.metal. As with the audio tap, the Metal
-//  render loop is the untested realtime layer.
+//  MilkDrop-style Metal feedback visualizer driven by the shared SpectrumAnalyzer.
 //
 
 import MetalKit
@@ -18,7 +11,6 @@ import SwiftUI
 
 struct MilkdropVisualizerView: NSViewRepresentable {
     let analyzer: SpectrumAnalyzer?
-    /// Accent colours sampled from the artwork (may be empty → defaults).
     var colors: [PaletteColor]
 
     func makeCoordinator() -> MilkdropRenderer {
@@ -43,10 +35,8 @@ struct MilkdropVisualizerView: NSViewRepresentable {
     }
 }
 
-/// Owns the Metal state and the per-frame feedback loop.
 final class MilkdropRenderer: NSObject, MTKViewDelegate {
-    /// Fixed band count — must line up with what the analyzer publishes; the
-    /// shader indexes into this many bands.
+    // Must match the bands the analyzer publishes; the shader indexes this many.
     private static let bandCount = 28
 
     private let analyzer: SpectrumAnalyzer?
@@ -58,16 +48,13 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
     private var presentPipeline: MTLRenderPipelineState?
     private var sampler: MTLSamplerState?
 
-    // Ping-pong feedback textures.
     private var front: MTLTexture?
     private var back: MTLTexture?
 
     private var startTime: CFTimeInterval = CACurrentMediaTime()
-    // Extra smoothing on top of the analyzer's, for calmer warp motion.
     private var bass: Float = 0, mid: Float = 0, treb: Float = 0
     private var ready = false
 
-    // Presets cycle automatically so the motion keeps changing character.
     private let presets = MilkdropPreset.all
     private let cycleSeconds: Float = 20
     private let blendSeconds: Float = 5
@@ -123,8 +110,7 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
         clear(back)
     }
 
-    /// Clears a freshly allocated feedback texture to black (its contents are
-    /// otherwise undefined, which the first frame would sample as garbage).
+    /// A fresh texture's contents are undefined; the first frame would sample garbage.
     private func clear(_ texture: MTLTexture?) {
         guard let texture, let queue, let cb = queue.makeCommandBuffer() else { return }
         let pass = MTLRenderPassDescriptor()
@@ -148,7 +134,6 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
         var uniforms = makeUniforms(aspect: Float(view.drawableSize.width /
                                                   max(1, view.drawableSize.height)))
 
-        // Feedback pass: warp+fade `back` (previous) and inject audio → `front`.
         let fb = MTLRenderPassDescriptor()
         fb.colorAttachments[0].texture = front
         fb.colorAttachments[0].loadAction = .dontCare
@@ -163,7 +148,6 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
             enc.endEncoding()
         }
 
-        // Present pass: tone-map `front` to the screen.
         if let pass = view.currentRenderPassDescriptor,
            let enc = cb.makeRenderCommandEncoder(descriptor: pass) {
             enc.setRenderPipelineState(presentPipeline)
@@ -176,14 +160,12 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
         cb.present(drawable)
         cb.commit()
 
-        // Swap so this frame becomes the next frame's history.
         self.front = back
         self.back = front
     }
 
     // MARK: - Audio → uniforms
 
-    /// The analyzer's bands, resized to exactly `bandCount` (zeros when absent).
     private func paddedBands() -> [Float] {
         let m = analyzer?.magnitudes() ?? []
         if m.count == Self.bandCount { return m }
@@ -199,8 +181,6 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
             return bands[clamped].reduce(0, +) / Float(clamped.count)
         }
         let third = max(1, Self.bandCount / 3)
-        // A gain so quieter mixes still drive the warp, and a snappier ease so
-        // bass hits actually punch through instead of averaging away.
         func gained(_ v: Float) -> Float { min(1, v * 1.8) }
         bass = bass * 0.55 + gained(avg(0..<third)) * 0.45
         mid  = mid  * 0.6  + gained(avg(third..<(2 * third))) * 0.4
@@ -231,16 +211,13 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    /// The active preset for time `t`: continuous parameters ease into the next
-    /// preset over `blendSeconds`, while the structural modes flip at the
-    /// midpoint (the feedback buffer smooths the switch).
     private func currentPreset(at t: Float) -> MilkdropPreset {
         guard presets.count > 1 else { return presets.first ?? .default }
         let index = Int(t / cycleSeconds) % presets.count
         let next = (index + 1) % presets.count
         let local = t.truncatingRemainder(dividingBy: cycleSeconds)
         let raw = max(0, local - (cycleSeconds - blendSeconds)) / blendSeconds
-        let blend = raw * raw * (3 - 2 * raw)   // smoothstep
+        let blend = raw * raw * (3 - 2 * raw)
         return presets[index].blended(towards: presets[next], amount: blend)
     }
 
@@ -251,8 +228,7 @@ final class MilkdropRenderer: NSObject, MTKViewDelegate {
     }
 }
 
-/// Matches the `Uniforms` layout in MilkdropShaders.metal (16 floats then three
-/// 16-byte-aligned float4s).
+/// Layout must match `Uniforms` in MilkdropShaders.metal.
 struct MilkdropUniforms {
     var time: Float
     var bass: Float
@@ -275,8 +251,6 @@ struct MilkdropUniforms {
     var colorC: SIMD4<Float>
 }
 
-/// A named look for the feedback visualizer. Discrete modes (`warpMode`,
-/// `injMode`, `symmetry`) select shader branches; the rest shape the motion.
 struct MilkdropPreset {
     var warpMode: Float
     var injMode: Float
@@ -288,8 +262,6 @@ struct MilkdropPreset {
     var swirl: Float
     var decay: Float
 
-    /// Interpolates the continuous parameters toward `other`; the structural
-    /// modes snap at the halfway point so branches don't blend into mush.
     func blended(towards other: MilkdropPreset, amount t: Float) -> MilkdropPreset {
         func lerp(_ a: Float, _ b: Float) -> Float { a + (b - a) * t }
         let past = t > 0.5
@@ -310,21 +282,15 @@ struct MilkdropPreset {
         warpMode: 0, injMode: 0, symmetry: 0, rotSpeed: 0.008,
         zoomBase: -0.008, warpAmp: 0.010, warpFreq: 7, swirl: 0, decay: 0.90)
 
-    /// The rotation set the visualizer cycles through.
     static let all: [MilkdropPreset] = [
-        // Spiral bloom.
         MilkdropPreset(warpMode: 1, injMode: 0, symmetry: 0, rotSpeed: 0.008,
                        zoomBase: -0.010, warpAmp: 0.010, warpFreq: 7, swirl: 0.5, decay: 0.905),
-        // Six-fold kaleidoscope of the spectrum.
         MilkdropPreset(warpMode: 0, injMode: 2, symmetry: 6, rotSpeed: 0.006,
                        zoomBase: -0.006, warpAmp: 0.014, warpFreq: 9, swirl: 0, decay: 0.895),
-        // Slow liquid flow with spiral arms.
         MilkdropPreset(warpMode: 2, injMode: 1, symmetry: 0, rotSpeed: 0.004,
                        zoomBase: -0.004, warpAmp: 0.024, warpFreq: 5, swirl: 0.2, decay: 0.915),
-        // Pinch pulse, nested rings, zooming inward.
         MilkdropPreset(warpMode: 3, injMode: 3, symmetry: 0, rotSpeed: 0.010,
                        zoomBase: 0.005, warpAmp: 0.012, warpFreq: 6, swirl: 0, decay: 0.90),
-        // Counter-rotating four-fold spiral.
         MilkdropPreset(warpMode: 1, injMode: 1, symmetry: 4, rotSpeed: -0.012,
                        zoomBase: -0.008, warpAmp: 0.012, warpFreq: 8, swirl: 0.6, decay: 0.90),
     ]

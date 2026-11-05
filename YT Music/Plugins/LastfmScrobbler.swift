@@ -2,18 +2,6 @@
 //  LastfmScrobbler.swift
 //  YT Music
 //
-//  The Last.fm scrobbling service behind `LastfmPlugin`. Split into:
-//
-//   • Pure, `nonisolated`, unit-tested pieces — the API signature (md5 of the
-//     sorted params + shared secret), the scrobble-eligibility rule, and a
-//     `ScrobbleTracker` state machine that turns the discrete PlaybackSnapshot
-//     stream into `updateNowPlaying`/`scrobble` actions.
-//   • `LastfmClient` — the network/auth/Keychain layer (the untested realtime
-//     part, like DiscordRPC's socket glue).
-//
-//  Last.fm API reference: https://www.last.fm/api . Scrobbling needs a registered
-//  API account (key + shared secret); the desktop auth flow is getToken → user
-//  authorizes in the browser → getSession returns a permanent session key.
 //
 
 import Foundation
@@ -22,8 +10,7 @@ import CryptoKit
 
 // MARK: - Models
 
-/// A track being considered for scrobbling. `startedAt` is the unix timestamp the
-/// track began playing — Last.fm uses it as the scrobble time.
+/// `startedAt` is the unix timestamp Last.fm uses as the scrobble time.
 nonisolated struct ScrobbleTrack: Equatable, Sendable {
     var title: String
     var artist: String
@@ -32,14 +19,11 @@ nonisolated struct ScrobbleTrack: Equatable, Sendable {
     var startedAt: Int
 }
 
-/// The actions the tracker asks the client to perform.
 nonisolated enum ScrobbleAction: Equatable, Sendable {
     case nowPlaying(ScrobbleTrack)
     case scrobble(ScrobbleTrack)
 }
 
-/// A connected Last.fm account: the username (for display) and the permanent
-/// session key used to sign authenticated calls.
 nonisolated struct LastfmSession: Codable, Equatable, Sendable {
     var username: String
     var key: String
@@ -48,8 +32,7 @@ nonisolated struct LastfmSession: Codable, Equatable, Sendable {
 // MARK: - Signature & eligibility (pure, tested)
 
 nonisolated enum LastfmSignature {
-    /// Last.fm's `api_sig`: sort params by name, concatenate `name+value` for each
-    /// (excluding `format`/`callback`), append the shared secret, md5-hex it.
+    /// `api_sig`: sorted `name+value` pairs (minus `format`/`callback`) + secret, md5-hex.
     static func sign(_ params: [String: String], secret: String) -> String {
         let joined = params
             .filter { $0.key != "format" && $0.key != "callback" }
@@ -61,8 +44,7 @@ nonisolated enum LastfmSignature {
     }
 }
 
-/// Last.fm's scrobble rule: the track must be longer than 30 seconds and have
-/// been played for at least half its length, or 4 minutes, whichever is shorter.
+/// Scrobble rule: longer than 30s, played half its length or 4 minutes, whichever is shorter.
 nonisolated func lastfmScrobbleEligible(playedSeconds: Double, duration: Double) -> Bool {
     guard duration > 30 else { return false }
     return playedSeconds >= min(duration / 2, 240)
@@ -70,11 +52,7 @@ nonisolated func lastfmScrobbleEligible(playedSeconds: Double, duration: Double)
 
 // MARK: - Tracker (pure state machine, tested)
 
-/// Turns the app's discrete `PlaybackSnapshot` stream (which fires on track and
-/// play/pause changes, not on a timer) into Last.fm actions. It accumulates
-/// played time from wall-clock deltas between snapshots, sends `nowPlaying` when
-/// a track starts, and `scrobble` once a track has been played enough — finalized
-/// on track change / stop, or mid-track when a pause makes it eligible.
+/// Turns snapshots into Last.fm actions, accumulating played time from wall-clock deltas.
 nonisolated struct ScrobbleTracker {
     private struct Current {
         var videoId: String
@@ -86,7 +64,6 @@ nonisolated struct ScrobbleTracker {
 
     private var current: Current?
 
-    /// Feeds one snapshot (nil = playback stopped) and returns the actions to run.
     mutating func update(_ snapshot: PlaybackSnapshot?, now: Date) -> [ScrobbleAction] {
         guard let snapshot else {
             let actions = finalize(now: now)
@@ -97,7 +74,6 @@ nonisolated struct ScrobbleTracker {
         var actions: [ScrobbleAction] = []
 
         if current?.videoId != snapshot.videoId {
-            // New track: finalize the previous one, then start tracking this one.
             actions += finalize(now: now)
             let track = ScrobbleTrack(
                 title: snapshot.title,
@@ -117,7 +93,6 @@ nonisolated struct ScrobbleTracker {
             return actions
         }
 
-        // Same track: settle a play/pause transition and re-check eligibility.
         guard var c = current else { return actions }
         if let since = c.playingSince {
             c.accumulated += max(0, now.timeIntervalSince(since))
@@ -132,7 +107,6 @@ nonisolated struct ScrobbleTracker {
         return actions
     }
 
-    /// Settles the in-flight track's played time and scrobbles it if it qualifies.
     private mutating func finalize(now: Date) -> [ScrobbleAction] {
         guard var c = current else { return [] }
         if let since = c.playingSince {
@@ -151,22 +125,14 @@ nonisolated struct ScrobbleTracker {
 
 // MARK: - Network / auth client
 
-/// Talks to the Last.fm API: signs requests, runs the desktop auth handshake, and
-/// fires `updateNowPlaying` / `scrobble`. The whole account (the user's own API key +
-/// shared secret plus the resulting session key) is persisted in the Keychain.
-/// Off the main actor so the plugin can fire-and-forget into it.
-///
-/// Auth is Last.fm's desktop flow: `auth.getToken` → the user approves the token in
-/// the browser (typing their password on last.fm, never in this app) →
-/// `auth.getSession` returns a permanent session key. Scrobbling is a write, so the
-/// API key + shared secret + session key are all required; a username can't do it.
+/// Last.fm API client: signing, desktop auth, scrobbling; the account is persisted in the Keychain.
+/// Scrobbling is a write: API key, shared secret and session key are all required.
 actor LastfmClient {
     private static let log = Logger(category: "lastfm")
     private static let endpoint = URL(string: "https://ws.audioscrobbler.com/2.0/")!
     private static let keychainService = "moe.tenshii.YT-Music"
     private static let keychainAccount = "lastfm-account"
 
-    /// Everything needed to sign authenticated calls, persisted together.
     nonisolated struct StoredAccount: Codable, Equatable, Sendable {
         var apiKey: String
         var secret: String
@@ -175,7 +141,7 @@ actor LastfmClient {
 
     private let session: URLSession
     private var account: StoredAccount?
-    /// API key + secret captured at `requestToken`, reused by `completeAuthorization`.
+    /// Captured at `requestToken`, reused by `completeAuthorization`.
     private var pending: (apiKey: String, secret: String)?
 
     init(session: URLSession? = nil) {
@@ -185,8 +151,6 @@ actor LastfmClient {
 
     // MARK: Auth
 
-    /// Step 1: fetch an unauthorized request token to send the user to the browser.
-    /// Remembers the API account so `completeAuthorization` can finish the exchange.
     func requestToken(apiKey: String, secret: String) async throws -> String {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let sec = secret.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -197,7 +161,6 @@ actor LastfmClient {
         return token
     }
 
-    /// The URL the user opens to authorize `token` against this API account.
     nonisolated func authorizationURL(apiKey: String, token: String) -> URL? {
         var components = URLComponents(string: "https://www.last.fm/api/auth/")
         components?.queryItems = [
@@ -207,8 +170,6 @@ actor LastfmClient {
         return components?.url
     }
 
-    /// Step 2 (after the user approves in the browser): exchange the token for a
-    /// session key and persist the whole account.
     func completeAuthorization(token: String) async throws -> LastfmSession {
         guard let pending else { throw LastfmError.notConfigured }
         let response = try await call(["method": "auth.getSession", "token": token],
@@ -217,8 +178,7 @@ actor LastfmClient {
             Self.log.problem("Last.fm getSession missing `session`: \(response)")
             throw LastfmError.malformedResponse
         }
-        // Last.fm's JSON sometimes wraps text values as {"#text": "…"}, so pull the
-        // strings out tolerantly rather than casting straight to String.
+        // Last.fm sometimes wraps text values as {"#text": "…"}.
         guard let sk = Self.string(session["key"]), !sk.isEmpty,
               let name = Self.string(session["name"]), !name.isEmpty else {
             Self.log.problem("Last.fm getSession unexpected shape: \(session)")
@@ -232,8 +192,6 @@ actor LastfmClient {
         return account.session
     }
 
-    /// Extracts a string from a Last.fm JSON value, unwrapping the `{"#text": …}`
-    /// form Last.fm uses for some fields.
     private static func string(_ value: Any?) -> String? {
         if let s = value as? String { return s }
         if let dict = value as? [String: Any], let s = dict["#text"] as? String { return s }
@@ -276,8 +234,6 @@ actor LastfmClient {
 
     // MARK: Request plumbing
 
-    /// Signs and POSTs a form-encoded API call, returning the decoded JSON object.
-    /// Throws `LastfmError.api` on a Last.fm error payload.
     @discardableResult
     private func call(_ params: [String: String], apiKey: String, secret: String) async throws -> [String: Any] {
         var fields = params
@@ -315,7 +271,6 @@ actor LastfmClient {
 
     // MARK: Keychain
 
-    /// The persisted session (username + key) for UI display, if connected.
     static func loadSession() -> LastfmSession? { loadAccount()?.session }
 
     private static func loadAccount() -> StoredAccount? {

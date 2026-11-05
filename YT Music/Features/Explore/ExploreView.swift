@@ -2,8 +2,8 @@
 //  ExploreView.swift
 //  YT Music
 //
-//  The Explore tab: YouTube Music's `FEmusic_explore` landing — new releases,
-//  charts, and trending — as a vertical stack of horizontal shelves. Mirrors
+//  The Explore tab: YouTube Music's `FEmusic_explore` landing: new releases,
+//  charts, and trending, as a vertical stack of horizontal shelves. Mirrors
 //  Home, and works signed out. Its stack binds to the Navigator's `explorePath`.
 //
 

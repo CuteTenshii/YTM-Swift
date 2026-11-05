@@ -2,7 +2,6 @@
 //  NotificationsPlugin.swift
 //  YT Music
 //
-//  Posts a system notification on each track change while enabled.
 //
 
 import Foundation

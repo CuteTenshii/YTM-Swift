@@ -2,33 +2,21 @@
 //  LyricsRendering.swift
 //  YT Music
 //
-//  Shared lyrics rendering used by both the compact side-panel and the
-//  immersive full-window view. Synced lyrics get an Apple Music–style
-//  treatment: the active line is bright and slightly enlarged, neighbours fade
-//  and blur by distance, the view spring-scrolls to keep the active line in
-//  place, long instrumental gaps show a countdown of dots, and tapping a line
-//  seeks to it.
+//  Shared synced-lyrics rendering for the side panel and the immersive view.
 //
 
 import SwiftUI
 
-/// Visual tuning for the synced-lyrics scroller — differs between the narrow
-/// inspector and the full-window immersive view.
 struct LyricsStyle {
     var font: Font
     var activeColor: Color
     var inactiveColor: Color
     var lineSpacing: CGFloat
     var padding: EdgeInsets
-    /// Maximum blur applied to the farthest inactive lines (0 disables it).
     var maxBlur: CGFloat
-    /// Where the active line settles vertically as the view auto-scrolls.
     var scrollAnchor: UnitPoint
-    /// How much the active line grows relative to the rest.
     var activeScale: CGFloat
 
-    /// Compact styling for the side inspector: no blur (too busy when narrow),
-    /// active line centered.
     static let panel = LyricsStyle(
         font: .title3.weight(.semibold),
         activeColor: .primary,
@@ -40,8 +28,6 @@ struct LyricsStyle {
         activeScale: 1.0
     )
 
-    /// Big, high-contrast styling for the immersive view over blurred artwork,
-    /// with the active line held ~40% down the screen (as Apple Music does).
     static let immersive = LyricsStyle(
         font: .system(size: 30, weight: .bold, design: .rounded),
         activeColor: .white,
@@ -54,14 +40,12 @@ struct LyricsStyle {
     )
 }
 
-/// Auto-scrolling, highlight-following view for time-synced lyrics.
 struct SyncedLyricsScroller: View {
     let player: PlayerState
     let lines: [LyricLine]
     var source: String?
     var style: LyricsStyle
 
-    /// Recomputed on every playback tick (`player.currentTime` is observable).
     private var focus: LyricsFocus { LyricsFocus.resolve(lines, at: player.currentTime) }
 
     var body: some View {
@@ -92,8 +76,6 @@ struct SyncedLyricsScroller: View {
                     }
                 }
                 .padding(style.padding)
-                // Fade the interlude dots in/out without disturbing the
-                // per-line highlight animations.
                 .animation(.easeInOut(duration: 0.3), value: interludeShown)
             }
             .onAppear { scroll(proxy, animated: false) }
@@ -101,12 +83,10 @@ struct SyncedLyricsScroller: View {
         }
     }
 
-    /// Whether an interlude is currently shown (keys the fade animation).
     private var interludeShown: Bool {
         if case .interlude = focus { true } else { false }
     }
 
-    /// The `.id` to keep in view — the active line, or the interlude dots.
     private var scrollTarget: String? {
         switch focus {
         case .line(let i):            "line-\(lines[i].id)"
@@ -131,7 +111,6 @@ struct SyncedLyricsScroller: View {
         case .line(let active):
             .init(isActive: index == active, distance: abs(index - active))
         case .interlude(let before, _):
-            // Nothing is being sung; fade by distance to the upcoming line.
             .init(isActive: false, distance: abs(index - before) + 1)
         case .none:
             .init(isActive: false, distance: index + 1)
@@ -139,18 +118,13 @@ struct SyncedLyricsScroller: View {
     }
 }
 
-/// One line of synced lyrics: bright and enlarged when active, otherwise faded
-/// and blurred by its distance from the active line. When the active line has
-/// word-level timings (Musixmatch richsync), its words light up in sequence.
 struct LyricLineRow: View {
     struct Appearance: Equatable {
         var isActive: Bool
-        /// Number of lines away from the active/upcoming line.
         var distance: Int
     }
 
     let line: LyricLine
-    /// Current playback time, for the word-by-word sweep on the active line.
     let now: Double
     let appearance: Appearance
     let style: LyricsStyle
@@ -162,16 +136,12 @@ struct LyricLineRow: View {
             .blur(radius: appearance.isActive ? 0 : blur)
             .scaleEffect(appearance.isActive ? style.activeScale : 1, anchor: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Animate every visual property together as the active line moves,
-            // so neighbours ease their fade/blur/scale instead of snapping.
             .animation(.spring(response: 0.45, dampingFraction: 0.9), value: appearance)
     }
 
     @ViewBuilder
     private var content: some View {
         if appearance.isActive, !line.words.isEmpty {
-            // Word-by-word: each word eases to full colour as it's reached,
-            // wrapping naturally across lines.
             FlowLayout {
                 ForEach(Array(line.words.enumerated()), id: \.offset) { _, word in
                     Text(word.text)
@@ -182,7 +152,6 @@ struct LyricLineRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            // A blank timed line still needs height, so render a space.
             Text(line.text.isEmpty ? " " : line.text)
                 .foregroundStyle(appearance.isActive ? style.activeColor : style.inactiveColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -198,8 +167,6 @@ struct LyricLineRow: View {
     }
 }
 
-/// Three dots that fill left-to-right over an instrumental interlude, counting
-/// down to the next sung line.
 struct InterludeIndicator: View {
     let progress: Double
     var color: Color = .primary
@@ -218,13 +185,11 @@ struct InterludeIndicator: View {
         .animation(.easeInOut(duration: 0.25), value: progress)
     }
 
-    /// How full dot `i` is (0…1): the dots fill in sequence as progress runs.
     private func fill(_ i: Int) -> Double {
         min(max(progress * 3 - Double(i), 0), 1)
     }
 }
 
-/// Plain (untimed) lyrics: a selectable block with its source footer.
 struct PlainLyricsView: View {
     let lyrics: Lyrics
     var foreground: Color = .primary
@@ -255,8 +220,6 @@ struct PlainLyricsView: View {
     }
 }
 
-/// A minimal left-to-right wrapping layout, used to lay out per-word Text views
-/// for the karaoke sweep (words already carry their own trailing spaces).
 struct FlowLayout: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .greatestFiniteMagnitude

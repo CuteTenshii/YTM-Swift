@@ -2,14 +2,11 @@
 //  NowPlayingPanel.swift
 //  YT Music
 //
-//  The right-hand inspector beside the main content: a segmented switch between
-//  the play queue (reorderable, tap to jump, swipe/right-click to remove), the
-//  current track's lyrics, and its comments. Toggled from the now-playing bar.
+//  Right-hand inspector: queue, lyrics, related, and comments.
 //
 
 import SwiftUI
 
-/// Which page the now-playing inspector is showing.
 enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
     case queue = "Queue"
     case lyrics = "Lyrics"
@@ -32,19 +29,11 @@ enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
 struct NowPlayingPanelView: View {
     let player: PlayerState
     @Binding var tab: NowPlayingPanelTab
-    /// Opens an artist/album page (the panel lives outside the nav stack).
     let navigate: (EntityDestination) -> Void
-    /// Shared comments loader (owned by the app shell). Loaded here so the
-    /// Comments tab can be hidden when the track has no comments.
     let comments: CommentsViewModel
 
-    /// Tabs whose content view has been built at least once. Kept mounted (just
-    /// hidden) afterwards so switching away and back doesn't tear down and
-    /// reload each tab's state — it's only built lazily, on first visit.
     @State private var visitedTabs: Set<NowPlayingPanelTab> = []
 
-    /// The tabs offered right now — Comments is dropped when the current track
-    /// has no comments.
     private var availableTabs: [NowPlayingPanelTab] {
         NowPlayingPanelTab.allCases.filter { candidate in
             switch candidate {
@@ -83,14 +72,9 @@ struct NowPlayingPanelView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .inspectorColumnWidth(min: 280, ideal: 320, max: 440)
         .task(id: tab) { visitedTabs.insert(tab) }
-        // Probe comments whenever the track changes so the tab reflects whether
-        // the new track has any (the panel is only built while the inspector is
-        // open, so this doesn't fire for users who never open it).
         .task(id: player.nowPlaying?.videoId) {
             await comments.load(videoId: player.nowPlaying?.videoId)
         }
-        // If the playing track loses comments while that tab is selected, fall
-        // back to the queue (the segment is about to disappear).
         .onChange(of: comments.isUnavailable) { _, unavailable in
             if unavailable, tab == .comments { tab = .queue }
         }
@@ -167,7 +151,7 @@ private struct QueueListView: View {
                 }
                 .onMove { player.moveInQueue(fromOffsets: $0, toOffset: $1) }
                 .onDelete { offsets in
-                    // Remove high-to-low so earlier removals don't shift the rest.
+                    // High to low so earlier removals don't shift the rest.
                     for index in offsets.sorted(by: >) { player.removeFromQueue(at: index) }
                 }
             }
@@ -270,7 +254,6 @@ private struct LyricsView: View {
                 }
             }
         }
-        // Reload whenever the playing track or the chosen provider changes.
         .task(id: taskKey) { await model.load(query: query, provider: settings.lyricsProvider) }
     }
 
@@ -280,18 +263,11 @@ private struct LyricsView: View {
                            album: album, duration: duration)
     }
 
-    /// Keyed on the track and provider only — not the duration — so a duration
-    /// arriving mid-load doesn't retrigger the fetch.
     private var taskKey: String { "\(videoId ?? "")|\(settings.lyricsProvider.rawValue)" }
 }
 
 // MARK: - Related
 
-/// The current track's related music: shelves of similar songs, artists, and
-/// recommended playlists (YT Music's "Related" tab), preceded by an on-device
-/// "About this song" insight card when Apple Intelligence is available. Because
-/// the inspector lives outside the nav stack, cards navigate via the `navigate`
-/// closure rather than a `NavigationLink`, and play songs directly.
 private struct RelatedView: View {
     let videoId: String?
     let title: String
@@ -299,7 +275,6 @@ private struct RelatedView: View {
     let album: String
     let duration: Double?
     let player: PlayerState
-    /// Opens an artist/album/playlist page (the panel lives outside the nav stack).
     let navigate: (EntityDestination) -> Void
     @State private var model = RelatedViewModel()
     @State private var insight = SongInsightViewModel()
@@ -318,7 +293,6 @@ private struct RelatedView: View {
         .task(id: videoId) { await insight.load(query: insightQuery) }
     }
 
-    /// The related shelves, or an inline status while they load / when absent.
     @ViewBuilder
     private var shelves: some View {
         switch model.state {
@@ -359,15 +333,12 @@ private struct RelatedView: View {
         }
     }
 
-    /// The lyrics query the insight is generated from (nil when nothing plays).
     private var insightQuery: LyricsQuery? {
         guard let videoId else { return nil }
         return LyricsQuery(videoId: videoId, title: title, artist: artist,
                            album: album, duration: duration)
     }
 
-    /// A browsable item (album/playlist/artist) opens its page; a song/video
-    /// plays. Items that are neither do nothing.
     private func select(_ item: ShelfItem) {
         if let destination = item.entityDestination {
             navigate(destination)
@@ -384,9 +355,6 @@ private struct RelatedView: View {
     }
 }
 
-/// An on-device "About this song" card. Shows a spinner while generating, the
-/// insight when ready, and nothing at all when there are no lyrics to work from
-/// or generation fails — an auxiliary feature shouldn't clutter the tab.
 private struct SongInsightCard: View {
     let model: SongInsightViewModel
 
@@ -438,7 +406,7 @@ private struct SongInsightCard: View {
                         }
                     }
 
-                    Text("Generated on your Mac from the lyrics — may be imperfect.")
+                    Text("Generated on your Mac from the lyrics, so it may be imperfect.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -446,7 +414,6 @@ private struct SongInsightCard: View {
         }
     }
 
-    /// The card chrome: a titled, softly-filled rounded box.
     @ViewBuilder
     private func shell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -462,8 +429,6 @@ private struct SongInsightCard: View {
     }
 }
 
-/// One related shelf: its title, then its items as a wrapping card grid (like
-/// YT Music's Related tab). The grid adapts its column count to the panel width.
 private struct RelatedShelfView: View {
     let shelf: Shelf
     let onSelect: (ShelfItem) -> Void
@@ -489,7 +454,6 @@ private struct RelatedShelfView: View {
         }
     }
 
-    /// Pages of stacked rows, each nearly the panel's width so the next peeks in.
     private func rowGrid(rowsPerColumn: Int) -> some View {
         let columns = stride(from: 0, to: shelf.items.count, by: rowsPerColumn).map {
             Array(shelf.items[$0..<min($0 + rowsPerColumn, shelf.items.count)])
@@ -512,7 +476,6 @@ private struct RelatedShelfView: View {
     }
 }
 
-/// A compact related row: artwork beside its title and subtitle.
 private struct RelatedRow: View {
     let item: ShelfItem
     let onSelect: () -> Void
@@ -564,9 +527,6 @@ private struct RelatedRow: View {
     }
 }
 
-/// A single related item card: artwork above its title and subtitle. Mirrors
-/// Home's `ItemCard` layout, but taps run the panel's select closure (play or
-/// navigate) instead of a `NavigationLink`, which is inert outside the nav stack.
 private struct RelatedCard: View {
     let item: ShelfItem
     let onSelect: () -> Void
@@ -618,15 +578,9 @@ private struct RelatedCard: View {
 
 private struct CommentsView: View {
     let videoId: String?
-    /// Shared loader, driven by the panel (so the tab's availability is known
-    /// before this view is shown). This view only renders its state.
     let model: CommentsViewModel
 
-    /// The reply thread being viewed, if any. Driven by local state rather than a
-    /// `NavigationStack`: the inspector already lives in a window whose toolbar
-    /// hosts the detail column's navigation back button, and a second
-    /// `NavigationStack` here would try to register a duplicate
-    /// `com.apple.SwiftUI.navigationStack.back` item and crash AppKit's toolbar.
+    /// Local state, not a NavigationStack: a second one registers a duplicate toolbar back item and crashes AppKit.
     @State private var thread: Comment?
 
     var body: some View {
@@ -683,10 +637,8 @@ private struct CommentsView: View {
     }
 }
 
-/// A row in the top-level list: the comment, plus a link into its replies.
 private struct CommentRow: View {
     let comment: Comment
-    /// Opens this comment's reply thread.
     let onOpenThread: () -> Void
 
     var body: some View {
@@ -716,12 +668,9 @@ private struct CommentRow: View {
     }
 }
 
-/// The replies sub-view: the parent comment pinned on top, then its (paginated)
-/// replies.
 private struct CommentThreadView: View {
     let comment: Comment
     let model: CommentsViewModel
-    /// Returns to the top-level comments list.
     let onBack: () -> Void
 
     @State private var replies: [Comment] = []
@@ -731,8 +680,6 @@ private struct CommentThreadView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Self-contained back control: this view is presented via local
-            // state (not a NavigationStack), so it owns its own way back.
             HStack(spacing: 4) {
                 Button(action: onBack) {
                     Label("Comments", systemImage: "chevron.left")
@@ -795,9 +742,6 @@ private struct CommentThreadView: View {
     }
 }
 
-/// A spinner that runs `load` when it scrolls into view — the infinite-scroll
-/// trigger. `onAppear` fires once per appearance (re-firing when scrolled back
-/// to), so the loader only needs to guard against overlapping calls.
 private struct LoadMoreFooter: View {
     let load: () async -> Void
 
@@ -810,8 +754,6 @@ private struct LoadMoreFooter: View {
     }
 }
 
-/// One comment's avatar, author line, body, and like/reply counts. Shared by
-/// top-level rows and (indented) replies.
 private struct CommentContentView: View {
     let comment: Comment
 

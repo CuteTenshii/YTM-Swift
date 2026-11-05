@@ -2,38 +2,7 @@
 //  SignatureDecipher.swift
 //  YT Music
 //
-//  YouTube protects stream URLs two ways, both implemented in the player's
-//  `base.js`:
-//    1. `signatureCipher` — a scrambled signature that must be transformed by a
-//       JS function and appended to the URL.
-//    2. The `n` query parameter — a throttling token that must be transformed by
-//       another function, or googlevideo returns 403 (it's now mandatory, not
-//       just a throttle).
-//
-//  Modern players (e.g. 5b27766f, 2026) no longer expose a standalone `n`
-//  function: both transforms live as methods on the player's own URL class,
-//  buried inside the module IIFE's `g` namespace. Rather than extract individual
-//  functions (the old, now-broken approach), we run YouTube's *own* base.js
-//  inside JavaScriptCore — with browser globals stubbed — and drive the player's
-//  signing code directly. This mirrors yt-dlp's `ejs` challenge solver.
-//
-//  How it works (see `installSolver`):
-//    • Stub the browser globals base.js expects (console/timers/XMLHttpRequest/
-//      location/document/navigator/self/window) — JSCore is bare ECMAScript.
-//    • Find the URL-signing function(s) structurally: a function that builds the
-//      player URL contains the fingerprint `.set("alr","yes")`. There can be
-//      decoys, so we collect all candidates.
-//    • Inject, *inside* the IIFE (where the signer + `g` are in scope), a small
-//      solver that — given a candidate — builds the URL via the signer, sets `n`,
-//      invokes the one URL-class prototype method that isn't get/set/clone, and
-//      reads back the transformed `s` and `n`.
-//    • Probe each candidate once; keep the one that actually transforms its input.
-//
-//  ⚠️ FRAGILE: the `.set("alr","yes")` fingerprint and the IIFE shape can change
-//  when YouTube ships a new player. yt-dlp's `youtube` extractor / its bundled
-//  `ejs` solver is the reference. On failure the real base.js is dumped (see
-//  `yt-base.js` in Caches) so the fingerprint can be re-derived.
-//
+//  FRAGILE: relies on the `.set("alr","yes")` fingerprint and the IIFE shape; yt-dlp's ejs solver is the reference.
 
 import Foundation
 import OSLog
@@ -61,9 +30,6 @@ actor SignatureDecipher {
     private static let log = Logger(category: "playback")
     static let shared = SignatureDecipher()
 
-    /// A prepared player: the JSContext with base.js evaluated and the injected
-    /// `__ytSolveWith(index, sig, n)` solver, plus the index of the candidate
-    /// signer function that probed successfully (`nil` → couldn't solve).
     private struct Solver {
         let context: JSContext
         let signatureTimestamp: String?
@@ -78,31 +44,27 @@ actor SignatureDecipher {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
         + "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 
-    // Tail of the player module — `var _yt_player={};(function(g){…})(_yt_player)`.
-    // We inject the solver immediately before this so it closes over `g`/`window`.
+    // Tail of the player module; the solver is injected before it to close over `g`/`window`.
     private static let iifeClose = "})(_yt_player)"
 
-    // A probe input: must come back transformed (non-empty and changed) for a
-    // candidate signer to be accepted.
+    // Probe input; must come back changed and non-empty.
     private static let probeSample = "1234567890abcdefAB"
 
     // MARK: - Public API
 
-    /// The `signatureTimestamp` to send with the `player` request.
     func signatureTimestamp() async throws -> String? {
         try await solver().signatureTimestamp
     }
 
-    /// Resolves a final, playable URL for a format, deciphering as needed.
     func streamURL(for format: PlayerResponse.Format) async throws -> URL {
         let solver = try await solver()
 
         if let cipher = format.cipherString {
-            Self.log.note("format has signatureCipher — deciphering")
+            Self.log.note("format has signatureCipher - deciphering")
             return try decipheredURL(cipher: cipher, solver: solver)
         }
         if let urlString = format.url, var components = URLComponents(string: urlString) {
-            Self.log.note("format has a direct url — applying n transform only")
+            Self.log.note("format has a direct url - applying n transform only")
             applyNTransform(to: &components, solver: solver)
             guard let url = components.url else { throw DecipherError.malformedStreamURL }
             return url
@@ -123,8 +85,6 @@ actor SignatureDecipher {
         return solver
     }
 
-    /// Builds a solver from base.js source — the pure (network-free) core, so it
-    /// can be exercised in tests against a synthetic player.
     private nonisolated func buildSolver(fromBaseJS js: String) -> Solver {
         let signatureTimestamp = firstMatch(
             in: js,
@@ -155,8 +115,6 @@ actor SignatureDecipher {
         )
     }
 
-    /// Injects the solver into the evaluated player and returns the index of the
-    /// candidate signer that probes successfully, or nil if none does.
     private nonisolated func installSolver(_ js: String, into context: JSContext) -> Int? {
         let candidates = signerCandidates(in: js)
         Self.log.note("solver: signer candidates \(candidates)")
@@ -168,14 +126,13 @@ actor SignatureDecipher {
                 with: solverInjection(candidates: candidates) + Self.iifeClose
             )
         } else {
-            // Not a recognizable player module; eval as-is (timestamp may still
-            // be present) but there's nowhere to inject a solver.
+            // Not a recognizable player module; nowhere to inject a solver.
             script = js
         }
         context.evaluateScript(script)
 
         if let err = context.objectForKeyedSubscript("__ytSolveErr"), !err.isUndefined {
-            Self.log.problem("solver: injection error — \(err.toString() ?? "?")")
+            Self.log.problem("solver: injection error - \(err.toString() ?? "?")")
         }
         guard let solveWith = context.objectForKeyedSubscript("__ytSolveWith"),
               !solveWith.isUndefined else {
@@ -197,9 +154,7 @@ actor SignatureDecipher {
         return nil
     }
 
-    /// Names of functions that build the player URL: structurally, a function
-    /// whose body sets the `alr=yes` query flag. There can be decoys with the
-    /// same flag, so all are returned and probed by the caller.
+    /// Decoys may share the `alr=yes` flag, so all candidates are returned and probed.
     private nonisolated func signerCandidates(in js: String) -> [String] {
         let patterns = [
             #"([\w$]+)\s*=\s*function\([^)]*\)\s*\{[^{}]*?\.set\(\s*"alr"\s*,\s*"yes"\s*\)"#,
@@ -214,9 +169,7 @@ actor SignatureDecipher {
         return result
     }
 
-    /// The JS injected inside the player IIFE: the candidate signers (in scope by
-    /// name) as an array, plus `__ytSolveWith(index, sig, n)` which drives the
-    /// player's own URL class to transform `s`/`n`. Mirrors yt-dlp's ejs solver.
+    /// Injected inside the IIFE: sig and `n` transforms only exist as methods on the player's URL class.
     private nonisolated func solverInjection(candidates: [String]) -> String {
         """
         ;try{
@@ -240,8 +193,6 @@ actor SignatureDecipher {
 
     // MARK: - Solving
 
-    /// Runs the injected solver. Returns the deciphered signature (when `sig` is a
-    /// scrambled cipher) and/or the transformed `n`. Either may be nil.
     private nonisolated func solve(
         sig: String?,
         n: String?,
@@ -300,8 +251,8 @@ actor SignatureDecipher {
         return url
     }
 
-    /// Replaces the `n` throttling parameter in place. Best-effort: if the solver
-    /// is unavailable the URL is left untouched (may 403 / throttle).
+    /// Best-effort: leaves the URL untouched if the solver is unavailable.
+    /// `n` is mandatory: googlevideo returns 403 without the transformed value.
     private nonisolated func applyNTransform(to components: inout URLComponents, solver: Solver) {
         guard solver.canSolve,
               var query = components.queryItems,
@@ -345,9 +296,7 @@ actor SignatureDecipher {
 
     // MARK: - Browser stubs
 
-    /// JavaScriptCore is bare ECMAScript; base.js references browser globals at
-    /// load time. Stub the ones it touches (no DOM behaviour needed — the signing
-    /// code only manipulates URL strings).
+    /// JavaScriptCore is bare ECMAScript; stub the browser globals base.js touches at load.
     private static let setupScript = """
     var globalThis=(function(){return this})();
     if(typeof globalThis.console==='undefined')globalThis.console={
@@ -373,12 +322,10 @@ actor SignatureDecipher {
 
     // MARK: - Testing seams (network-free)
 
-    /// Deciphers a `signatureCipher` string using a caller-provided base.js.
     nonisolated func decipheredURL(cipher: String, baseJS: String) throws -> URL {
         try decipheredURL(cipher: cipher, solver: buildSolver(fromBaseJS: baseJS))
     }
 
-    /// Applies the `n` transform to a direct URL using a caller-provided base.js.
     nonisolated func nTransformedURL(_ urlString: String, baseJS: String) throws -> URL {
         guard var components = URLComponents(string: urlString) else {
             throw DecipherError.malformedStreamURL
@@ -388,7 +335,6 @@ actor SignatureDecipher {
         return url
     }
 
-    /// Extracts the `signatureTimestamp` from a caller-provided base.js.
     nonisolated func signatureTimestamp(fromBaseJS js: String) -> String? {
         firstMatch(in: js, pattern: #"signatureTimestamp[=:](\d+)"#, group: 1)
     }

@@ -2,11 +2,6 @@
 //  HomeFeedParserTests.swift
 //  YT MusicTests
 //
-//  Verifies parsing of the two-row song/video cards used by home & feed shelves
-//  (no network): the channel byline that drives "Go to artist", and the like
-//  state, which these cards carry in a menu *toggle* rather than a top-level
-//  like button.
-//
 
 import Testing
 import Foundation
@@ -108,7 +103,7 @@ struct HomeFeedParserTests {
 
     @Test("A liked two-row card reads .liked from its like toggle")
     func likedToggleReadsLiked() throws {
-        // The default (tap) action would set INDIFFERENT — so it's currently liked.
+        // The default (tap) action would set INDIFFERENT, so it's currently liked.
         let home = try card("""
         {"musicTwoRowItemRenderer":{
           "title":{"runs":[{"text":"S"}]},
@@ -123,7 +118,7 @@ struct HomeFeedParserTests {
 
     @Test("A not-liked two-row card reads .indifferent from its like toggle")
     func notLikedToggleReadsIndifferent() throws {
-        // The default (tap) action would set LIKE — so it's currently not liked.
+        // The default (tap) action would set LIKE, so it's currently not liked.
         let home = try card("""
         {"musicTwoRowItemRenderer":{
           "title":{"runs":[{"text":"S"}]},
@@ -138,7 +133,7 @@ struct HomeFeedParserTests {
 
     @Test("A playlist \"save to library\" toggle is not read as a like")
     func saveToggleIsNotALike() throws {
-        // Same toggle shape, but it targets a playlistId — not a track rating.
+        // Same toggle shape, but it targets a playlistId, not a track rating.
         let home = try card("""
         {"musicTwoRowItemRenderer":{
           "title":{"runs":[{"text":"A Playlist"}]},

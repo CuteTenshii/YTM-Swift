@@ -2,11 +2,6 @@
 //  SettingsView.swift
 //  YT Music
 //
-//  The native macOS settings window (Settings scene, ⌘,): a toolbar tab bar
-//  with General, Playback, Equalizer, Plugins, and Storage tabs. Plugins
-//  render themselves from the PluginHost, so new plugins appear here
-//  automatically without editing this file.
-//
 
 import Sparkle
 import SwiftUI
@@ -35,7 +30,6 @@ struct SettingsView: View {
     }
 }
 
-/// Login item, network proxy, and automatic update checks.
 private struct GeneralSettingsTab: View {
     let updater: SPUUpdater?
     @Environment(AppSettings.self) private var settings
@@ -78,7 +72,6 @@ private struct GeneralSettingsTab: View {
     }
 }
 
-/// Audio quality, crossfade, autoplay, track-click, and lyrics-source preferences.
 private struct PlaybackSettingsTab: View {
     @Environment(AppSettings.self) private var settings
 
@@ -179,12 +172,9 @@ private struct PlaybackSettingsTab: View {
     }
 }
 
-/// The equalizer: enable toggle, preset picker, and a row of vertical gain
-/// sliders (one per band).
 private struct EqualizerSettingsTab: View {
     @Environment(AppSettings.self) private var settings
 
-    /// The preset matching the current gains, or nil → "Custom".
     private var selectedPreset: EqualizerPreset? {
         EqualizerPreset.matching(settings.equalizerGains)
     }
@@ -232,8 +222,7 @@ private struct EqualizerSettingsTab: View {
         .formStyle(.grouped)
     }
 
-    /// Writes a single band's gain without replacing the whole array binding
-    /// (which would otherwise need a full copy on each slider tick).
+    /// Avoids a full array copy per slider tick.
     private func setGain(_ value: Double, at index: Int) {
         var gains = settings.equalizerGains
         guard index < gains.count else { return }
@@ -242,8 +231,6 @@ private struct EqualizerSettingsTab: View {
     }
 }
 
-/// The registry-driven plugins list: one toggle, description, and (when
-/// enabled) configuration UI per plugin.
 private struct PluginsSettingsTab: View {
     @Environment(PluginHost.self) private var pluginHost
 
@@ -259,8 +246,6 @@ private struct PluginsSettingsTab: View {
     }
 }
 
-/// Disk usage of the shared HTTP cache (API responses and artwork) with a
-/// button to clear it along with the in-memory artwork cache.
 private struct StorageSettingsTab: View {
     @State private var cacheBytes = URLCache.shared.currentDiskUsage
 
@@ -287,7 +272,6 @@ private struct StorageSettingsTab: View {
     }
 }
 
-/// One band's vertical gain slider with its frequency label underneath.
 private struct BandSlider: View {
     @Binding var gain: Double
     let label: String
@@ -305,7 +289,6 @@ private struct BandSlider: View {
     }
 }
 
-/// One plugin's toggle, description, and (when enabled) its configuration UI.
 private struct PluginRow: View {
     let plugin: any Plugin
     let host: PluginHost

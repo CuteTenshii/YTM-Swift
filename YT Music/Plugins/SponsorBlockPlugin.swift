@@ -2,9 +2,6 @@
 //  SponsorBlockPlugin.swift
 //  YT Music
 //
-//  Skips community-submitted SponsorBlock segments (non-music sections,
-//  sponsors, intros, ...) in the playing track. The configuration UI picks
-//  which categories are skipped.
 //
 
 import SwiftUI
@@ -98,7 +95,6 @@ final class SponsorBlockPlugin: Plugin {
     var configuration: AnyView? { AnyView(SponsorBlockConfigView(plugin: self)) }
 }
 
-/// Per-category skip toggles shown under the plugin toggle.
 private struct SponsorBlockConfigView: View {
     @Bindable var plugin: SponsorBlockPlugin
 

@@ -2,9 +2,6 @@
 //  DiscordPlugin.swift
 //  YT Music
 //
-//  Mirrors the now-playing track to Discord Rich Presence while enabled. The
-//  configuration UI lets the user pick how the track is laid out across the
-//  presence's two text lines (song/artist, artist/song, …).
 //
 
 import SwiftUI
@@ -19,11 +16,8 @@ final class DiscordPlugin: Plugin {
     private let rpc = DiscordRPC()
     private let defaults: UserDefaults
     private var active = false
-    /// The player to read live state from (e.g. the current track position when
-    /// re-pushing after a config change). Weak so the plugin never retains it.
     private weak var player: PlayerState?
 
-    /// Which field feeds the "Listening to …" status text in the member list.
     var statusDisplay: DiscordStatusDisplay {
         didSet {
             defaults.set(statusDisplay.rawValue, forKey: Self.displayKey)
@@ -31,9 +25,7 @@ final class DiscordPlugin: Plugin {
         }
     }
 
-    /// When enabled, video titles in "Artist - Track" form are split and the
-    /// artist/track taken from the title — the byline's artist on such uploads
-    /// is often just the uploader channel, not the real artist.
+    /// Splits "Artist - Track" video titles; the byline artist is often the uploader.
     var parseTitleAsArtistTrack: Bool {
         didSet {
             defaults.set(parseTitleAsArtistTrack, forKey: Self.parseTitleKey)
@@ -52,8 +44,6 @@ final class DiscordPlugin: Plugin {
     private static let displayKey = "plugins.discord-rpc.display"
     private static let parseTitleKey = "plugins.discord-rpc.parse-title"
 
-    /// Re-sends the current track's presence after a config change, reading the
-    /// live snapshot from the player so the progress bar keeps its real position.
     private func repush() {
         guard active, let snapshot = player?.currentSnapshot else { return }
         rpc.update(snapshot, style: statusDisplay, parseTitle: parseTitleAsArtistTrack)
@@ -80,7 +70,6 @@ final class DiscordPlugin: Plugin {
     var configuration: AnyView? { AnyView(DiscordConfigView(plugin: self)) }
 }
 
-/// Status text picker shown under the toggle.
 private struct DiscordConfigView: View {
     @Bindable var plugin: DiscordPlugin
 
@@ -100,7 +89,7 @@ private struct DiscordConfigView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Toggle("Parse video titles as “Artist — Track”", isOn: $plugin.parseTitleAsArtistTrack)
+            Toggle("Parse video titles as “Artist - Track”", isOn: $plugin.parseTitleAsArtistTrack)
             Text("For uploads whose byline only names the uploader channel, take the artist from the video title instead.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

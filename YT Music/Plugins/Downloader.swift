@@ -2,11 +2,6 @@
 //  Downloader.swift
 //  YT Music
 //
-//  Downloads tracks' resolved audio streams to disk. Resolves each stream
-//  through the same StreamResolver used for playback (so the user's audio
-//  quality preference applies), then streams it to the chosen folder. Handles
-//  both single tracks and whole albums/playlists (a batch saved into a
-//  per-collection subfolder), one track at a time.
 //
 
 import Foundation
@@ -14,7 +9,6 @@ import Foundation
 @MainActor
 @Observable
 final class Downloader {
-    /// Progress of an in-flight batch (a single track is a batch of one).
     struct Progress: Equatable {
         var collection: String?     // album/playlist name; nil for a single track
         var currentTitle: String
@@ -30,7 +24,6 @@ final class Downloader {
         case failed(String)
     }
 
-    /// One unit of work resolved from a Track / snapshot.
     private struct Job {
         let videoId: String
         let title: String
@@ -38,10 +31,7 @@ final class Downloader {
     }
 
     private(set) var status: Status = .idle
-    /// Files saved this session (most recent first), shown in Settings.
     private(set) var completed: [URL] = []
-    /// Whether downloading is available (mirrors the Downloader plugin toggle).
-    /// Gates the album/playlist buttons in entity pages.
     var isEnabled = false
 
     private let resolver: StreamResolving
@@ -58,14 +48,11 @@ final class Downloader {
 
     // MARK: - Entry points
 
-    /// Downloads the now-playing track (a batch of one, no subfolder).
     func download(_ snapshot: PlaybackSnapshot, to directory: URL, preferences: StreamPreferences) {
         start([Job(videoId: snapshot.videoId, title: snapshot.title, artist: snapshot.artist)],
               collection: nil, directory: directory, preferences: preferences)
     }
 
-    /// Downloads every playable track of an album/playlist into a subfolder
-    /// named after `collection`.
     func download(_ tracks: [Track], collection: String, to directory: URL, preferences: StreamPreferences) {
         let jobs = tracks.compactMap { track -> Job? in
             guard let videoId = track.videoId else { return nil }
@@ -88,7 +75,6 @@ final class Downloader {
     }
 
     private func run(_ jobs: [Job], collection: String?, directory: URL, preferences: StreamPreferences) async {
-        // Albums/playlists land in their own subfolder; single tracks go straight in.
         let targetDir = collection.map { directory.appendingPathComponent(Self.sanitize($0), isDirectory: true) } ?? directory
         if collection != nil {
             try? FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
@@ -122,8 +108,6 @@ final class Downloader {
         status = .finished(summary: summary, folder: collection != nil ? targetDir : nil)
     }
 
-    /// Resolves and streams a single job to `directory`, reporting progress.
-    /// Returns the written file URL.
     private func downloadOne(_ job: Job, to directory: URL, preferences: StreamPreferences,
                              progress: (Double?) -> Void) async throws -> URL {
         let resolved = try await resolver.audioStream(videoId: job.videoId, preferences: preferences)

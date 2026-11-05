@@ -2,8 +2,6 @@
 //  HomeFeedParser.swift
 //  YT Music
 //
-//  Translates a raw InnerTube `BrowseResponse` into the clean `HomeFeed` model
-//  the UI consumes. All the knowledge of YouTube's renderer quirks lives here.
 //
 
 import Foundation
@@ -59,7 +57,6 @@ nonisolated enum HomeFeedParser {
         )
     }
 
-    /// Parses a feed continuation page: more shelves plus the next token.
     static func parseContinuation(_ response: BrowseResponse) -> HomeFeed {
         let sectionList = response.continuationContents?.sectionListContinuation
         return HomeFeed(
@@ -87,17 +84,10 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - Shelf header buttons
 
-    /// Builds the tappable header buttons ("More", "Play all", …) for a carousel,
-    /// resolving each button's endpoint to a navigate or play action. Shared by
-    /// the home, explore, and entity-page parsers.
     static func shelfButtons(from carousel: MusicCarouselShelfRenderer) -> [ShelfButton] {
         carousel.headerButtons.compactMap { makeShelfButton(from: $0, pageTitle: carousel.title) }
     }
 
-    /// Maps a single header button to a `ShelfButton`: a watch endpoint with a
-    /// playlist becomes a "Play all" action; a browse endpoint becomes a "More"
-    /// navigation. The destination is titled with the shelf's own name so it
-    /// reads sensibly while loading (a feed page fills in nothing else).
     static func makeShelfButton(from button: ButtonRenderer, pageTitle: String) -> ShelfButton? {
         let label = button.text?.text ?? ""
         guard !label.isEmpty else { return nil }
@@ -118,9 +108,6 @@ nonisolated enum HomeFeedParser {
         return nil
     }
 
-    /// Maps a single carousel/list entry to a `ShelfItem`, dispatching on whichever
-    /// card renderer it carries. Shared by the home, library, explore, and search
-    /// parsers (all built from the same two row renderers).
     static func makeItem(from carouselItem: CarouselItem) -> ShelfItem? {
         if let row = carouselItem.musicTwoRowItemRenderer {
             return makeItem(from: row)
@@ -166,9 +153,7 @@ nonisolated enum HomeFeedParser {
 
         let subtitle = columns.dropFirst().joined(separator: " • ")
         var (kind, videoId, browseId, playlistId) = resolve(row.playEndpoint)
-        // Uploaded songs (and history rows) carry the video id in
-        // `playlistItemData` rather than a play endpoint — fall back to the most
-        // reliable id so these rows stay playable.
+        // Uploaded and history rows carry the video id in `playlistItemData`, not a play endpoint.
         if videoId == nil, let id = row.trackVideoId {
             videoId = id
             if kind == .unknown { kind = .song }
@@ -196,9 +181,6 @@ nonisolated enum HomeFeedParser {
 
     // MARK: - Endpoint resolution
 
-    /// Builds a `ShelfItem` from already-extracted text plus a navigation endpoint.
-    /// Used for renderers that don't fit the two row shapes (e.g. the search
-    /// top-result card), reusing the shared endpoint resolution.
     static func makeItem(
         title: String,
         subtitle: String,
@@ -218,8 +200,6 @@ nonisolated enum HomeFeedParser {
         )
     }
 
-    /// The queueable playlist id of an album/playlist card: its play button's,
-    /// else (playlists only) the browse id minus its "VL" prefix.
     private static func collectionPlaylistId(
         kind: ShelfItem.Kind, browseId: String?, play: NavigationEndpoint?
     ) -> String? {
@@ -235,7 +215,7 @@ nonisolated enum HomeFeedParser {
         _ endpoint: NavigationEndpoint?
     ) -> (ShelfItem.Kind, String?, String?, String?) {
         if let watch = endpoint?.watchEndpoint, let videoId = watch.videoId {
-            // A watch endpoint with a playlist is typically a music video / mix.
+            // A watch endpoint with a playlist is typically a music video or mix.
             let kind: ShelfItem.Kind = watch.playlistId == nil ? .song : .video
             return (kind, videoId, nil, watch.playlistId)
         }
@@ -247,7 +227,6 @@ nonisolated enum HomeFeedParser {
             case "MUSIC_PAGE_TYPE_ARTIST":   return (.artist, nil, browseId, nil)
             case "MUSIC_PAGE_TYPE_USER_CHANNEL": return (.profile, nil, browseId, nil)
             case "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE": return (.podcast, nil, browseId, nil)
-            // The library's per-artist view ("MPLA" + channel id): open the artist.
             case "MUSIC_PAGE_TYPE_LIBRARY_ARTIST":
                 return (.artist, nil, browseId.hasPrefix("MPLA") ? String(browseId.dropFirst(4)) : browseId, nil)
             default:                         return (.unknown, nil, browseId, nil)

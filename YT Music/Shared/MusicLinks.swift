@@ -10,7 +10,6 @@ import Foundation
 enum MusicLinks {
     private static let base = "https://music.youtube.com"
 
-    /// Best public URL for an item, given whatever identifiers we have.
     static func url(videoId: String?, playlistId: String?, browseId: String?) -> URL? {
         if let videoId {
             var string = "\(base)/watch?v=\(videoId)"
@@ -33,7 +32,6 @@ enum MusicLinks {
         return nil
     }
 
-    /// What a YouTube / YT Music link points at, when the app can open it itself.
     enum Target: Equatable {
         case handle(String)
         case entity(EntityLink)

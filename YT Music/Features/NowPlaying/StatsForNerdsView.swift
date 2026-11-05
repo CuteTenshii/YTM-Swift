@@ -28,13 +28,13 @@ struct StatsForNerdsView: View {
         let details = player.streamDetails?.videoId == track?.videoId ? player.streamDetails : nil
         let ahead = max(player.bufferedTime - player.currentTime, 0)
         return [
-            ("Video ID", track?.videoId ?? "—"),
-            ("Source client", details?.source ?? "—"),
-            ("Format (itag)", details?.itag.map(String.init) ?? "—"),
-            ("MIME type", details?.mimeType ?? "—"),
-            ("Bitrate", details?.bitrate.map { "\($0 / 1000) kbps" } ?? "—"),
-            ("Audio quality", details?.audioQuality ?? "—"),
-            ("Stream host", details?.host ?? "—"),
+            ("Video ID", track?.videoId ?? "-"),
+            ("Source client", details?.source ?? "-"),
+            ("Format (itag)", details?.itag.map(String.init) ?? "-"),
+            ("MIME type", details?.mimeType ?? "-"),
+            ("Bitrate", details?.bitrate.map { "\($0 / 1000) kbps" } ?? "-"),
+            ("Audio quality", details?.audioQuality ?? "-"),
+            ("Stream host", details?.host ?? "-"),
             ("Position", "\(Self.time(player.currentTime)) / \(Self.time(player.duration))"),
             ("Buffered ahead", String(format: "%.1f s", ahead)),
             ("State", player.isBuffering ? "Buffering" : player.isPlaying ? "Playing" : "Paused"),

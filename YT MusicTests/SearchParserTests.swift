@@ -2,9 +2,6 @@
 //  SearchParserTests.swift
 //  YT MusicTests
 //
-//  Verifies search-result parsing against a fixture shaped like the real
-//  `search` response (no network): category shelves with song and album rows.
-//
 
 import Testing
 import Foundation
@@ -164,7 +161,6 @@ struct SearchParserTests {
         let response = try JSONDecoder().decode(SearchResponse.self, from: Data(flatFixture.utf8))
         let shelves = SearchParser.parse(response)
 
-        // Top result first, then categories in SearchCategory.allCases order.
         #expect(shelves.map(\.title) == [
             "Top result", "Songs", "Videos", "Albums", "Podcasts", "Episodes", "Profiles",
         ])

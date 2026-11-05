@@ -8,7 +8,6 @@ import SwiftUI
 struct CollaborationSheet: View {
     let playlistId: String
     let title: String
-    /// Re-read on open: the loaded page may predate a visibility change.
     let destination: EntityDestination
     let onFinish: () -> Void
 
@@ -20,7 +19,6 @@ struct CollaborationSheet: View {
     private enum LoadState {
         case loading
         case failed
-        /// Private playlists can't be collaborative.
         case unavailable
         case loaded(PlaylistCollaboration)
     }
@@ -29,7 +27,6 @@ struct CollaborationSheet: View {
 
     @State private var state = LoadState.loading
     @State private var panel: CollaborationPanelRef?
-    /// The switch whose change is in flight, shown flipped to its new value.
     @State private var pending: (setting: Setting, value: Bool)?
     @State private var updateFailed = false
     @State private var confirmingTurnOff = false
@@ -215,7 +212,6 @@ struct CollaborationSheet: View {
         }
     }
 
-    /// Runs an edit, then reloads so the toggles and invite link show the server's state.
     private func update(_ setting: Setting, to value: Bool, _ edit: (InnerTubeClient) async throws -> Void) async {
         pending = (setting, value)
         updateFailed = false

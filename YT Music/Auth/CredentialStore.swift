@@ -2,9 +2,7 @@
 //  CredentialStore.swift
 //  YT Music
 //
-//  Single source of truth for the signed-in session. Loads credentials from the
-//  Keychain at launch, hands request headers to the networking layer, and
-//  persists changes. Lives off the main actor so InnerTubeClient can await it.
+//  Keychain-backed source of truth for the session; off-main so InnerTubeClient can await it.
 //
 
 import Foundation
@@ -26,7 +24,6 @@ actor CredentialStore {
 
     var isSignedIn: Bool { credentials?.isUsable ?? false }
 
-    /// Headers to merge into an authenticated request (empty when signed out).
     func requestHeaders() -> [String: String] {
         credentials?.requestHeaders(now: Date()) ?? [:]
     }

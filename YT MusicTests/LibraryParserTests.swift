@@ -2,8 +2,6 @@
 //  LibraryParserTests.swift
 //  YT MusicTests
 //
-//  Tests for parsing the library landing page (grids / shelves of cards).
-//
 
 import Testing
 import Foundation

@@ -2,14 +2,6 @@
 //  InnerTubeClient.swift
 //  YT Music
 //
-//  Minimal native client for YouTube's private InnerTube API, configured as the
-//  WEB_REMIX (YouTube Music web) client. No official API exists, so we send the
-//  same context object and headers the web player uses.
-//
-//  This is unauthenticated: the home feed returns generic recommendations.
-//  Personalized results would require forwarding the user's SAPISID cookie and
-//  computing the Authorization hash — out of scope for this slice.
-//
 
 import Foundation
 import OSLog
@@ -17,8 +9,7 @@ import OSLog
 enum InnerTubeError: LocalizedError {
     case badStatus(Int)
     case emptyResponse
-    /// An authenticated request was rejected (HTTP 401) — the signed-in session
-    /// has expired and needs re-authentication.
+    /// An authenticated request was rejected (HTTP 401): the session expired.
     case unauthorized
 
     var errorDescription: String? {
@@ -31,17 +22,12 @@ enum InnerTubeError: LocalizedError {
 }
 
 extension Notification.Name {
-    /// Posted (on any thread) when an authenticated InnerTube request is rejected
-    /// with HTTP 401, so the app can prompt the user to sign in again. `AuthStore`
-    /// observes it.
+    /// Posted on any thread when a signed request gets HTTP 401; `AuthStore` observes it.
     static let ytmSessionExpired = Notification.Name("moe.tenshii.YT-Music.sessionExpired")
 
-    /// Posted (on any thread) when the signed-in session changes (sign-in or
-    /// sign-out), so caches keyed on account-relative data can be dropped.
     static let ytmCredentialsChanged = Notification.Name("moe.tenshii.YT-Music.credentialsChanged")
 }
 
-/// Failures specific to uploading a local file to YT Music.
 enum UploadError: LocalizedError {
     case notSignedIn
     case unsupportedFormat(String)
@@ -62,19 +48,12 @@ enum UploadError: LocalizedError {
     }
 }
 
-/// Minimal decode target for action endpoints (subscribe, like) — we only care
-/// that the request succeeded (a non-2xx throws before we get here).
 private nonisolated struct EmptyActionResponse: Decodable {}
 
-/// The id of a freshly created playlist (`playlist/create` response).
 private nonisolated struct CreatePlaylistResponse: Decodable {
     let playlistId: String?
 }
 
-/// The parts of a `next(videoId)` response the now-playing UI needs, extracted
-/// once and cached: the lyrics- and related-tab browse ids, plus the seed
-/// track's like status. Sharing this spares us three separate `next` fetches for
-/// the same track (lyrics, related, and like status each need one field of it).
 private nonisolated struct WatchNextInfo: Sendable {
     let lyricsBrowseId: String?
     let relatedBrowseId: String?
@@ -82,11 +61,7 @@ private nonisolated struct WatchNextInfo: Sendable {
     let likeCount: Int?
 }
 
-/// A small LRU cache of `WatchNextInfo` keyed by videoId. The browse ids are
-/// immutable, so entries live until evicted; the like status is account-relative,
-/// so a track's entry is invalidated when its rating changes, and the whole cache
-/// is cleared on sign-in/out (see `ytmCredentialsChanged`). Concurrent lookups
-/// for the same uncached track share one in-flight fetch.
+/// Small LRU cache; entries are invalidated on rating change and cleared on sign-in/out.
 private actor WatchNextStore {
     private var entries: [String: WatchNextInfo] = [:]
     private var pending: [String: Task<WatchNextInfo, Error>] = [:]
@@ -149,22 +124,18 @@ private nonisolated struct VisitorResponse: Decodable {
     struct Context: Decodable { let visitorData: String? }
 }
 
-/// Visibility of one of the user's playlists, as sent by `playlist/create`
-/// and the `edit_playlist` set-privacy action.
 nonisolated enum PlaylistPrivacy: String, Sendable, CaseIterable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
     case `public` = "PUBLIC"
 }
 
-/// The signed-in user's rating of a track, mirroring YT Music's like/dislike UI.
 nonisolated enum LikeStatus: String, Codable, Sendable {
     case indifferent
     case liked
     case disliked
 
-    /// Maps YT's raw `likeButtonRenderer.likeStatus` string ("LIKE"/"DISLIKE"/
-    /// "INDIFFERENT"). Anything else (including nil) is treated as indifferent.
+    /// Unknown or nil raw values map to indifferent.
     init(innerTube raw: String?) {
         switch raw {
         case "LIKE":    self = .liked
@@ -174,8 +145,6 @@ nonisolated enum LikeStatus: String, Codable, Sendable {
     }
 }
 
-/// Sets a track's like rating, and reads its current rating. Abstracted so
-/// PlayerState can be driven by a fake in tests (no network).
 protocol LikeProviding: Sendable {
     func setLikeStatus(videoId: String, status: LikeStatus) async throws
     func likeStatus(for videoId: String) async throws -> LikeStatus
@@ -184,30 +153,21 @@ protocol LikeProviding: Sendable {
 
 extension InnerTubeClient: LikeProviding {}
 
-/// Fetches a track's lyrics. Abstracted so the lyrics UI can be driven by a
-/// fake in tests (no network), and so different sources (YT Music, LRCLIB) are
-/// interchangeable.
 protocol LyricsProviding: Sendable {
     func lyrics(for query: LyricsQuery) async throws -> Lyrics?
 }
 
 extension InnerTubeClient: LyricsProviding {}
 
-/// Fetches a track's related-music shelves (similar songs, artists, recommended
-/// playlists). Abstracted so the Related UI can be driven by a fake in tests.
 protocol RelatedProviding: Sendable {
     func related(for videoId: String) async throws -> [Shelf]
 }
 
 extension InnerTubeClient: RelatedProviding {}
 
-/// Fetches a track's comments. Abstracted so the comments UI can be driven by a
-/// fake in tests (no network).
 protocol CommentsProviding: Sendable {
     func comments(for videoId: String) async throws -> CommentPage
-    /// Loads a further page of top-level comments via a paging token.
     func moreComments(token: String) async throws -> CommentPage
-    /// Loads a page of replies for a comment thread via its reply token.
     func commentReplies(token: String, parentId: String) async throws -> CommentPage
 }
 
@@ -216,7 +176,7 @@ extension InnerTubeClient: CommentsProviding {}
 nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     static let shared = InnerTubeClient()
 
-    // Public WEB_REMIX client constants (these ship in the YT Music web bundle).
+    // Public constants shipped in the YT Music web bundle.
     private let apiKey = "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30"
     private let clientName = "WEB_REMIX"
     private let clientVersion = "1.20260623.13.00"
@@ -228,16 +188,13 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     private static let log = Logger(category: "requests")
     private let session: URLSession
 
-    /// Shares one `next(videoId)` round-trip across the lyrics, related, and
-    /// like-status paths (see `watchNextInfo(for:)`).
     private let watchNextCache = WatchNextStore()
     private let visitor = VisitorStore()
     private let entitlement = EntitlementStore()
 
     init(session: URLSession? = nil) {
         self.session = session ?? NetworkSession.make()
-        // The like status carried in cached watch-next info is account-relative,
-        // so drop the whole cache whenever the session changes.
+        // Cached like status is account-relative.
         NotificationCenter.default.addObserver(
             forName: .ytmCredentialsChanged, object: nil, queue: nil
         ) { [watchNextCache, entitlement] _ in
@@ -248,7 +205,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// Loads the YouTube Music home feed (`FEmusic_home`).
     func homeFeed() async throws -> HomeFeed {
         try await homeFeed(browseId: "FEmusic_home")
     }
@@ -263,7 +219,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return HomeFeedParser.parse(response)
     }
 
-    /// Loads the next batch of home feed shelves (no chips).
     func homeContinuation(_ token: String, visitorData: String?) async throws -> HomeFeed {
         let response: BrowseResponse = try await post(
             "browse",
@@ -273,8 +228,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return HomeFeedParser.parseContinuation(response)
     }
 
-    /// Loads the YouTube Music explore landing page (`FEmusic_explore`): new
-    /// releases, charts, trending, and top music videos.
     func explore() async throws -> [Shelf] {
         let response: BrowseResponse = try await post(
             "browse",
@@ -283,10 +236,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return ExploreParser.parse(response)
     }
 
-    /// Runs a YouTube Music search, returning result shelves grouped by category
-    /// ("Songs", "Albums", "Artists", …). An empty/blank query yields no shelves.
-    /// Pass a `filter` other than `.all` to scope results to a single type, in
-    /// which case YouTube returns its own pre-grouped, server-titled shelves.
+    /// Non-`.all` filters return pre-grouped, server-titled shelves.
     func search(_ query: String, filter: SearchFilter = .all) async throws -> [Shelf] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
@@ -296,7 +246,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return SearchParser.parse(response)
     }
 
-    /// Returns the server-ranked completions for the current search field text.
     func searchSuggestions(_ input: String) async throws -> [String] {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
@@ -307,7 +256,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return SearchSuggestionsParser.parse(response)
     }
 
-    /// Loads an album / playlist / artist page for the given browse id.
     func entity(_ destination: EntityDestination) async throws -> EntityPage {
         let response: EntityBrowseResponse = try await post(
             "browse",
@@ -316,7 +264,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityPageParser.parse(response, fallback: destination)
     }
 
-    /// Loads the next batch of tracks from an album or playlist browse page.
     func entityContinuation(
         _ token: String,
         startIndex: Int,
@@ -339,21 +286,17 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Reloads a playlist's track section through a filter or sort token.
     func entityTrackReload(_ token: String, header: EntityHeader) async throws -> EntityPage {
         let response: EntityBrowseResponse = try await post("browse", body: ["continuation": token])
         return EntityPageParser.parseTrackReload(response, header: header)
     }
 
-    /// Reloads a page through a sort dropdown entry (`browseId` + `params`).
     func entityReload(browseId: String, params: String, fallback: EntityDestination) async throws -> EntityPage {
         let response: EntityBrowseResponse = try await post("browse", body: ["browseId": browseId, "params": params])
         return EntityPageParser.parse(response, fallback: fallback)
     }
 
-    /// Loads the complete lightweight playlist index used by playlist search.
-    /// This contains names and IDs, not full browse rows, so it does not create
-    /// thousands of SwiftUI views or eagerly load artwork.
+    /// Names and IDs only, to avoid creating thousands of rows.
     func playlistFilterMetadata(playlistId: String) async throws -> [Track] {
         let response: PlaylistFilterMetadataResponse = try await post(
             "get_playlist_filter_search_metadata",
@@ -366,7 +309,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// Hydrates playlist-index matches with the full browse row renderers.
     func playlistFilterSearch(playlistId: String, tracks: [Track]) async throws -> [Track] {
         let identifiers = tracks.compactMap { track -> [String: String]? in
             guard let videoId = track.videoId,
@@ -394,8 +336,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityPageParser.parse(response, fallback: fallback).tracks
     }
 
-    /// Loads a library page (requires auth): the landing page by default, or a
-    /// filter chip's page (`FEmusic_liked_playlists`, …).
     func library(browseId: String = "FEmusic_library_landing", params: String? = nil) async throws -> LibraryPage {
         var body: [String: Any] = ["browseId": browseId]
         if let params { body["params"] = params }
@@ -403,15 +343,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return LibraryParser.parse(response)
     }
 
-    /// Loads the next page of a library listing.
     func libraryContinuation(_ token: String) async throws -> LibraryPage {
         let response: BrowseResponse = try await post("browse", body: ["continuation": token])
         return LibraryParser.parseContinuation(response)
     }
 
-    /// Loads the signed-in user's uploaded music landing page
-    /// (`FEmusic_library_privately_owned_landing`): uploaded albums, artists, and
-    /// songs. Requires auth; anonymous requests return nothing.
+    /// Requires auth; anonymous requests return nothing.
     func uploads() async throws -> [Shelf] {
         let data = try await postData(
             "browse",
@@ -420,26 +357,16 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         let response = try JSONDecoder().decode(BrowseResponse.self, from: data)
         let shelves = UploadsParser.parse(response)
         if shelves.isEmpty {
-            // Can't reach this API from tests, so when the page comes back empty
-            // dump the raw response to Caches (`yt-uploads.json`) to diagnose the
-            // real layout. Read with Console.app or `open`.
+            // Dump empty responses to Caches/yt-uploads.json to diagnose the layout.
             let path = DebugDump.write(data, to: "yt-uploads.json") ?? "(dump failed)"
-            Self.log.problem("uploads: parsed 0 shelves — dumped response to \(path)")
+            Self.log.problem("uploads: parsed 0 shelves - dumped response to \(path)")
         } else {
             Self.log.note("uploads: parsed \(shelves.count) shelves")
         }
         return shelves
     }
 
-    /// Uploads a local audio file to the signed-in user's YT Music uploads via
-    /// YouTube's resumable upload protocol. This targets `upload.youtube.com` — a
-    /// separate host from the InnerTube API — but authenticates with the same
-    /// session headers (Cookie + SAPISIDHASH + `X-Goog-AuthUser`). Two steps: a
-    /// `start` request that returns a one-time upload URL, then an
-    /// `upload, finalize` request that streams the bytes. Requires auth. Newly
-    /// uploaded tracks take a while to appear in `uploads()` while YouTube
-    /// transcodes them server-side. Supported formats: mp3, m4a, aac, flac, ogg,
-    /// wma.
+    /// Two-step resumable upload to `upload.youtube.com`; tracks appear in `uploads()` after transcoding.
     func uploadSong(fileURL: URL) async throws {
         let headers = await CredentialStore.shared.requestHeaders()
         guard !headers.isEmpty else { throw UploadError.notSignedIn }
@@ -449,13 +376,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             throw UploadError.unsupportedFormat(ext)
         }
 
-        // File size for the content-length hint; the bytes are streamed from disk
-        // in step 2, so the whole file is never held in memory.
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
         let authUser = headers["X-Goog-AuthUser"] ?? "0"
 
-        // Step 1 — request a resumable upload URL.
         var startComponents = URLComponents(string: "https://upload.youtube.com/upload/usermusic/http")!
         startComponents.queryItems = [URLQueryItem(name: "authuser", value: authUser)]
         var start = URLRequest(url: startComponents.url!)
@@ -478,7 +402,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             throw UploadError.uploadURLMissing
         }
 
-        // Step 2 — stream the bytes to the upload URL and finalize.
         var upload = URLRequest(url: uploadURL)
         upload.httpMethod = "POST"
         for (header, value) in headers { upload.setValue(value, forHTTPHeaderField: header) }
@@ -492,17 +415,14 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         Self.log.note("upload: finalize → HTTP \(uploadHTTP.statusCode), upload-status=\(status)")
         guard (200..<300).contains(uploadHTTP.statusCode) else {
             let bodyText = String(data: uploadBody.prefix(400), encoding: .utf8) ?? ""
-            Self.log.problem("upload: finalize failed \(uploadHTTP.statusCode) — \(bodyText)")
+            Self.log.problem("upload: finalize failed \(uploadHTTP.statusCode) - \(bodyText)")
             throw UploadError.failed(uploadHTTP.statusCode)
         }
     }
 
-    /// Audio containers YouTube Music accepts for uploads.
     static let uploadableExtensions: Set<String> = ["mp3", "m4a", "aac", "flac", "ogg", "wma"]
 
-    /// Loads the signed-in user's listening history (`FEmusic_history`), grouped
-    /// into date buckets ("Today", "Yesterday", …). Requires auth; anonymous
-    /// requests return no history.
+    /// Requires auth; anonymous requests return no history.
     func history() async throws -> [HistorySection] {
         let response: BrowseResponse = try await post(
             "browse",
@@ -511,18 +431,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return HistoryParser.parse(response)
     }
 
-    /// Loads the signed-in user's account info (name / handle / avatar). Returns
-    /// nil when signed out (the response carries no account header).
     func accountInfo() async throws -> AccountInfo? {
         let response: AccountMenuResponse = try await post("account/account_menu", body: [:])
         return AccountInfoParser.parse(response)
     }
 
-    /// Loads playback streams for a video. The `signatureTimestamp` (extracted
-    /// from base.js) must match the player JS used to decipher the result.
-    /// `playlistId`, when the play comes from a playlist/radio, is the context
-    /// the real client sends so the listen is attributed to that playlist — the
-    /// response's stats beacons then carry it as the `list` param.
+    /// `signatureTimestamp` must match the player JS used to decipher.
     func player(videoId: String, signatureTimestamp: String?, playlistId: String? = nil) async throws -> PlayerResponse {
         var body: [String: Any] = [
             "videoId": videoId,
@@ -540,8 +454,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return try await post("player", body: body)
     }
 
-    /// The player response for signed-out playback, from the visionOS client
-    /// (see `visionOS`).
     func signedOutPlayer(videoId: String) async throws -> PlayerResponse {
         try await post(
             "player",
@@ -552,9 +464,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Whether the signed-in account has YouTube Premium. Members' `SPunlimited`
-    /// page headlines a "Manage" button that opens their memberships; everyone
-    /// else gets a sign-up offer there.
+    /// Members' `SPunlimited` page shows a "Manage" button; others get a sign-up offer.
     func hasPremium() async -> Bool {
         if let known = await entitlement.value { return known }
         guard let data = try? await postData("browse", body: ["browseId": "SPunlimited"]) else { return false }
@@ -575,7 +485,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return premium
     }
 
-    /// An anonymous visitor id from `visitor_id`, fetched once per launch.
     private func visitorData() async throws -> String {
         if let cached = await visitor.value { return cached }
         let response: VisitorResponse = try await post("visitor_id", body: [:], client: web, authenticated: false)
@@ -584,29 +493,18 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return value
     }
 
-    /// Fetches a radio's first batch (~50 tracks) seeded from a video (the
-    /// "Start radio" action). The queue's first entry is the seed track itself.
-    /// The batch comes with a continuation token (verified live against
-    /// WEB_REMIX): resend it through `continueRadio` to keep the same mix going
-    /// instead of starting a new, unrelated single-song radio.
+    /// Resend the returned continuation via `continueRadio` to keep the same mix going.
     func radio(for videoId: String) async throws -> RadioPage {
-        // RDAMVM<id> = this song's radio.
+        // RDAMVM<id> is this song's radio.
         let response = try await nextResponse(videoId: videoId, playlistId: MixIds.songRadio(for: videoId))
         return RadioPage(tracks: WatchNextParser.parse(response), continuation: WatchNextParser.continuationToken(response))
     }
 
-    /// Fetches the next batch of an already-started mix/radio via its
-    /// continuation token (same `next`-endpoint continuation shape as
-    /// `moreComments`, just a different panel).
     func continueRadio(_ token: String) async throws -> RadioPage {
         let response: RadioContinuationResponse = try await post("next", body: ["continuation": token])
         return RadioPage(tracks: WatchNextParser.parse(response), continuation: WatchNextParser.continuationToken(response))
     }
 
-    /// Fetches the ordered watch queue for a `next` endpoint (a "Play all" button
-    /// on a shelf, or a playlist/album radio). Returns the queue's tracks — the
-    /// same renderer a radio uses — so the caller can play them with real
-    /// per-track metadata rather than a single seed.
     func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
         WatchNextParser.parse(try await nextResponse(videoId: videoId, playlistId: playlistId))
     }
@@ -624,10 +522,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Fetches (and caches) the parts of a track's `next` response the
-    /// now-playing UI reads. The lyrics tab, related tab, and like-status paths
-    /// all call this, so a track costs a single `next` round-trip rather than one
-    /// each. Cached entries are dropped on rating changes and sign-in/out.
     private func watchNextInfo(for videoId: String) async throws -> WatchNextInfo {
         try await watchNextCache.info(for: videoId) { [self] in
             let response: WatchNextResponse = try await post("next", body: ["videoId": videoId])
@@ -640,9 +534,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// Fetches the lyrics for a track. Two steps, mirroring the web client: the
-    /// `next` response carries a "Lyrics" tab whose browse id (an `MPLYt…`) is
-    /// then browsed for the text. Returns nil when the track has no lyrics.
+    /// Two steps: `next` yields the lyrics tab browse id (`MPLYt…`), then browse it.
     func lyrics(for query: LyricsQuery) async throws -> Lyrics? {
         guard let browseId = try await watchNextInfo(for: query.videoId).lyricsBrowseId else {
             return nil
@@ -651,23 +543,17 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return LyricsParser.parse(response)
     }
 
-    /// Fetches a track's credits (performers, writers, producers). Empty when
-    /// the server has none, as for music videos.
     func credits(videoId: String) async throws -> [CreditSection] {
         let response: CreditsResponse = try await post("browse", body: ["browseId": "MPTC" + videoId])
         return CreditsParser.parse(response)
     }
 
-    /// Fetches a podcast episode's description. Nil when the episode has none.
     func episodeDetails(videoId: String) async throws -> EpisodeDetails? {
         let response: EpisodeDetailsResponse = try await post("browse", body: ["browseId": "MPPE" + videoId])
         return EpisodeDetailsParser.parse(response)
     }
 
-    /// Fetches a track's related-music shelves. Two steps, mirroring the web
-    /// client: the `next` response carries a "Related" tab whose browse id (an
-    /// `MPTRt…`) is then browsed for the shelves. Empty when the track has no
-    /// related tab.
+    /// Two steps: the `next` Related tab browse id (`MPTRt…`), then browse it.
     func related(for videoId: String) async throws -> [Shelf] {
         guard let browseId = try await watchNextInfo(for: videoId).relatedBrowseId else {
             return []
@@ -676,14 +562,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return RelatedParser.parse(response)
     }
 
-    /// Fetches the first page of top-level comments for a track. Comments are a
-    /// regular YouTube (not YT Music) surface, so these requests target the `WEB`
-    /// client at www.youtube.com — the WEB_REMIX `next` response carries no
-    /// comments panel. Fetched anonymously (comments are public; the WEB origin
-    /// wouldn't match the Music session's SAPISIDHASH anyway). Two steps: the
-    /// videoId response carries a comments engagement panel with a continuation
-    /// token, which is then loaded for the first page. Empty when the track has
-    /// no comments.
     /// Resolves a channel handle (`@name`, with or without the `@`) to its page.
     func resolveHandle(_ handle: String) async throws -> EntityLink? {
         let name = handle.hasPrefix("@") ? handle : "@" + handle
@@ -698,6 +576,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return EntityLink(name: name, browseId: browseId, kind: .artist)
     }
 
+    /// Comments use the anonymous `web` client; the WEB_REMIX `next` has no comments panel.
     func comments(for videoId: String) async throws -> CommentPage {
         let token: CommentsTokenResponse = try await post(
             "next", body: ["videoId": videoId], client: web, authenticated: false)
@@ -705,26 +584,20 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return try await moreComments(token: continuation)
     }
 
-    /// Loads a further page of top-level comments (infinite scroll).
     func moreComments(token: String) async throws -> CommentPage {
         let response: CommentsResponse = try await post(
             "next", body: ["continuation": token], client: web, authenticated: false)
         return CommentsParser.parse(response)
     }
 
-    /// Loads a page of replies for a comment thread (the WEB client, anonymous,
-    /// like the top-level comments). `parentId` is excluded from the result since
-    /// the reply feed can echo the parent comment. The returned page's token
-    /// pages through further replies.
+    /// `parentId` is excluded since the reply feed can echo the parent.
     func commentReplies(token: String, parentId: String) async throws -> CommentPage {
         let response: CommentsResponse = try await post(
             "next", body: ["continuation": token], client: web, authenticated: false)
         return CommentsParser.parseReplies(response, excluding: parentId)
     }
 
-    /// Subscribes to or unsubscribes from a channel (artist). Requires auth —
-    /// the request is a no-op server-side without the signed-in session headers.
-    /// Throws on a non-2xx status so callers can keep the previous UI state.
+    /// Requires auth; the request is a no-op server-side without session headers.
     func setSubscription(channelId: String, params: String?, subscribe: Bool) async throws {
         let endpoint = subscribe ? "subscription/subscribe" : "subscription/unsubscribe"
         var body: [String: Any] = ["channelIds": [channelId]]
@@ -732,9 +605,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         let _: EmptyActionResponse = try await post(endpoint, body: body)
     }
 
-    /// Sets the signed-in user's like rating for a track via the `like/*`
-    /// endpoints. Requires auth — a no-op server-side without the session
-    /// headers. Throws on a non-2xx status so callers can revert the UI.
     func setLikeStatus(videoId: String, status: LikeStatus) async throws {
         let endpoint = switch status {
         case .liked:       "like/like"
@@ -745,15 +615,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             endpoint,
             body: ["target": ["videoId": videoId]]
         )
-        // The cached watch-next info carries this track's now-stale rating.
+        // Cached info carries the now-stale rating.
         await watchNextCache.invalidate(videoId)
     }
 
-    /// Adds or removes a playlist from the signed-in user's library. YT Music's
-    /// "Add to library" / "Remove from library" actions are the same `like/*`
-    /// endpoints used to rate a track, but applied to a `playlistId` target.
-    /// Requires auth — a no-op server-side without the session headers. Throws
-    /// on a non-2xx status so callers can revert the UI.
+    /// Uses the `like/*` endpoints with a `playlistId` target.
     func setPlaylistSaved(playlistId: String, saved: Bool) async throws {
         let endpoint = saved ? "like/like" : "like/removelike"
         let _: EmptyActionResponse = try await post(
@@ -764,10 +630,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     // MARK: - Playlist editing
 
-    /// Loads the playlists the signed-in user can add `videoId` to — YT Music's
-    /// own "Add to playlist" dialog source. This returns only editable playlists
-    /// (excluding saved-but-not-owned playlists and "Liked Music"), unlike
-    /// browsing the library playlists page. Requires auth.
+    /// Editable playlists only (excludes saved-but-not-owned and "Liked Music").
     func addToPlaylistOptions(videoId: String) async throws -> [EditablePlaylist] {
         let data = try await postData(
             "playlist/get_add_to_playlist",
@@ -777,17 +640,13 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
             let response = try JSONDecoder().decode(AddToPlaylistResponse.self, from: data)
             return AddToPlaylistParser.parse(response)
         } catch {
-            // Can't reach this API from tests (sandbox 403), so on a decode failure
-            // dump the raw response to Caches (`yt-add-to-playlist.json`) to diagnose
-            // the real layout. Read with Console.app or `open`.
+            // Dump decode failures to Caches/yt-add-to-playlist.json to diagnose the layout.
             let path = DebugDump.write(data, to: "yt-add-to-playlist.json") ?? "(dump failed)"
-            Self.log.problem("add-to-playlist: decode failed (\(error)) — dumped response to \(path)")
+            Self.log.problem("add-to-playlist: decode failed (\(error)) - dumped response to \(path)")
             throw error
         }
     }
 
-    /// Creates a new private playlist and returns its id. `videoIds` seeds it
-    /// with tracks (the "Save to a new playlist" flow). Requires auth.
     @discardableResult
     func createPlaylist(title: String, videoIds: [String] = []) async throws -> String {
         var body: [String: Any] = ["title": title, "privacyStatus": "PRIVATE"]
@@ -797,8 +656,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return id
     }
 
-    /// Deletes one of the user's playlists. Requires auth (and ownership — the
-    /// server rejects deleting a playlist you don't own).
     func deletePlaylist(playlistId: String) async throws {
         let _: EmptyActionResponse = try await post(
             "playlist/delete",
@@ -806,16 +663,13 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Renames one of the user's playlists via an `edit_playlist` set-name action.
     func renamePlaylist(playlistId: String, title: String) async throws {
         try await editPlaylist(playlistId: playlistId, actions: [
             ["action": "ACTION_SET_PLAYLIST_NAME", "playlistName": title]
         ])
     }
 
-    /// Applies metadata edits (name / description / visibility / voting) to one
-    /// of the user's playlists as one `edit_playlist` batch. Nil fields produce
-    /// no action, so callers send just what changed. Requires auth.
+    /// Nil fields produce no action.
     func updatePlaylist(
         playlistId: String,
         title: String? = nil,
@@ -845,8 +699,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         try await editPlaylist(playlistId: playlistId, actions: actions)
     }
 
-    /// Adds tracks to one of the user's playlists. Requires auth. Duplicate adds
-    /// are an idempotent server no-op.
+    /// Duplicate adds are an idempotent server no-op.
     func addToPlaylist(playlistId: String, videoIds: [String]) async throws {
         guard !videoIds.isEmpty else { return }
         try await editPlaylist(
@@ -855,9 +708,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Removes tracks from one of the user's playlists. Each item pairs the
-    /// track's plain `videoId` with its playlist-scoped `setVideoId` (both are
-    /// required by the remove action). Requires auth.
+    /// Remove needs both `videoId` and the playlist-scoped `setVideoId`.
     func removeFromPlaylist(
         playlistId: String,
         items: [(videoId: String, setVideoId: String)]
@@ -875,8 +726,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Moves a track within one of the user's playlists to just before the
-    /// track whose `setVideoId` is `successor`, or to the end when nil.
+    /// A nil `successor` moves the track to the end.
     func movePlaylistItem(playlistId: String, setVideoId: String, before successor: String?) async throws {
         var action: [String: Any] = ["action": "ACTION_MOVE_VIDEO_BEFORE", "setVideoId": setVideoId]
         if let successor { action["movedSetVideoIdSuccessor"] = successor }
@@ -885,8 +735,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     // MARK: - Playlist collaboration
 
-    /// Loads one of the user's playlists' collaboration settings. Each load
-    /// issues a fresh invite link while new collaborators are allowed.
+    /// Each load issues a fresh invite link while new collaborators are allowed.
     func collaboration(panel: CollaborationPanelRef) async throws -> PlaylistCollaboration {
         let response: CollaborationPanelResponse = try await post(
             "get_panel",
@@ -898,8 +747,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return collaboration
     }
 
-    /// Turns collaboration on (creating an invite link) or off, which removes
-    /// collaborators but keeps the tracks they added.
     func setCollaborationEnabled(playlistId: String, _ enabled: Bool) async throws {
         try await editPlaylist(playlistId: playlistId, actions: [
             enabled
@@ -908,14 +755,12 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         ])
     }
 
-    /// Re-opens or revokes invite links, leaving existing collaborators in place.
     func setAllowsNewCollaborators(playlistId: String, _ allowed: Bool) async throws {
         try await editPlaylist(playlistId: playlistId, actions: [
             ["action": allowed ? "ACTION_CREATE_COLLABORATION_INVITE_LINK" : "ACTION_REVOKE_COLLABORATION_TOKENS"],
         ])
     }
 
-    /// Changes one of the user's playlists' saved order.
     func sortPlaylist(playlistId: String, by edit: PlaylistSortEdit) async throws {
         try await editPlaylist(
             playlistId: playlistId,
@@ -924,12 +769,10 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Casts, changes, or removes a vote on a playlist row via its feedback token.
     func votePlaylistItem(token: String) async throws {
         let _: EmptyActionResponse = try await post("feedback", body: ["feedbackTokens": [token]])
     }
 
-    /// Posts a batch of `edit_playlist` actions against a playlist.
     private func editPlaylist(playlistId: String, actions: [[String: Any]], params: String? = nil) async throws {
         var body: [String: Any] = ["playlistId": playlistId, "actions": actions]
         if let params { body["params"] = params }
@@ -938,9 +781,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     // MARK: - History / uploads editing
 
-    /// Removes items from the signed-in user's listening history via their
-    /// per-row feedback tokens (the `feedback` endpoint). Passing every row's
-    /// token clears the whole history. Requires auth.
+    /// Passing every row's token clears the whole history.
     func removeHistoryItems(feedbackTokens: [String]) async throws {
         guard !feedbackTokens.isEmpty else { return }
         let _: EmptyActionResponse = try await post(
@@ -949,9 +790,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Deletes an uploaded song/album from the user's library
-    /// (`music/delete_privately_owned_entity`). `entityId` comes from the item's
-    /// overflow-menu delete action. Requires auth.
     func deleteUpload(entityId: String) async throws {
         let _: EmptyActionResponse = try await post(
             "music/delete_privately_owned_entity",
@@ -959,22 +797,16 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         )
     }
 
-    /// Reads the signed-in user's current like rating for a track from the
-    /// watch-next overlay. Skips the network round-trip when signed out (the
-    /// rating is per-account, so it's always `.indifferent` anonymously). Shares
-    /// the cached `next` fetch with the lyrics and related paths.
     func likeStatus(for videoId: String) async throws -> LikeStatus {
         guard await CredentialStore.shared.isSignedIn else { return .indifferent }
         return try await watchNextInfo(for: videoId).likeStatus
     }
 
-    /// The track's public like count from the cached `next` fetch.
     func likeCount(for videoId: String) async throws -> Int? {
         try await watchNextInfo(for: videoId).likeCount
     }
 
-    /// Fires the `playback` beacon once at the start of a play. No-op when signed
-    /// out — history is per-account, so an anonymous ping does nothing.
+    /// No-op when signed out; history is per-account.
     func reportPlaybackStart(playbackURL: URL, cpn: String, position: Double, length: Double?) async {
         let headers = await CredentialStore.shared.requestHeaders()
         guard !headers.isEmpty else { return }
@@ -984,8 +816,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// Fires a `watchtime` heartbeat reporting the live playback position — the
-    /// signal that drives YT Music history. No-op when signed out.
     func reportWatchtime(watchtimeURL: URL, cpn: String, position: Double, length: Double?) async {
         let headers = await CredentialStore.shared.requestHeaders()
         guard !headers.isEmpty else { return }
@@ -995,10 +825,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         }
     }
 
-    /// WEB_REMIX client-identity params the stats beacons must carry. The player
-    /// response's stats base omits these, but the real Music client appends them —
-    /// `c=WEB_REMIX` in particular is what classifies the play as a Music listen
-    /// (so it lands in YTM History, not just generic YouTube history).
+    /// Beacons need `c=WEB_REMIX` to count as a Music listen (lands in YTM History).
     private var statsClientParams: [String: String] {
         [
             "c": clientName,            // WEB_REMIX
@@ -1014,7 +841,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         ]
     }
 
-    /// Fires a single stats beacon (GET) with the client + session headers.
     private func ping(_ url: URL, credentialHeaders: [String: String]) async {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -1027,9 +853,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
     // MARK: - Request plumbing
 
-    /// Identifies the InnerTube client a request impersonates. Most calls use the
-    /// YT Music web app (`webRemix`); comments live only on the regular YouTube
-    /// web client (`web`), so those requests target it instead.
     private struct ClientProfile {
         let baseURL: URL
         let clientName: String        // context.client.clientName
@@ -1038,7 +861,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         let origin: String
         let apiKey: String?
         var userAgent: String?
-        /// Device fields added to `context.client`.
         var device: [String: String] = [:]
     }
 
@@ -1047,8 +869,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
                       clientNameHeader: "67", origin: "https://music.youtube.com", apiKey: apiKey)
     }
 
-    /// The regular YouTube (www) web client. Used for comments, which YT Music's
-    /// WEB_REMIX surface doesn't expose.
+    /// Comments live only on the www.youtube.com web client.
     private let web = ClientProfile(
         baseURL: URL(string: "https://www.youtube.com/youtubei/v1/")!,
         clientName: "WEB",
@@ -1058,12 +879,11 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         apiKey: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
     )
 
-    /// The visionOS app client, used for signed-out playback: WEB_REMIX streams
-    /// need a PO token unless the account has Premium, and these don't. Its
-    /// stream URLs come unciphered. Needs a visitor id, else it asks to sign in.
+    /// Signed-out playback: WEB_REMIX streams need a PO token without Premium; these don't.
     private static let visionOSUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 "
             + "(KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+    /// Needs a visitor id or it asks to sign in; stream URLs come unciphered.
     private let visionOS = ClientProfile(
         baseURL: URL(string: "https://www.youtube.com/youtubei/v1/")!,
         clientName: "VISIONOS",
@@ -1081,10 +901,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         ]
     )
 
-    /// POSTs to an InnerTube endpoint as `client` (default: YT Music WEB_REMIX),
-    /// decoding the JSON response. Pass `authenticated: false` to omit the
-    /// signed-in session headers (e.g. public comments fetched as the WEB
-    /// client, whose origin wouldn't match the Music SAPISIDHASH anyway).
+    /// `authenticated: false` omits session headers; the WEB origin wouldn't match the Music SAPISIDHASH.
     private func post<T: Decodable>(
         _ endpoint: String,
         body: [String: Any],
@@ -1098,8 +915,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    /// Performs the POST and returns the raw response body, so callers that want
-    /// to inspect/dump the payload (diagnostics) can do so before decoding.
     private func postData(
         _ endpoint: String,
         body: [String: Any],
@@ -1130,8 +945,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         payload["context"] = context(client: profile, visitorData: visitorData)
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-        // Attach the signed-in session, if any (Cookie + SAPISIDHASH). Empty when
-        // signed out, so unauthenticated requests are unaffected.
+        // Credentials are empty when signed out, so unauthenticated requests are unaffected.
         var didAttachCredentials = false
         if authenticated {
             let credentialHeaders = await CredentialStore.shared.requestHeaders()
@@ -1159,10 +973,9 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
 
         if let http = urlResponse as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
-            // A 401 on a request we actually signed means the session expired;
-            // surface it distinctly so the UI can prompt a re-sign-in.
+            // A 401 on a signed request means the session expired.
             if http.statusCode == 401, didAttachCredentials {
-                Self.log.problem("auth: 401 on \(endpoint) — session expired")
+                Self.log.problem("auth: 401 on \(endpoint) - session expired")
                 NotificationCenter.default.post(name: .ytmSessionExpired, object: nil)
                 throw InnerTubeError.unauthorized
             }
@@ -1173,8 +986,7 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return data
     }
 
-    /// Sets the client-identity headers common to every request (the JSON
-    /// `Content-Type` is set per-request since stats pings are GETs).
+    /// Content-Type is set per-request since stats pings are GETs.
     private func applyClientHeaders(to request: inout URLRequest, client: ClientProfile? = nil) {
         let profile = client ?? webRemix
         request.setValue(profile.origin, forHTTPHeaderField: "Origin")
@@ -1185,7 +997,6 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         request.setValue(profile.userAgent ?? userAgent, forHTTPHeaderField: "User-Agent")
     }
 
-    /// The InnerTube `context.client` block identifying the impersonated client.
     private func context(client: ClientProfile? = nil, visitorData: String? = nil) -> [String: Any] {
         let profile = client ?? webRemix
         var clientContext: [String: Any] = [

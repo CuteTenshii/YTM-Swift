@@ -2,8 +2,6 @@
 //  ReturnYouTubeDislike.swift
 //  YT Music
 //
-//  Return YouTube Dislike lookup: vote counts for a video, decoded from the
-//  public returnyoutubedislikeapi.com `votes` endpoint.
 //
 
 import Foundation

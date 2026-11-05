@@ -2,15 +2,6 @@
 //  CreditsResponse.swift
 //  YT Music
 //
-//  Decodable model for browsing `MPTC<videoId>` (the "View song credits" page).
-//
-//  Response path:
-//    onResponseReceivedActions[].openPopupAction.popup.dismissableDialogRenderer
-//      .sections[].dismissableDialogContentSectionRenderer
-//        .title.runs[].text      <- role, e.g. "Written by"
-//        .subtitle.runs[].text   <- names, separated by "\n" runs
-//
-//  Music videos come back with no `sections` at all.
 //
 
 import Foundation

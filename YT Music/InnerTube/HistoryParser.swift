@@ -2,10 +2,6 @@
 //  HistoryParser.swift
 //  YT Music
 //
-//  Parses the `FEmusic_history` browse response into date-grouped sections. The
-//  page is a `sectionListRenderer` of `musicShelfRenderer`s — one per date bucket
-//  ("Today", "Yesterday", …) — whose rows are the same `musicResponsiveListItem`
-//  track renderer used by album / playlist listings.
 //
 
 import Foundation
@@ -27,8 +23,6 @@ nonisolated enum HistoryParser {
         }
     }
 
-    /// Builds the section's tracks from its `musicResponsiveListItemRenderer`
-    /// rows, numbered 1-based within the section.
     private static func parseTracks(_ shelf: MusicShelfRenderer) -> [Track] {
         var index = 1
         return (shelf.contents ?? []).compactMap { item in

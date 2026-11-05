@@ -14,42 +14,20 @@ import SwiftUI
 @MainActor
 @Observable
 final class Navigator {
-    /// The selected sidebar section (the app shell binds the sidebar to this).
     var section: ContentView.Section = .home
 
-    /// One navigation path per browsable section. Each section's `NavigationStack`
-    /// binds to its own path here (rather than owning a private `@State` path), so
-    /// that (a) navigation survives tab switches, and (b) `open(_:)` can push onto
-    /// whichever tab is currently on screen.
     var homePath: [EntityDestination] = []
     var explorePath: [EntityDestination] = []
     var libraryPath: [EntityDestination] = []
     var uploadsPath: [EntityDestination] = []
     var historyPath: [EntityDestination] = []
 
-    /// Whether the right-hand queue/lyrics/comments inspector is open, and which
-    /// page it shows. Hoisted here (from ContentView's local state) so menu-bar
-    /// commands can toggle the panel too.
     var showingPanel = false
     var panelTab: NowPlayingPanelTab = .queue
-    /// Whether the immersive full-window lyrics view is showing.
     var showingImmersiveLyrics = false
-    /// The track whose credits sheet is showing, if any.
     var creditsRequest: SongCreditsRequest?
 
-    /// Pushes an artist/album page onto the stack of the tab currently on screen,
-    /// so navigation triggered from outside/below the stacks — the now-playing
-    /// bar, a right-click "Go to album/artist", the queue list — stays in the
-    /// user's current tab instead of silently pushing onto an off-screen Home
-    /// stack.
-    ///
-    /// We *append* rather than replace the path. Replacing a non-empty path with
-    /// another non-empty path of the same length (e.g. `[A]` → `[B]`, clicking a
-    /// second artist while already on an artist page) is a NavigationStack update
-    /// SwiftUI on macOS silently drops — the page wouldn't change until you went
-    /// back and emptied the path. Pushing always grows the path, so it applies
-    /// reliably and leaves a working back stack. Guard against re-pushing the page
-    /// already on top.
+    /// Appends (never replaces) the path: SwiftUI on macOS drops same-length path replacements.
     func open(_ destination: EntityDestination) {
         switch section {
         case .explore: append(destination, to: &explorePath)
@@ -65,8 +43,6 @@ final class Navigator {
         path.append(destination)
     }
 
-    /// Pops the page currently on screen (e.g. after deleting the playlist whose
-    /// page is showing).
     func goBack() {
         switch section {
         case .explore: if !explorePath.isEmpty { explorePath.removeLast() }
@@ -77,9 +53,6 @@ final class Navigator {
         }
     }
 
-    /// The navigation path of the section currently on screen (its last entry is
-    /// the page being displayed). Lets "go to" actions disable themselves when
-    /// they'd re-open the page already showing.
     var currentPath: [EntityDestination] {
         switch section {
         case .explore: explorePath
@@ -90,8 +63,6 @@ final class Navigator {
         }
     }
 
-    /// Toggles the inspector to `tab`: opens it there, or closes it if that page
-    /// is already showing.
     func togglePanel(_ tab: NowPlayingPanelTab) {
         if showingPanel && panelTab == tab {
             showingPanel = false
