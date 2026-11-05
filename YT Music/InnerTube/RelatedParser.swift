@@ -36,7 +36,7 @@ nonisolated enum RelatedParser {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         return Shelf(
-            title: title.isEmpty ? "Related" : title, items: items, buttons: buttons,
+            title: title.isEmpty ? String(localized: "shelf.related") : title, items: items, buttons: buttons,
             rowsPerColumn: rowsPerColumn
         )
     }

@@ -17,11 +17,11 @@ enum DecipherError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .playerURLNotFound:         "Couldn't locate the YouTube player script."
-        case .baseJSDownloadFailed:      "Couldn't download the YouTube player script."
-        case .signatureFunctionNotFound: "Couldn't parse the signature function (player changed?)."
-        case .jsEvaluationFailed(let m): "Signature evaluation failed: \(m)"
-        case .malformedStreamURL:        "The stream URL was malformed."
+        case .playerURLNotFound:         String(localized: "error.decipher.player_url")
+        case .baseJSDownloadFailed:      String(localized: "error.decipher.download")
+        case .signatureFunctionNotFound: String(localized: "error.decipher.signature")
+        case .jsEvaluationFailed(let m): String(format: String(localized: "error.decipher.evaluation"), m)
+        case .malformedStreamURL:        String(localized: "error.decipher.malformed_url")
         }
     }
 }

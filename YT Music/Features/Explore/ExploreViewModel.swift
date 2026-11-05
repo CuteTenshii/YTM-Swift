@@ -33,7 +33,7 @@ final class ExploreViewModel {
         do {
             let shelves = try await client.explore()
             state = shelves.isEmpty
-                ? .failed("No content was returned.")
+                ? .failed(String(localized: "feed.empty"))
                 : .loaded(shelves)
         } catch {
             state = .failed(error.localizedDescription)

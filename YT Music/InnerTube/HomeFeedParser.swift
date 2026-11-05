@@ -74,7 +74,7 @@ nonisolated enum HomeFeedParser {
         let items = (carousel.contents ?? []).compactMap { makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
 
-        let title = carousel.title.isEmpty ? "More" : carousel.title
+        let title = carousel.title.isEmpty ? String(localized: "shelf.more") : carousel.title
         return Shelf(
             title: title, items: items, buttons: shelfButtons(from: carousel),
             rowsPerColumn: carousel.rowsPerColumn,

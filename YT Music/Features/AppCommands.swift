@@ -19,27 +19,27 @@ struct MediaCommands: Commands {
 
     var body: some Commands {
         // MARK: Controls
-        CommandMenu("Controls") {
-            Button(player.isPlaying ? "Pause" : "Play") {
+        CommandMenu("menu.controls") {
+            Button(player.isPlaying ? String(localized: "menu.controls.pause") : String(localized: "common.play")) {
                 player.togglePlayPause()
             }
             .keyboardShortcut("p", modifiers: .command)
             .disabled(nothingPlaying)
 
-            Button("Next Track") { player.next() }
+            Button("menu.controls.next") { player.next() }
                 .keyboardShortcut(.rightArrow, modifiers: .command)
                 .disabled(!player.canGoNext)
 
-            Button("Previous Track") { player.previous() }
+            Button("menu.controls.previous") { player.previous() }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
                 .disabled(nothingPlaying)
 
             if player.isEpisode {
-                Button("Skip Back \(Int(PlayerState.skipBackSeconds)) Seconds") {
+                Button(String(format: String(localized: "menu.controls.skip_back"), Int(PlayerState.skipBackSeconds))) {
                     player.skip(by: -PlayerState.skipBackSeconds)
                 }
                 .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
-                Button("Skip Forward \(Int(PlayerState.skipForwardSeconds)) Seconds") {
+                Button(String(format: String(localized: "menu.controls.skip_forward"), Int(PlayerState.skipForwardSeconds))) {
                     player.skip(by: PlayerState.skipForwardSeconds)
                 }
                 .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
@@ -47,25 +47,25 @@ struct MediaCommands: Commands {
 
             Divider()
 
-            Button("Volume Up") { adjustVolume(by: 0.05) }
+            Button("menu.controls.volume_up") { adjustVolume(by: 0.05) }
                 .keyboardShortcut(.upArrow, modifiers: .command)
-            Button("Volume Down") { adjustVolume(by: -0.05) }
+            Button("menu.controls.volume_down") { adjustVolume(by: -0.05) }
                 .keyboardShortcut(.downArrow, modifiers: .command)
 
             Divider()
 
-            Button("Toggle Shuffle") { player.toggleShuffle() }
+            Button("menu.controls.shuffle") { player.toggleShuffle() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(player.queue.isEmpty)
 
-            Button("Cycle Repeat Mode") { player.cycleRepeatMode() }
+            Button("menu.controls.repeat") { player.cycleRepeatMode() }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
 
-            Button("Like Song") { player.toggleLike() }
+            Button("menu.controls.like") { player.toggleLike() }
                 .keyboardShortcut("l", modifiers: .command)
                 .disabled(nothingPlaying)
 
-            Button("Dislike Song") { player.toggleDislike() }
+            Button("menu.controls.dislike") { player.toggleDislike() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(nothingPlaying)
         }
@@ -73,30 +73,30 @@ struct MediaCommands: Commands {
         // MARK: View (inspector panels)
         CommandGroup(after: .sidebar) {
             Divider()
-            Button("Show Queue") { navigator.togglePanel(.queue) }
+            Button("menu.view.queue") { navigator.togglePanel(.queue) }
                 .keyboardShortcut("1", modifiers: [.command, .option])
-            Button(player.isEpisode ? "Show Details" : "Show Lyrics") {
+            Button(player.isEpisode ? String(localized: "menu.view.details") : String(localized: "menu.view.lyrics")) {
                 navigator.togglePanel(player.isEpisode ? .details : .lyrics)
             }
                 .keyboardShortcut("2", modifiers: [.command, .option])
-            Button("Show Comments") { navigator.togglePanel(.comments) }
+            Button("menu.view.comments") { navigator.togglePanel(.comments) }
                 .keyboardShortcut("3", modifiers: [.command, .option])
-            Button("Full-Screen Lyrics") {
+            Button("menu.view.fullscreen_lyrics") {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     navigator.showingImmersiveLyrics.toggle()
                 }
             }
             .keyboardShortcut("f", modifiers: [.command, .control])
             .disabled(nothingPlaying)
-            Button("Stats for Nerds") { openWindow(id: "stats") }
+            Button("menu.view.stats") { openWindow(id: "stats") }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(nothingPlaying)
         }
 
         // MARK: Go (sidebar navigation)
-        CommandMenu("Go") {
+        CommandMenu("menu.go") {
             ForEach(Array(ContentView.Section.allCases.enumerated()), id: \.element) { index, section in
-                Button(section.rawValue) { navigator.section = section }
+                Button(section.title) { navigator.section = section }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
             }
         }

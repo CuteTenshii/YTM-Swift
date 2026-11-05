@@ -11,7 +11,7 @@ import SwiftUI
 final class SponsorBlockPlugin: Plugin {
     let id = "sponsorblock"
     let name = "SponsorBlock"
-    let summary = "Skip non-music sections, sponsors, and intros in music videos, using the community SponsorBlock database."
+    let summary = String(localized: "plugins.sponsorblock.summary")
 
     var categories: Set<SponsorBlockCategory> {
         didSet {
@@ -100,7 +100,7 @@ private struct SponsorBlockConfigView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Skip these segments")
+            Text("plugins.sponsorblock.skip")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(SponsorBlockCategory.allCases) { category in

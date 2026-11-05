@@ -77,8 +77,8 @@ struct SearchContent: View {
         case .idle:
             prompt(
                 icon: "magnifyingglass",
-                title: "Search YouTube Music",
-                message: "Find songs, albums, artists, and playlists."
+                title: "search.idle.title",
+                message: "search.idle.message"
             )
 
         case .loading:
@@ -94,8 +94,8 @@ struct SearchContent: View {
         case .empty(let term):
             prompt(
                 icon: "questionmark.circle",
-                title: "No results for “\(term)”",
-                message: "Check the spelling or try a different search."
+                title: String(format: String(localized: "search.empty.title"), term),
+                message: "search.empty.message"
             )
 
         case .failed(let message):
@@ -175,7 +175,7 @@ struct SearchContent: View {
             Text(message)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.search(query) }
             }
             .buttonStyle(.borderedProminent)

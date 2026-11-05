@@ -66,8 +66,8 @@ struct EpisodeDetailsView: View {
                     .padding(16)
                 }
             case .unavailable:
-                ContentUnavailableView("No details", systemImage: "info.circle",
-                                       description: Text("This episode has no description."))
+                ContentUnavailableView("nowplaying.episode.empty.title", systemImage: "info.circle",
+                                       description: Text("nowplaying.episode.empty.description"))
                     .padding(.vertical, 32)
             }
         }

@@ -47,7 +47,7 @@ actor MusixmatchClient: LyricsProviding {
             let lines = MusixmatchRichSync.parse(raw)
             if !lines.isEmpty {
                 return Lyrics(text: lines.map(\.text).joined(separator: "\n"),
-                              source: "Source: Musixmatch", lines: lines)
+                              source: String(format: String(localized: "lyrics.source"), "Musixmatch"), lines: lines)
             }
         }
 
@@ -58,12 +58,12 @@ actor MusixmatchClient: LyricsProviding {
            let raw = body.subtitle_list?.first?.subtitle?.subtitle_body, !raw.isEmpty {
             let lines = LRCParser.parse(raw)
             let text = lines.isEmpty ? raw : lines.map(\.text).joined(separator: "\n")
-            return Lyrics(text: text, source: "Source: Musixmatch", lines: lines)
+            return Lyrics(text: text, source: String(format: String(localized: "lyrics.source"), "Musixmatch"), lines: lines)
         }
 
         if let body: LyricsBody = try await get("track.lyrics.get", token: token, items: commontrack),
            let raw = body.lyrics?.lyrics_body, !raw.isEmpty {
-            return Lyrics(text: raw, source: "Source: Musixmatch")
+            return Lyrics(text: raw, source: String(format: String(localized: "lyrics.source"), "Musixmatch"))
         }
 
         return nil

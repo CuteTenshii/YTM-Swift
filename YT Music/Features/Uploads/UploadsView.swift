@@ -27,7 +27,7 @@ struct UploadsView: View {
 
                 switch model.state {
                 case .loading:
-                    ProgressView("Loading Uploads…")
+                    ProgressView("uploads.loading")
                         .controlSize(.large)
                         .tint(.primary)
                         .foregroundStyle(.primary)
@@ -48,14 +48,14 @@ struct UploadsView: View {
                         Button {
                             showingImporter = true
                         } label: {
-                            Label("Upload music", systemImage: "square.and.arrow.up")
+                            Label("uploads.upload", systemImage: "square.and.arrow.up")
                         }
                         .disabled(model.isUploading)
-                        .help("Upload an audio file to your library")
+                        .help("uploads.upload.help")
                     }
                 }
             }
-            .pageTitle("Uploads")
+            .pageTitle(String(localized: "uploads.title"))
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
@@ -108,12 +108,12 @@ struct UploadsView: View {
         case .uploading(let name):
             banner {
                 ProgressView().controlSize(.small)
-                Text("Uploading \(name)…").foregroundStyle(.primary)
+                Text(String(format: String(localized: "uploads.banner.uploading"), name)).foregroundStyle(.primary)
             }
         case .succeeded(let name):
             banner {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("Uploaded \(name).").foregroundStyle(.primary)
+                Text(String(format: String(localized: "uploads.banner.uploaded"), name)).foregroundStyle(.primary)
                 Spacer(minLength: 0)
                 dismissButton
             }
@@ -161,7 +161,7 @@ struct UploadsView: View {
                             Button(role: .destructive) {
                                 Task { await model.delete(item) }
                             } label: {
-                                Label("Delete upload", systemImage: "trash")
+                                Label("uploads.delete", systemImage: "trash")
                             }
                         }
                     }
@@ -177,14 +177,14 @@ struct UploadsView: View {
             Image(systemName: "square.and.arrow.up.on.square")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("No uploads yet")
+            Text("uploads.empty.title")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-            Text("Upload your own audio files to play them anywhere you're signed in.")
+            Text("uploads.empty.message")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Upload music") { showingImporter = true }
+            Button("uploads.upload") { showingImporter = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
                 .disabled(model.isUploading)
@@ -198,14 +198,14 @@ struct UploadsView: View {
             Image(systemName: "square.and.arrow.up")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("Your uploads live here")
+            Text("uploads.signed_out.title")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-            Text("Sign in to upload your own music and play it from any device.")
+            Text("uploads.signed_out.message")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Sign in") { auth.isPresentingLogin = true }
+            Button("common.sign_in") { auth.isPresentingLogin = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
         }
@@ -221,7 +221,7 @@ struct UploadsView: View {
             Text(text)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.load(isSignedIn: auth.isSignedIn) }
             }
             .buttonStyle(.borderedProminent)

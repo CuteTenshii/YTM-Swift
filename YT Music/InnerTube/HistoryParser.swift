@@ -19,7 +19,7 @@ nonisolated enum HistoryParser {
             guard let shelf = section.listShelf else { return nil }
             let tracks = parseTracks(shelf)
             guard !tracks.isEmpty else { return nil }
-            return HistorySection(title: shelf.title?.text ?? "History", tracks: tracks)
+            return HistorySection(title: shelf.title?.text ?? String(localized: "nav.history"), tracks: tracks)
         }
     }
 

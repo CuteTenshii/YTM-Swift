@@ -16,10 +16,26 @@ nonisolated enum AudioQuality: String, Codable, CaseIterable, Sendable, Identifi
 
     var label: String {
         switch self {
-        case .low:    "Low"
-        case .medium: "Medium"
-        case .high:   "High"
-        case .auto:   "Auto (best)"
+        case .low:    String(localized: "settings.quality.low")
+        case .medium: String(localized: "settings.quality.medium")
+        case .high:   String(localized: "settings.quality.high")
+        case .auto:   String(localized: "settings.quality.auto")
+        }
+    }
+}
+
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system
+    case en
+    case fr
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .system: String(localized: "settings.general.language.system")
+        case .en:     "English"
+        case .fr:     "Français"
         }
     }
 }
@@ -60,6 +76,31 @@ final class AppSettings {
     /// Optional HTTP(S) proxy; blank uses the system configuration.
     var proxyURL: String {
         didSet { store(proxyURL.isEmpty ? nil : proxyURL, for: .proxyURL) }
+    }
+
+    /// Applies on next launch: macOS reads `AppleLanguages` from the app's defaults at startup.
+    var language: AppLanguage {
+        didSet {
+            if language == .system {
+                defaults.removeObject(forKey: Self.appleLanguagesKey)
+            } else {
+                defaults.set([language.rawValue], forKey: Self.appleLanguagesKey)
+            }
+        }
+    }
+
+    private static let appleLanguagesKey = "AppleLanguages"
+
+    @ObservationIgnored private let launchLanguage: AppLanguage
+
+    var needsRelaunchForLanguage: Bool { language != launchLanguage }
+
+    func relaunch() {
+        let relauncher = Process()
+        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relauncher.arguments = ["-c", "sleep 0.5; /usr/bin/open -n \"$0\"", Bundle.main.bundlePath]
+        try? relauncher.run()
+        NSApp.terminate(nil)
     }
 
     // MARK: Track lists
@@ -168,6 +209,10 @@ final class AppSettings {
         self.volumeNormalization = defaults.bool(forKey: Key.volumeNormalization.rawValue)
         self.autoplay = defaults.object(forKey: Key.autoplay.rawValue) as? Bool ?? true
         self.proxyURL = defaults.string(forKey: Key.proxyURL.rawValue) ?? ""
+        let language = (defaults.stringArray(forKey: Self.appleLanguagesKey)?.first)
+            .flatMap { AppLanguage(rawValue: String($0.prefix(2))) } ?? .system
+        self.language = language
+        self.launchLanguage = language
         self.playOnSingleClick = defaults.bool(forKey: Key.playOnSingleClick.rawValue)
         self.lyricsProvider = (defaults.string(forKey: Key.lyricsProvider.rawValue)
             .flatMap(LyricsProvider.init)) ?? .youtubeMusic

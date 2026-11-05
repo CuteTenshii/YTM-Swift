@@ -22,7 +22,7 @@ enum SongInsightError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupported: "Apple Intelligence isn't available on this Mac."
+        case .unsupported: String(localized: "nowplaying.insight.unsupported")
         }
     }
 }

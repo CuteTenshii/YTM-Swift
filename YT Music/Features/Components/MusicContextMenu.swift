@@ -19,7 +19,7 @@ private struct LikeMenuButton: View {
             Button {
                 player.setLikeStatus(for: videoId, to: liked ? .indifferent : .liked)
             } label: {
-                Label(liked ? "Remove from Likes" : "Like",
+                Label(liked ? String(localized: "components.menu.unlike") : String(localized: "components.menu.like"),
                       systemImage: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
             }
         }
@@ -61,7 +61,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         albumLink: albumLink
                     )
                 } label: {
-                    Label("Play", systemImage: "play.fill")
+                    Label("common.play", systemImage: "play.fill")
                 }
 
                 Button {
@@ -74,7 +74,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         albumLink: albumLink
                     )
                 } label: {
-                    Label("Play Next", systemImage: "text.insert")
+                    Label("components.menu.play_next", systemImage: "text.insert")
                 }
 
                 Button {
@@ -87,7 +87,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         albumLink: albumLink
                     )
                 } label: {
-                    Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+                    Label("components.menu.start_radio", systemImage: "antenna.radiowaves.left.and.right")
                 }
 
                 if auth.isSignedIn {
@@ -96,7 +96,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                     Button {
                         playlists.requestAdd(videoId: videoId, title: title)
                     } label: {
-                        Label("Add to Playlist…", systemImage: "text.badge.plus")
+                        Label("components.menu.add_to_playlist", systemImage: "text.badge.plus")
                     }
                 }
 
@@ -105,7 +105,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         videoId: videoId, title: title, subtitle: subtitle, thumbnailURL: thumbnailURL
                     )
                 } label: {
-                    Label("View Song Credits", systemImage: "person.2")
+                    Label("components.menu.credits", systemImage: "person.2")
                 }
             } else if let entityDestination {
                 entityActions(entityDestination)
@@ -121,7 +121,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                     pasteboard.clearContents()
                     pasteboard.setString(link.absoluteString, forType: .string)
                 } label: {
-                    Label("Copy Link", systemImage: "link")
+                    Label("components.menu.copy_link", systemImage: "link")
                 }
             }
 
@@ -135,38 +135,38 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
             Button {
                 player.playAll(videoId: nil, playlistId: playlistId)
             } label: {
-                Label("Play", systemImage: "play.fill")
+                Label("common.play", systemImage: "play.fill")
             }
             Button {
                 player.playAll(videoId: nil, playlistId: playlistId, shuffled: true)
             } label: {
-                Label("Shuffle", systemImage: "shuffle")
+                Label("common.shuffle", systemImage: "shuffle")
             }
             Button {
                 player.enqueueAll(playlistId: playlistId, next: true)
             } label: {
-                Label("Play Next", systemImage: "text.insert")
+                Label("components.menu.play_next", systemImage: "text.insert")
             }
             Button {
                 player.enqueueAll(playlistId: playlistId, next: false)
             } label: {
-                Label("Add to Queue", systemImage: "text.append")
+                Label("components.menu.add_to_queue", systemImage: "text.append")
             }
             Button {
                 player.playAll(videoId: nil, playlistId: MixIds.playlistRadio(for: playlistId))
             } label: {
-                Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+                Label("components.menu.start_radio", systemImage: "antenna.radiowaves.left.and.right")
             }
         } else if destination.kind == .artist {
             Button {
                 playArtistMix(destination, radio: false)
             } label: {
-                Label("Shuffle", systemImage: "shuffle")
+                Label("common.shuffle", systemImage: "shuffle")
             }
             Button {
                 playArtistMix(destination, radio: true)
             } label: {
-                Label("Start radio", systemImage: "antenna.radiowaves.left.and.right")
+                Label("components.menu.start_radio", systemImage: "antenna.radiowaves.left.and.right")
             }
         }
     }
@@ -188,7 +188,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
             Button {
                 navigator.open(artist.destination)
             } label: {
-                Label("Go to artist", systemImage: "music.mic")
+                Label("components.menu.go_artist", systemImage: "music.mic")
             }
             .disabled(isCurrentPage(artist))
         } else if artists.count > 1 {
@@ -198,7 +198,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
                         .disabled(isCurrentPage(artist))
                 }
             } label: {
-                Label("Go to artist", systemImage: "music.mic")
+                Label("components.menu.go_artist", systemImage: "music.mic")
             }
         }
     }
@@ -209,7 +209,7 @@ private struct MusicContextMenu<Extra: View>: ViewModifier {
             Button {
                 navigator.open(albumLink.destination)
             } label: {
-                Label("Go to album", systemImage: "square.stack")
+                Label("components.menu.go_album", systemImage: "square.stack")
             }
             .disabled(isCurrentPage(albumLink))
         }

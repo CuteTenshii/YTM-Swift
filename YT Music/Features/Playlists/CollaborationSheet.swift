@@ -39,29 +39,29 @@ struct CollaborationSheet: View {
         }
         .frame(width: 420, height: 480)
         .task { await load() }
-        .alert("Turn off collaboration?", isPresented: $confirmingTurnOff) {
-            Button("Cancel", role: .cancel) {}
-            Button("Turn Off", role: .destructive) {
+        .alert("playlists.collab.off.title", isPresented: $confirmingTurnOff) {
+            Button("common.cancel", role: .cancel) {}
+            Button("playlists.collab.off.confirm", role: .destructive) {
                 Task {
                     await update(.collaborate, to: false) { try await $0.setCollaborationEnabled(playlistId: playlistId, false) }
                 }
             }
         } message: {
-            Text("Collaborators will be removed from the playlist. Tracks they added will stay.")
+            Text("playlists.collab.off.message")
         }
     }
 
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Collaborate").font(.headline)
+                Text("playlists.collab.title").font(.headline)
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer()
-            Button("Done") { onFinish() }
+            Button("common.done") { onFinish() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(16)
@@ -75,13 +75,13 @@ struct CollaborationSheet: View {
         case .failed:
             centered {
                 VStack(spacing: 12) {
-                    Text("Couldn't load collaboration settings.").foregroundStyle(.secondary)
-                    Button("Try Again") { Task { await load() } }
+                    Text("playlists.collab.load_failed").foregroundStyle(.secondary)
+                    Button("common.retry") { Task { await load() } }
                 }
             }
         case .unavailable:
             centered {
-                Text("Private playlists can't be collaborative.\nMake this playlist public or unlisted in Edit Playlist first.")
+                Text("playlists.collab.unavailable")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(24)
@@ -106,7 +106,7 @@ struct CollaborationSheet: View {
                         }
                     }
                 )) {
-                    labelled("Collaborate", "Collaborators can add tracks", setting: .collaborate)
+                    labelled("playlists.collab.title", "playlists.collab.toggle.subtitle", setting: .collaborate)
                 }
 
                 if collaboration.isEnabled {
@@ -120,7 +120,7 @@ struct CollaborationSheet: View {
                             }
                         }
                     )) {
-                        labelled("Allow new collaborators", "Turn off to stop new people from joining",
+                        labelled("playlists.collab.new_members.title", "playlists.collab.new_members.subtitle",
                                  setting: .allowNewCollaborators)
                     }
 
@@ -131,7 +131,7 @@ struct CollaborationSheet: View {
                                 pasteboard.clearContents()
                                 pasteboard.setString(invite.absoluteString, forType: .string)
                             } label: {
-                                Label("Copy Invite Link", systemImage: "link")
+                                Label("playlists.collab.invite.copy", systemImage: "link")
                             }
                             ShareLink(item: invite)
                         }
@@ -139,14 +139,14 @@ struct CollaborationSheet: View {
                 }
 
                 if updateFailed {
-                    Text("Couldn't update collaboration. Check your connection and try again.")
+                    Text("playlists.collab.update_failed")
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
 
                 if !collaboration.collaborators.isEmpty {
                     Divider()
-                    Text("Collaborators").font(.caption).foregroundStyle(.secondary)
+                    Text("playlists.collab.collaborators").font(.caption).foregroundStyle(.secondary)
                     ForEach(collaboration.collaborators, id: \.self) { collaborator in
                         if let link = collaborator.link {
                             Button {
@@ -179,7 +179,7 @@ struct CollaborationSheet: View {
         }
     }
 
-    private func labelled(_ title: String, _ subtitle: String, setting: Setting) -> some View {
+    private func labelled(_ title: LocalizedStringKey, _ subtitle: LocalizedStringKey, setting: Setting) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

@@ -72,7 +72,7 @@ struct YT_MusicApp: App {
             UpdateCommands(updater: updaterController.updater)
         }
 
-        Window("Stats for Nerds", id: "stats") {
+        Window("window.stats.title", id: "stats") {
             StatsForNerdsView(player: player)
         }
         .windowResizability(.contentSize)

@@ -35,7 +35,7 @@ struct FilterChipRow<Chip: Identifiable & Equatable>: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if showsAll {
-                    FilterChip(title: "All", isSelected: selection == nil) { select(nil) }
+                    FilterChip(title: String(localized: "components.filter.all"), isSelected: selection == nil) { select(nil) }
                 }
                 ForEach(chips) { chip in
                     FilterChip(title: chip[keyPath: title], isSelected: chip == selection) {

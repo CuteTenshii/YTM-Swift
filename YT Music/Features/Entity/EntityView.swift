@@ -56,7 +56,7 @@ struct EntityView: View {
     private func loadedContent(_ page: EntityPage) -> some View {
         if model.destination.kind == .playlist {
             content(page)
-                .searchable(text: $searchText, placement: .toolbar, prompt: "Find in playlist")
+                .searchable(text: $searchText, placement: .toolbar, prompt: "entity.playlist.find")
         } else {
             content(page)
         }
@@ -70,7 +70,7 @@ struct EntityView: View {
                 Task { await model.applySort(option) }
             }
         )
-        return Picker("Sort", selection: selection) {
+        return Picker("entity.sort", selection: selection) {
             ForEach(options) { option in
                 Text(option.title).tag(option.title)
             }
@@ -172,13 +172,14 @@ struct EntityView: View {
                 .padding(.horizontal, 24)
                 .sectionSpacing()
         } else if isSearching {
-            emptyText("No results for \"\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+            emptyText(String(format: String(localized: "entity.empty.no_results"),
+                          searchText.trimmingCharacters(in: .whitespacesAndNewlines)))
                 .sectionSpacing()
         } else if let filter = model.selectedFilter {
-            emptyText("No songs for \"\(filter.title)\"")
+            emptyText(String(format: String(localized: "entity.empty.no_songs"), filter.title))
                 .sectionSpacing()
         } else if page.header.kind == .playlist {
-            emptyText("This playlist is empty")
+            emptyText(String(localized: "entity.empty.playlist"))
                 .sectionSpacing()
         }
     }
@@ -236,7 +237,7 @@ struct EntityView: View {
             Text(message)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") { Task { await model.load() } }
+            Button("common.retry") { Task { await model.load() } }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
         }
@@ -376,7 +377,7 @@ private struct HeaderView: View {
                     pasteboard.clearContents()
                     pasteboard.setString(link.absoluteString, forType: .string)
                 } label: {
-                    Label("Copy Link", systemImage: "link")
+                    Label("entity.link.copy", systemImage: "link")
                 }
             }
         }
@@ -403,15 +404,15 @@ private struct HeaderView: View {
                 )
             }
         }
-        .alert("Delete Playlist", isPresented: $confirmingDelete) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+        .alert("playlists.delete", isPresented: $confirmingDelete) {
+            Button("common.cancel", role: .cancel) {}
+            Button("common.delete", role: .destructive) {
                 Task {
                     if await model.deletePlaylist() { navigator.goBack() }
                 }
             }
         } message: {
-            Text("“\(model.title)” will be permanently deleted.")
+            Text(String(format: String(localized: "entity.delete.message"), model.title))
         }
     }
 
@@ -591,7 +592,7 @@ private struct HeaderView: View {
                     Button {
                         player.play(tracks, startAt: 0, album: album)
                     } label: {
-                        Label("Play", systemImage: "play.fill")
+                        Label("common.play", systemImage: "play.fill")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }
@@ -603,7 +604,7 @@ private struct HeaderView: View {
                     Button {
                         player.playAll(videoId: nil, playlistId: radioPlaylistId)
                     } label: {
-                        Label("Shuffle", systemImage: "shuffle")
+                        Label("common.shuffle", systemImage: "shuffle")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }
@@ -614,7 +615,7 @@ private struct HeaderView: View {
                     Button {
                         player.playAll(videoId: nil, playlistId: shufflePlaylistId, shuffled: true)
                     } label: {
-                        Label("Shuffle all", systemImage: "shuffle")
+                        Label("entity.shuffle_all", systemImage: "shuffle")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }
@@ -625,7 +626,7 @@ private struct HeaderView: View {
                     Button {
                         player.playAll(videoId: nil, playlistId: mixId)
                     } label: {
-                        Label("Mix", systemImage: "dot.radiowaves.left.and.right")
+                        Label("entity.mix", systemImage: "dot.radiowaves.left.and.right")
                             .font(.headline)
                             .padding(.horizontal, 8)
                     }
@@ -677,7 +678,7 @@ private struct HeaderView: View {
         Menu {
             editActions
         } label: {
-            Label("More", systemImage: "ellipsis")
+            Label("entity.more", systemImage: "ellipsis")
                 .font(.headline)
                 .padding(.horizontal, 8)
         }
@@ -689,17 +690,17 @@ private struct HeaderView: View {
         Button {
             editingPlaylist = true
         } label: {
-            Label("Edit Playlist…", systemImage: "square.and.pencil")
+            Label("playlists.edit.menu", systemImage: "square.and.pencil")
         }
         Button {
             collaborating = true
         } label: {
-            Label("Collaborate…", systemImage: "person.2.badge.plus")
+            Label("playlists.collab.menu", systemImage: "person.2.badge.plus")
         }
         Button(role: .destructive) {
             confirmingDelete = true
         } label: {
-            Label("Delete Playlist…", systemImage: "trash")
+            Label("playlists.delete.menu", systemImage: "trash")
         }
     }
 
@@ -710,7 +711,7 @@ private struct HeaderView: View {
                 Task { await model.toggleSubscription() }
             } label: {
                 Label(
-                    subscription.isSubscribed ? "Subscribed" : "Subscribe",
+                    subscription.isSubscribed ? String(localized: "entity.subscribed") : String(localized: "entity.subscribe"),
                     systemImage: subscription.isSubscribed ? "bell.fill" : "bell"
                 )
                 .font(.headline)
@@ -728,7 +729,7 @@ private struct HeaderView: View {
             Task { await model.toggleSaved() }
         } label: {
             Label(
-                model.isSaved ? "Saved" : "Save to library",
+                model.isSaved ? String(localized: "entity.saved") : String(localized: "entity.save"),
                 systemImage: model.isSaved ? "checkmark.circle.fill" : "plus.circle"
             )
             .font(.headline)
@@ -758,14 +759,14 @@ private struct HeaderView: View {
 
     private var downloadTitle: String? {
         switch header.kind {
-        case .album:    "Download album"
-        case .playlist: "Download playlist"
+        case .album:    String(localized: "entity.download.album")
+        case .playlist: String(localized: "entity.download.playlist")
         default:        nil
         }
     }
 
     private var downloadProgress: String? {
         guard case .running(let progress) = downloader.status, progress.total > 1 else { return nil }
-        return "Downloading \(progress.index)/\(progress.total)…"
+        return String(format: String(localized: "entity.download.progress"), progress.index, progress.total)
     }
 }

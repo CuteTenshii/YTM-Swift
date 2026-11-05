@@ -12,15 +12,15 @@ nonisolated enum SearchFilter: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .all:       "All"
-        case .songs:     "Songs"
-        case .videos:    "Videos"
-        case .albums:    "Albums"
-        case .artists:   "Artists"
-        case .playlists: "Playlists"
-        case .podcasts:  "Podcasts"
-        case .episodes:  "Episodes"
-        case .profiles:  "Profiles"
+        case .all:       String(localized: "search.filter.all")
+        case .songs:     String(localized: "search.filter.songs")
+        case .videos:    String(localized: "search.filter.videos")
+        case .albums:    String(localized: "search.filter.albums")
+        case .artists:   String(localized: "search.filter.artists")
+        case .playlists: String(localized: "search.filter.playlists")
+        case .podcasts:  String(localized: "search.filter.podcasts")
+        case .episodes:  String(localized: "search.filter.episodes")
+        case .profiles:  String(localized: "search.filter.profiles")
         }
     }
 
@@ -45,15 +45,15 @@ nonisolated enum SearchCategory: CaseIterable {
 
     var title: String {
         switch self {
-        case .song:     "Songs"
-        case .video:    "Videos"
-        case .album:    "Albums"
-        case .artist:   "Artists"
-        case .playlist: "Playlists"
-        case .podcast:  "Podcasts"
-        case .episode:  "Episodes"
-        case .profile:  "Profiles"
-        case .other:    "More"
+        case .song:     String(localized: "search.filter.songs")
+        case .video:    String(localized: "search.filter.videos")
+        case .album:    String(localized: "search.filter.albums")
+        case .artist:   String(localized: "search.filter.artists")
+        case .playlist: String(localized: "search.filter.playlists")
+        case .podcast:  String(localized: "search.filter.podcasts")
+        case .episode:  String(localized: "search.filter.episodes")
+        case .profile:  String(localized: "search.filter.profiles")
+        case .other:    String(localized: "shelf.more")
         }
     }
 
@@ -112,7 +112,7 @@ nonisolated enum SearchParser {
 
         var shelves: [Shelf] = []
         if let topResult {
-            shelves.append(Shelf(title: "Top result", items: [topResult]))
+            shelves.append(Shelf(title: String(localized: "search.top_result"), items: [topResult]))
         }
         for category in SearchCategory.allCases {
             if let items = byCategory[category], !items.isEmpty {
@@ -152,7 +152,7 @@ nonisolated enum SearchParser {
     private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0).map(stripType) }
         guard !items.isEmpty else { return nil }
-        return Shelf(title: title.isEmpty ? "Results" : title, items: items)
+        return Shelf(title: title.isEmpty ? String(localized: "shelf.results") : title, items: items)
     }
 
     private static func makeTopResult(_ card: MusicCardShelfRenderer) -> ShelfItem? {

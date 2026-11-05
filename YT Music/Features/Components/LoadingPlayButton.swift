@@ -14,6 +14,6 @@ struct LoadingPlayButton: View {
             .font(.system(size: size))
             .foregroundStyle(color.opacity(0.2))
             .overlay { ProgressView().controlSize(.small).tint(color) }
-            .accessibilityLabel("Loading")
+            .accessibilityLabel("common.loading")
     }
 }

@@ -12,8 +12,8 @@ enum StreamError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notPlayable(let reason): "Can't play this track: \(reason)"
-        case .noCompatibleAudio:       "No AAC audio stream was available for this track."
+        case .notPlayable(let reason): String(format: String(localized: "error.stream.not_playable"), reason)
+        case .noCompatibleAudio:       String(localized: "error.stream.no_audio")
         }
     }
 }

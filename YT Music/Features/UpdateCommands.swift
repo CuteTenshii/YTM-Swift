@@ -16,7 +16,7 @@ private struct CheckForUpdatesButton: View {
     @State private var canCheck = false
 
     var body: some View {
-        Button("Check for Updates…") { updater.checkForUpdates() }
+        Button("menu.updates.check") { updater.checkForUpdates() }
             .disabled(!canCheck)
             .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheck = $0 }
     }

@@ -90,7 +90,7 @@ nonisolated enum LibraryParser {
     private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = playableItems(contents)
         guard !items.isEmpty else { return nil }
-        return Shelf(title: title.isEmpty ? "Library" : title, items: items)
+        return Shelf(title: title.isEmpty ? String(localized: "nav.library") : title, items: items)
     }
 
     /// Drops action tiles ("New playlist", "Shuffle all", "Add podcast") that neither play nor open a page.

@@ -102,9 +102,17 @@ final class Downloader {
         }
 
         if Task.isCancelled { status = .idle; return }
-        var summary = "\(downloaded) saved"
-        if failed > 0 { summary += ", \(failed) failed" }
-        if let collection { summary = "\(collection): \(summary)" }
+        let savedFormat = downloaded == 1
+            ? String(localized: "plugins.downloader.saved.one")
+            : String(localized: "plugins.downloader.saved.other")
+        var summary = String(format: savedFormat, downloaded)
+        if failed > 0 {
+            let failedFormat = failed == 1
+                ? String(localized: "plugins.downloader.failed.one")
+                : String(localized: "plugins.downloader.failed.other")
+            summary += String(format: failedFormat, failed)
+        }
+        if let collection { summary = String(format: String(localized: "plugins.downloader.collection_summary"), collection, summary) }
         status = .finished(summary: summary, folder: collection != nil ? targetDir : nil)
     }
 

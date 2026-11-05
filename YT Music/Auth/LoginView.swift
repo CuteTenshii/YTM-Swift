@@ -19,7 +19,7 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Sign in to YouTube Music").font(.headline)
+                Text("auth.login.title").font(.headline)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -28,8 +28,8 @@ struct LoginView: View {
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut(.cancelAction)
-                .help("Close")
-                .accessibilityLabel("Close")
+                .help("common.close")
+                .accessibilityLabel("common.close")
             }
             .padding(16)
             Divider()
@@ -42,7 +42,7 @@ struct LoginView: View {
             }
             .overlay {
                 if capturing {
-                    ProgressView("Signing in…")
+                    ProgressView("auth.login.signing_in")
                         .padding(20)
                         .background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
                 }

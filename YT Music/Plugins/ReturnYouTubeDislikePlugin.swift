@@ -11,7 +11,7 @@ import Foundation
 final class ReturnYouTubeDislikePlugin: Plugin {
     let id = "return-youtube-dislike"
     let name = "Return YouTube Dislike"
-    let summary = "Show like and dislike counts for the playing track, using the Return YouTube Dislike database."
+    let summary = String(localized: "plugins.return_youtube_dislike.summary")
 
     private(set) var votes: VoteCounts?
     private(set) var videoId: String?

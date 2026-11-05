@@ -9,8 +9,8 @@ import Foundation
 @MainActor
 final class NotificationsPlugin: Plugin {
     let id = "track-notifications"
-    let name = "Track notifications"
-    let summary = "Show a system notification with the title and artist whenever the playing track changes."
+    let name = String(localized: "plugins.notifications.name")
+    let summary = String(localized: "plugins.notifications.summary")
 
     private let notifier = TrackChangeNotifier()
     private var active = false

@@ -163,16 +163,16 @@ private struct RankLabel: View {
         case .up:
             Image(systemName: "arrowtriangle.up.fill")
                 .foregroundStyle(.green)
-                .accessibilityLabel("Up")
+                .accessibilityLabel("components.trend.up")
         case .down:
             Image(systemName: "arrowtriangle.down.fill")
                 .foregroundStyle(.red)
-                .accessibilityLabel("Down")
+                .accessibilityLabel("components.trend.down")
         case .neutral:
             Image(systemName: "circle.fill")
                 .imageScale(.small)
                 .foregroundStyle(.secondary)
-                .accessibilityLabel("No change")
+                .accessibilityLabel("components.trend.none")
         }
     }
 }

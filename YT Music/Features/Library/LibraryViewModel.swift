@@ -42,7 +42,7 @@ final class LibraryViewModel {
         do {
             let page = try await client.library()
             chips = page.chips
-            state = page.isEmpty ? .failed("Your library is empty.") : .loaded(page)
+            state = page.isEmpty ? .failed(String(localized: "library.empty")) : .loaded(page)
         } catch {
             state = .failed(error.localizedDescription)
         }

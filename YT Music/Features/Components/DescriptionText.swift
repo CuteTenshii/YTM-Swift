@@ -48,7 +48,7 @@ struct DescriptionText: View {
                 label.lineLimit(lineLimit)
             }
             if isTruncated || expanded {
-                Button(expanded ? "Less" : "More") { expanded.toggle() }
+                Button(expanded ? String(localized: "components.description.less") : String(localized: "components.description.more")) { expanded.toggle() }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)

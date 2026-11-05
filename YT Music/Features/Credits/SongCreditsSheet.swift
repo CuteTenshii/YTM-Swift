@@ -46,7 +46,7 @@ struct SongCreditsSheet: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
-            Button("Done") { onFinish() }
+            Button("common.done") { onFinish() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(16)
@@ -60,13 +60,13 @@ struct SongCreditsSheet: View {
         case .failed:
             centered {
                 VStack(spacing: 12) {
-                    Text("Couldn't load credits.").foregroundStyle(.secondary)
-                    Button("Try Again") { Task { await load() } }
+                    Text("credits.error").foregroundStyle(.secondary)
+                    Button("common.retry") { Task { await load() } }
                 }
             }
         case .loaded(let sections) where sections.isEmpty:
             centered {
-                Text("No credits available for this track.").foregroundStyle(.secondary)
+                Text("credits.empty").foregroundStyle(.secondary)
             }
         case .loaded(let sections):
             ScrollView {

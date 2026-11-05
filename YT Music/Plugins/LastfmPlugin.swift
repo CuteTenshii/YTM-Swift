@@ -12,7 +12,7 @@ import AppKit
 final class LastfmPlugin: Plugin {
     let id = "lastfm-scrobbler"
     let name = "Last.fm Scrobbling"
-    let summary = "Scrobble the music you play to your Last.fm profile."
+    let summary = String(localized: "plugins.lastfm.summary")
 
     private let client = LastfmClient()
     private var tracker = ScrobbleTracker()
@@ -58,7 +58,7 @@ final class LastfmPlugin: Plugin {
             do {
                 let token = try await client.requestToken(apiKey: apiKey, secret: secret)
                 guard let url = client.authorizationURL(apiKey: apiKey, token: token) else {
-                    statusMessage = "Couldn't build the authorization URL."
+                    statusMessage = String(localized: "plugins.lastfm.error.url")
                     return
                 }
                 NSWorkspace.shared.open(url)
@@ -115,26 +115,25 @@ private struct LastfmConfigView: View {
         VStack(alignment: .leading, spacing: 8) {
             if let session = plugin.session {
                 HStack(spacing: 8) {
-                    Text("Connected as ") + Text(session.username).bold()
+                    Text(String(format: String(localized: "plugins.lastfm.connected_as"), session.username))
                     Spacer()
-                    Button("Disconnect", role: .destructive) { plugin.disconnect() }
+                    Button("plugins.lastfm.disconnect", role: .destructive) { plugin.disconnect() }
                 }
             } else if plugin.awaitingAuthorization {
-                Text("Approve YT Music in the browser tab that just opened, then finish here.")
+                Text("plugins.lastfm.approve")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button(plugin.working ? "Finishing…" : "I've approved - finish connecting") {
+                Button(plugin.working ? String(localized: "plugins.lastfm.finishing") : String(localized: "plugins.lastfm.finish")) {
                     plugin.completeAuthorization()
                 }
                 .disabled(plugin.working)
             } else {
-                Text("Create an API account at last.fm/api, then connect. You'll approve access "
-                    + "in the browser, and your password is never entered here.")
+                Text("plugins.lastfm.setup")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("API key", text: $apiKey)
-                SecureField("Shared secret", text: $secret)
-                Button(plugin.working ? "Connecting…" : "Connect to Last.fm") {
+                TextField("plugins.lastfm.api_key", text: $apiKey)
+                SecureField("plugins.lastfm.secret", text: $secret)
+                Button(plugin.working ? String(localized: "plugins.lastfm.connecting") : String(localized: "plugins.lastfm.connect")) {
                     plugin.beginAuthorization(apiKey: apiKey, secret: secret)
                 }
                 .disabled(!canConnect || plugin.working)

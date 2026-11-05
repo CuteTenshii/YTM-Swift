@@ -117,7 +117,7 @@ struct UploadsParserTests {
         """)
 
         let shelves = UploadsParser.parse(response)
-        #expect(shelves.first?.title == "Uploads")
+        #expect(shelves.first?.title == String(localized: "nav.uploads"))
     }
 
     @Test("Skips shelves with no items and returns empty for a blank page")

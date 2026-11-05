@@ -47,7 +47,7 @@ nonisolated enum EntityPageParser {
                     thumbnailURL: card.thumbnail?.bestURL,
                     endpoint: card.onTap
                 ) {
-                    shelves.append(Shelf(title: card.headerTitle.isEmpty ? "More" : card.headerTitle, items: [item]))
+                    shelves.append(Shelf(title: card.headerTitle.isEmpty ? String(localized: "shelf.more") : card.headerTitle, items: [item]))
                 }
             } else if let grid = section.gridRenderer {
                 // Feed pages lay their content out as grids rather than carousels.
@@ -325,7 +325,7 @@ nonisolated enum EntityPageParser {
     /// YouTube returns either "79" or "1.2M subscribers"; append the noun only when missing.
     private static func formatSubscribers(_ text: String) -> String {
         guard !text.isEmpty else { return "" }
-        return text.lowercased().contains("subscrib") ? text : "\(text) subscribers"
+        return text.lowercased().contains("subscrib") ? text : String(format: String(localized: "entity.subscribers"), text)
     }
 
     // MARK: - Tracks
@@ -437,7 +437,7 @@ nonisolated enum EntityPageParser {
     private static func makeShelf(from carousel: MusicCarouselShelfRenderer) -> Shelf? {
         let items = (carousel.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        let title = carousel.title.isEmpty ? "More" : carousel.title
+        let title = carousel.title.isEmpty ? String(localized: "shelf.more") : carousel.title
         return Shelf(
             title: title, items: items, buttons: HomeFeedParser.shelfButtons(from: carousel),
             rowsPerColumn: carousel.rowsPerColumn,
@@ -448,7 +448,7 @@ nonisolated enum EntityPageParser {
     private static func makeShelf(from grid: GridRenderer) -> Shelf? {
         let items = (grid.items ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return Shelf(title: grid.title.isEmpty ? "More" : grid.title, items: items)
+        return Shelf(title: grid.title.isEmpty ? String(localized: "shelf.more") : grid.title, items: items)
     }
 
     // MARK: - Helpers

@@ -41,13 +41,13 @@ nonisolated enum EqualizerPreset: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .flat:        "Flat"
-        case .bassBoost:   "Bass Boost"
-        case .trebleBoost: "Treble Boost"
-        case .vocal:       "Vocal"
-        case .rock:        "Rock"
-        case .electronic:  "Electronic"
-        case .loudness:    "Loudness"
+        case .flat:        String(localized: "eq.preset.flat")
+        case .bassBoost:   String(localized: "eq.preset.bass_boost")
+        case .trebleBoost: String(localized: "eq.preset.treble_boost")
+        case .vocal:       String(localized: "eq.preset.vocal")
+        case .rock:        String(localized: "eq.preset.rock")
+        case .electronic:  String(localized: "eq.preset.electronic")
+        case .loudness:    String(localized: "eq.preset.loudness")
         }
     }
 

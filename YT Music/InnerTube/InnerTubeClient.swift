@@ -14,9 +14,9 @@ enum InnerTubeError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badStatus(let code): "YouTube Music returned HTTP \(code)."
-        case .emptyResponse:       "YouTube Music returned an empty response."
-        case .unauthorized:        "Your YouTube Music session expired. Sign in again."
+        case .badStatus(let code): String(format: String(localized: "error.innertube.bad_status"), code)
+        case .emptyResponse:       String(localized: "error.innertube.empty")
+        case .unauthorized:        String(localized: "error.innertube.unauthorized")
         }
     }
 }
@@ -37,13 +37,13 @@ enum UploadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notSignedIn:
-            "Sign in to upload music."
+            String(localized: "error.upload.not_signed_in")
         case .unsupportedFormat(let ext):
-            "Can't upload .\(ext) files. Use MP3, M4A, AAC, FLAC, OGG, or WMA."
+            String(format: String(localized: "error.upload.unsupported"), ext)
         case .uploadURLMissing:
-            "YouTube Music didn't return an upload URL."
+            String(localized: "error.upload.no_url")
         case .failed(let code):
-            "Upload failed (HTTP \(code))."
+            String(format: String(localized: "error.upload.failed"), code)
         }
     }
 }

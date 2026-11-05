@@ -91,7 +91,7 @@ nonisolated enum AddToPlaylistParser {
             let title = renderer.title?.text ?? ""
             return EditablePlaylist(
                 id: id,
-                title: title.isEmpty ? "Playlist" : title,
+                title: title.isEmpty ? String(localized: "shelf.playlist") : title,
                 subtitle: renderer.shortBylineText?.text ?? "",
                 thumbnailURL: renderer.thumbnailRenderer?.bestURL
             )

@@ -19,6 +19,16 @@ struct ContentView: View {
 
         var id: Self { self }
 
+        var title: LocalizedStringKey {
+            switch self {
+            case .home:     "nav.home"
+            case .explore:  "nav.explore"
+            case .library:  "nav.library"
+            case .uploads:  "nav.uploads"
+            case .history:  "nav.history"
+            }
+        }
+
         var icon: String {
             switch self {
             case .home:     "house.fill"
@@ -53,7 +63,7 @@ struct ContentView: View {
                 NavigationSplitView {
                     List(selection: $navigator.section) {
                         ForEach(Section.allCases) { section in
-                            Label(section.rawValue, systemImage: section.icon)
+                            Label(section.title, systemImage: section.icon)
                                 .tag(section)
                         }
                         SidebarLibraryItems(model: library)
@@ -137,11 +147,11 @@ private struct SessionExpiredBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.black)
-            Text("Your session expired. Sign in again to restore your library and playback.")
+            Text("session.expired.message")
                 .foregroundStyle(.black)
                 .font(.callout.weight(.medium))
             Spacer(minLength: 8)
-            Button("Sign in") { auth.isPresentingLogin = true }
+            Button("common.sign_in") { auth.isPresentingLogin = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.black)
             Button {
@@ -167,7 +177,7 @@ private struct SidebarLibraryItems: View {
     var body: some View {
         if case .loaded(let page) = model.state {
             let items = page.shelves.flatMap(\.items)
-            SwiftUI.Section("Library") {
+            SwiftUI.Section("nav.library") {
                 ForEach(items) { item in
                     Button { open(item) } label: {
                         HStack(spacing: 8) {
@@ -232,28 +242,28 @@ private struct AccountControl: View {
             Button {
                 auth.isPresentingLogin = true
             } label: {
-                Label("Sign in", systemImage: "person.crop.circle")
+                Label("common.sign_in", systemImage: "person.crop.circle")
             }
-            .help("Sign in")
+            .help("common.sign_in")
         case .signedIn:
             Menu {
                 Button(profileTitle) { Task { await openProfile() } }
                     .disabled(profileHandle == nil)
-                SettingsLink { Text("Settings…") }
+                SettingsLink { Text("account.menu.settings") }
                 Divider()
-                Button("Sign out", role: .destructive) {
+                Button("account.menu.sign_out", role: .destructive) {
                     Task { await auth.signOut() }
                 }
             } label: {
                 avatarView
             }
             .menuIndicator(.hidden)
-            .help(auth.account?.name ?? "Account")
+            .help(auth.account?.name ?? String(localized: "account.menu.help"))
         }
     }
 
     private var profileTitle: String {
-        let name = auth.account?.name ?? "Signed in"
+        let name = auth.account?.name ?? String(localized: "account.menu.signed_in")
         guard let handle = auth.account?.handle, !handle.isEmpty else { return name }
         return "\(name) (\(handle))"
     }
@@ -376,7 +386,7 @@ private struct NowPlayingBar: View {
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .help("Full-screen lyrics")
+        .help("player.fullscreen_lyrics")
     }
 
     private func panelButton(_ tab: NowPlayingPanelTab) -> some View {
@@ -394,7 +404,7 @@ private struct NowPlayingBar: View {
                 .foregroundStyle(active ? Color.red : Color.secondary)
         }
         .buttonStyle(.plain)
-        .help(tab.rawValue)
+        .help(tab.title)
     }
 
     private let sideWidth: CGFloat = 300
@@ -478,12 +488,12 @@ private struct NowPlayingBar: View {
             ratingButton(
                 icon: "hand.thumbsup", filledIcon: "hand.thumbsup.fill",
                 isOn: player.likeStatus == .liked, count: likeCount,
-                help: player.likeStatus == .liked ? "Remove from liked songs" : "Like",
+                help: player.likeStatus == .liked ? String(localized: "player.like.remove") : String(localized: "player.like"),
                 action: player.toggleLike)
             ratingButton(
                 icon: "hand.thumbsdown", filledIcon: "hand.thumbsdown.fill",
                 isOn: player.likeStatus == .disliked, count: votes?.dislikes,
-                help: player.likeStatus == .disliked ? "Remove dislike" : "Dislike",
+                help: player.likeStatus == .disliked ? String(localized: "player.dislike.remove") : String(localized: "player.dislike"),
                 action: player.toggleDislike)
         }
     }
@@ -517,7 +527,7 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .disabled(player.queue.isEmpty)
-            .help("Shuffle")
+            .help("common.shuffle")
 
             Button(action: player.previous) {
                 Image(systemName: "backward.fill")
@@ -551,7 +561,7 @@ private struct NowPlayingBar: View {
                     .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.red)
             }
             .buttonStyle(.plain)
-            .help("Repeat")
+            .help("player.repeat")
         }
     }
 
@@ -561,13 +571,13 @@ private struct NowPlayingBar: View {
                 .font(.system(size: 18))
         }
         .buttonStyle(.plain)
-        .help(seconds < 0 ? "Back \(Int(-seconds)) seconds" : "Forward \(Int(seconds)) seconds")
+        .help(String(format: String(localized: seconds < 0 ? "player.skip.back" : "player.skip.forward"), Int(abs(seconds))))
     }
 
     private var speedMenu: some View {
         @Bindable var player = player
         return Menu {
-            Picker("Speed", selection: $player.playbackRate) {
+            Picker("player.speed", selection: $player.playbackRate) {
                 ForEach(PlayerState.playbackRates, id: \.self) { rate in
                     Text(PlayerState.speedLabel(rate)).tag(rate)
                 }
@@ -580,7 +590,7 @@ private struct NowPlayingBar: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Playback speed")
+        .help("player.speed.help")
     }
 
     private var repeatIcon: String {
@@ -621,7 +631,7 @@ private struct NowPlayingBar: View {
                     .frame(width: 22)
             }
             .buttonStyle(.plain)
-            .help(player.isMuted ? "Unmute" : "Mute")
+            .help(player.isMuted ? String(localized: "player.unmute") : String(localized: "player.mute"))
             Slider(value: Binding(get: { player.isMuted ? 0 : player.volume }, set: { player.volume = $0 }), in: 0...1)
                 .controlSize(.small)
                 .tint(.primary)

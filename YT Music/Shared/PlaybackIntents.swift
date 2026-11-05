@@ -8,12 +8,12 @@
 import AppIntents
 
 struct NothingPlayingError: Error, CustomLocalizedStringResourceConvertible {
-    var localizedStringResource: LocalizedStringResource { "Nothing is playing." }
+    var localizedStringResource: LocalizedStringResource { "intent.error.nothing_playing" }
 }
 
 struct TogglePlayPauseIntent: AppIntent {
-    static let title: LocalizedStringResource = "Play or Pause"
-    static let description = IntentDescription("Toggles playback of the current track.")
+    static let title: LocalizedStringResource = "intent.play_pause.title"
+    static let description = IntentDescription("intent.play_pause.description")
 
     @Dependency private var player: PlayerState
 
@@ -26,8 +26,8 @@ struct TogglePlayPauseIntent: AppIntent {
 }
 
 struct NextTrackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Next Track"
-    static let description = IntentDescription("Skips to the next track in the queue.")
+    static let title: LocalizedStringResource = "intent.next.title"
+    static let description = IntentDescription("intent.next.description")
 
     @Dependency private var player: PlayerState
 
@@ -40,8 +40,8 @@ struct NextTrackIntent: AppIntent {
 }
 
 struct PreviousTrackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Previous Track"
-    static let description = IntentDescription("Restarts the current track, or goes back to the previous one.")
+    static let title: LocalizedStringResource = "intent.previous.title"
+    static let description = IntentDescription("intent.previous.description")
 
     @Dependency private var player: PlayerState
 
@@ -54,8 +54,8 @@ struct PreviousTrackIntent: AppIntent {
 }
 
 struct LikeCurrentTrackIntent: AppIntent {
-    static let title: LocalizedStringResource = "Like Current Track"
-    static let description = IntentDescription("Adds the playing track to your liked songs.")
+    static let title: LocalizedStringResource = "intent.like.title"
+    static let description = IntentDescription("intent.like.description")
 
     @Dependency private var player: PlayerState
 
@@ -68,8 +68,8 @@ struct LikeCurrentTrackIntent: AppIntent {
 }
 
 struct StartRadioIntent: AppIntent {
-    static let title: LocalizedStringResource = "Start Radio from Current Track"
-    static let description = IntentDescription("Replaces the queue with a radio based on the playing track.")
+    static let title: LocalizedStringResource = "intent.radio.title"
+    static let description = IntentDescription("intent.radio.description")
 
     @Dependency private var player: PlayerState
 
@@ -87,31 +87,31 @@ struct PlaybackShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: TogglePlayPauseIntent(),
             phrases: ["Play or pause \(.applicationName)", "Toggle \(.applicationName) playback"],
-            shortTitle: "Play or Pause",
+            shortTitle: "intent.play_pause.title",
             systemImageName: "playpause.fill"
         )
         AppShortcut(
             intent: NextTrackIntent(),
             phrases: ["Next track in \(.applicationName)", "Skip song in \(.applicationName)"],
-            shortTitle: "Next Track",
+            shortTitle: "intent.next.title",
             systemImageName: "forward.fill"
         )
         AppShortcut(
             intent: PreviousTrackIntent(),
             phrases: ["Previous track in \(.applicationName)"],
-            shortTitle: "Previous Track",
+            shortTitle: "intent.previous.title",
             systemImageName: "backward.fill"
         )
         AppShortcut(
             intent: LikeCurrentTrackIntent(),
             phrases: ["Like this song in \(.applicationName)", "Like the current track in \(.applicationName)"],
-            shortTitle: "Like Track",
+            shortTitle: "intent.like.short",
             systemImageName: "hand.thumbsup.fill"
         )
         AppShortcut(
             intent: StartRadioIntent(),
             phrases: ["Start radio in \(.applicationName)", "Start a radio from this song in \(.applicationName)"],
-            shortTitle: "Start Radio",
+            shortTitle: "intent.radio.short",
             systemImageName: "dot.radiowaves.left.and.right"
         )
     }

@@ -8,13 +8,18 @@
 import SwiftUI
 
 enum NowPlayingPanelTab: String, CaseIterable, Identifiable {
-    case queue = "Queue"
-    case lyrics = "Lyrics"
-    case details = "Details"
-    case related = "Related"
-    case comments = "Comments"
+    case queue, lyrics, details, related, comments
 
     var id: Self { self }
+    var title: LocalizedStringKey {
+        switch self {
+        case .queue:    "nowplaying.tab.queue"
+        case .lyrics:   "nowplaying.tab.lyrics"
+        case .details:  "nowplaying.tab.details"
+        case .related:  "nowplaying.tab.related"
+        case .comments: "nowplaying.tab.comments"
+        }
+    }
     var icon: String {
         switch self {
         case .queue:    "list.bullet"
@@ -49,7 +54,7 @@ struct NowPlayingPanelView: View {
         VStack(spacing: 0) {
             Picker("", selection: $tab) {
                 ForEach(availableTabs) { tab in
-                    Text(tab.rawValue).tag(tab)
+                    Text(tab.title).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
@@ -120,9 +125,9 @@ private struct QueueListView: View {
     var body: some View {
         if player.queue.isEmpty {
             ContentUnavailableView(
-                "Queue is empty",
+                "nowplaying.queue.empty.title",
                 systemImage: "music.note.list",
-                description: Text("Play a song, album, or start a radio to build up a queue.")
+                description: Text("nowplaying.queue.empty.description")
             )
         } else {
             List {
@@ -145,7 +150,7 @@ private struct QueueListView: View {
                             Button(role: .destructive) {
                                 player.removeFromQueue(at: index)
                             } label: {
-                                Label("Remove from queue", systemImage: "minus.circle")
+                                Label("nowplaying.queue.remove", systemImage: "minus.circle")
                             }
                         }
                 }
@@ -235,20 +240,20 @@ private struct LyricsView: View {
 
             case .unavailable:
                 ContentUnavailableView(
-                    "No lyrics",
+                    "nowplaying.lyrics.empty.title",
                     systemImage: "quote.bubble",
                     description: Text(videoId == nil
-                        ? "Play a track to see its lyrics."
-                        : "No lyrics from \(settings.lyricsProvider.label) for this track.")
+                        ? String(localized: "nowplaying.lyrics.empty.play")
+                        : String(format: String(localized: "nowplaying.lyrics.empty.provider"), settings.lyricsProvider.label))
                 )
 
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("Couldn't load lyrics", systemImage: "exclamationmark.triangle")
+                    Label("nowplaying.lyrics.error.title", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("Try Again") {
+                    Button("common.retry") {
                         Task { await model.load(query: query, provider: settings.lyricsProvider) }
                     }
                 }
@@ -309,22 +314,22 @@ private struct RelatedView: View {
 
         case .unavailable:
             ContentUnavailableView(
-                "No related music",
+                "nowplaying.related.empty.title",
                 systemImage: "square.stack",
                 description: Text(videoId == nil
-                    ? "Play a track to see related music."
-                    : "There's no related music for this track.")
+                    ? String(localized: "nowplaying.related.empty.play")
+                    : String(localized: "nowplaying.related.empty.none"))
             )
             .frame(maxWidth: .infinity)
             .padding(.vertical, 32)
 
         case .failed(let message):
             ContentUnavailableView {
-                Label("Couldn't load related music", systemImage: "exclamationmark.triangle")
+                Label("nowplaying.related.error.title", systemImage: "exclamationmark.triangle")
             } description: {
                 Text(message)
             } actions: {
-                Button("Try Again") {
+                Button("common.retry") {
                     Task { await model.load(videoId: videoId) }
                 }
             }
@@ -367,7 +372,7 @@ private struct SongInsightCard: View {
             shell {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Reading the lyrics…")
+                    Text("nowplaying.insight.loading")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -383,7 +388,7 @@ private struct SongInsightCard: View {
 
                     if !insight.mood.isEmpty {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("Mood")
+                            Text("nowplaying.insight.mood")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                             Text(insight.mood)
@@ -406,7 +411,7 @@ private struct SongInsightCard: View {
                         }
                     }
 
-                    Text("Generated on your Mac from the lyrics, so it may be imperfect.")
+                    Text("nowplaying.insight.disclaimer")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -417,7 +422,7 @@ private struct SongInsightCard: View {
     @ViewBuilder
     private func shell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("About this song", systemImage: "sparkles")
+            Label("nowplaying.insight.title", systemImage: "sparkles")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             content()
@@ -616,20 +621,20 @@ private struct CommentsView: View {
 
         case .unavailable:
             ContentUnavailableView(
-                "No comments",
+                "nowplaying.comments.empty.title",
                 systemImage: "text.bubble",
                 description: Text(videoId == nil
-                    ? "Play a track to see its comments."
-                    : "Comments aren't available for this track.")
+                    ? String(localized: "nowplaying.comments.empty.play")
+                    : String(localized: "nowplaying.comments.empty.none"))
             )
 
         case .failed(let message):
             ContentUnavailableView {
-                Label("Couldn't load comments", systemImage: "exclamationmark.triangle")
+                Label("nowplaying.comments.error.title", systemImage: "exclamationmark.triangle")
             } description: {
                 Text(message)
             } actions: {
-                Button("Try Again") {
+                Button("common.retry") {
                     Task { await model.load(videoId: videoId) }
                 }
             }
@@ -663,8 +668,10 @@ private struct CommentRow: View {
     }
 
     private var repliesLabel: String {
-        if let count = comment.replyCount { return "View \(count) replies" }
-        return "View replies"
+        if let count = comment.replyCount {
+            return String(format: String(localized: "nowplaying.comments.replies.count"), count)
+        }
+        return String(localized: "nowplaying.comments.replies.view")
     }
 }
 
@@ -682,7 +689,7 @@ private struct CommentThreadView: View {
         VStack(spacing: 0) {
             HStack(spacing: 4) {
                 Button(action: onBack) {
-                    Label("Comments", systemImage: "chevron.left")
+                    Label("nowplaying.tab.comments", systemImage: "chevron.left")
                         .font(.callout.weight(.medium))
                 }
                 .buttonStyle(.plain)

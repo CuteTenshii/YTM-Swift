@@ -32,7 +32,7 @@ final class HistoryViewModel {
         do {
             let sections = try await client.history()
             state = sections.isEmpty
-                ? .failed("You haven't listened to anything yet.")
+                ? .failed(String(localized: "history.empty"))
                 : .loaded(sections)
         } catch {
             state = .failed(error.localizedDescription)
@@ -62,5 +62,5 @@ final class HistoryViewModel {
         try? await client.removeHistoryItems(feedbackTokens: tokens)
     }
 
-    private var emptyState: State { .failed("You haven't listened to anything yet.") }
+    private var emptyState: State { .failed(String(localized: "history.empty")) }
 }

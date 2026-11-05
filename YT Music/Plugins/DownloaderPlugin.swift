@@ -10,8 +10,8 @@ import AppKit
 @MainActor
 final class DownloaderPlugin: Plugin {
     let id = "downloader"
-    let name = "Downloader"
-    let summary = "Save songs, albums, and playlists to your Mac."
+    let name = String(localized: "plugins.downloader.name")
+    let summary = String(localized: "plugins.downloader.summary")
 
     let downloader: Downloader
 
@@ -35,27 +35,27 @@ private struct DownloaderConfigView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LabeledContent("Save to") {
+            LabeledContent("plugins.downloader.save_to") {
                 HStack(spacing: 8) {
                     Text(settings.effectiveDownloadDirectory.path)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .foregroundStyle(.secondary)
-                    Button("Choose…", action: chooseFolder)
+                    Button("plugins.downloader.choose", action: chooseFolder)
                     if settings.downloadDirectory != nil {
-                        Button("Reset") { settings.setDownloadDirectory(nil) }
+                        Button("common.reset") { settings.setDownloadDirectory(nil) }
                     }
                 }
             }
 
             HStack {
                 Button(action: startDownload) {
-                    Label("Download current song", systemImage: "arrow.down.circle")
+                    Label("plugins.downloader.current", systemImage: "arrow.down.circle")
                 }
                 .disabled(player.currentSnapshot == nil || downloader.isBusy)
 
                 if downloader.isBusy {
-                    Button("Cancel", role: .cancel) { downloader.cancel() }
+                    Button("common.cancel", role: .cancel) { downloader.cancel() }
                 }
             }
 
@@ -88,7 +88,7 @@ private struct DownloaderConfigView: View {
 
     private func runningLabel(_ progress: Downloader.Progress) -> String {
         let head = progress.total > 1 ? "(\(progress.index)/\(progress.total)) " : ""
-        return "\(head)Downloading “\(progress.currentTitle)”…"
+        return head + String(format: String(localized: "plugins.downloader.running"), progress.currentTitle)
     }
 
     private func startDownload() {
@@ -103,8 +103,8 @@ private struct DownloaderConfigView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        panel.message = "Choose a folder for downloaded songs"
+        panel.prompt = String(localized: "plugins.downloader.panel.prompt")
+        panel.message = String(localized: "plugins.downloader.panel.message")
         if panel.runModal() == .OK, let url = panel.url {
             settings.setDownloadDirectory(url)
         }

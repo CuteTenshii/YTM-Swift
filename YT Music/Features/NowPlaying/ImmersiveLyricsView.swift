@@ -19,11 +19,11 @@ struct ImmersiveLyricsView: View {
             }
         }
 
-        var help: String {
+        var help: LocalizedStringKey {
             switch self {
-            case .lyrics:   "Lyrics"
-            case .bars:     "Spectrum bars"
-            case .milkdrop: "Milkdrop visualizer"
+            case .lyrics:   "nowplaying.immersive.mode.lyrics"
+            case .bars:     "nowplaying.immersive.mode.bars"
+            case .milkdrop: "nowplaying.immersive.mode.milkdrop"
             }
         }
     }
@@ -156,7 +156,7 @@ struct ImmersiveLyricsView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
-            .help("Close lyrics")
+            .help("nowplaying.immersive.close")
         }
         .padding(.horizontal, 44)
         .padding(.top, 28 + safeAreaTop)
@@ -164,7 +164,7 @@ struct ImmersiveLyricsView: View {
     }
 
     private var modeToggle: some View {
-        Picker("View", selection: $mode.animation(.easeInOut(duration: 0.2))) {
+        Picker("nowplaying.immersive.view", selection: $mode.animation(.easeInOut(duration: 0.2))) {
             ForEach(Mode.allCases, id: \.self) { mode in
                 Image(systemName: mode.icon).tag(mode).help(mode.help)
             }
@@ -172,7 +172,7 @@ struct ImmersiveLyricsView: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .frame(width: 150)
-        .help("Switch between lyrics and visualizers")
+        .help("nowplaying.immersive.switch")
     }
 
     // MARK: - Content
@@ -196,12 +196,12 @@ struct ImmersiveLyricsView: View {
             }
 
         case .unavailable:
-            message("No lyrics", detail: player.nowPlaying == nil
-                ? "Play a track to see its lyrics."
-                : "No lyrics from \(settings.lyricsProvider.label) for this track.")
+            message(String(localized: "nowplaying.lyrics.empty.title"), detail: player.nowPlaying == nil
+                ? String(localized: "nowplaying.lyrics.empty.play")
+                : String(format: String(localized: "nowplaying.lyrics.empty.provider"), settings.lyricsProvider.label))
 
         case .failed(let text):
-            message("Couldn't load lyrics", detail: text)
+            message(String(localized: "nowplaying.lyrics.error.title"), detail: text)
         }
     }
 

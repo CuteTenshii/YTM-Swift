@@ -52,6 +52,6 @@ nonisolated enum UploadsParser {
     private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
-        return Shelf(title: title.isEmpty ? "Uploads" : title, items: items)
+        return Shelf(title: title.isEmpty ? String(localized: "nav.uploads") : title, items: items)
     }
 }

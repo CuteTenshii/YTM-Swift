@@ -36,7 +36,7 @@ final class TrackChangeNotifier {
 
     private func post(_ snapshot: PlaybackSnapshot) {
         let content = UNMutableNotificationContent()
-        content.title = snapshot.title.isEmpty ? "Now Playing" : snapshot.title
+        content.title = snapshot.title.isEmpty ? String(localized: "plugins.notifications.now_playing") : snapshot.title
         let parts = [snapshot.artist, snapshot.album].filter { !$0.isEmpty }
         content.body = parts.joined(separator: " - ")
 

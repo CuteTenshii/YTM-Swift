@@ -105,10 +105,10 @@ struct AddToPlaylistSheet: View {
         }
         .frame(width: 420, height: 520)
         .task { await model.load(videoId: add.videoId) }
-        .alert("Rename Playlist", isPresented: renamingBinding) {
-            TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { renaming = nil }
-            Button("Rename") {
+        .alert("playlists.add.rename.title", isPresented: renamingBinding) {
+            TextField("playlists.field.name", text: $renameText)
+            Button("common.cancel", role: .cancel) { renaming = nil }
+            Button("playlists.rename") {
                 if let playlist = renaming {
                     Task { await model.rename(playlist, to: renameText) }
                 }
@@ -120,14 +120,14 @@ struct AddToPlaylistSheet: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Add to Playlist").font(.headline)
+                Text("playlists.add.title").font(.headline)
                 Text(add.title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer()
-            Button("Done") { onFinish() }
+            Button("common.done") { onFinish() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(16)
@@ -139,10 +139,10 @@ struct AddToPlaylistSheet: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .frame(width: 44, height: 44)
-            TextField("New playlist name", text: $newName)
+            TextField("playlists.add.new_name.placeholder", text: $newName)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(createNew)
-            Button("Create", action: createNew)
+            Button("playlists.add.create", action: createNew)
                 .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || model.busy)
         }
         .padding(.horizontal, 16)
@@ -158,14 +158,14 @@ struct AddToPlaylistSheet: View {
             centered {
                 VStack(spacing: 12) {
                     Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Try Again") { Task { await model.load(videoId: add.videoId) } }
+                    Button("common.retry") { Task { await model.load(videoId: add.videoId) } }
                 }
                 .padding(24)
             }
         case .loaded(let playlists):
             if playlists.isEmpty {
                 centered {
-                    Text("You don't have any playlists yet.\nCreate one above.")
+                    Text("playlists.add.empty")
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -212,12 +212,12 @@ struct AddToPlaylistSheet: View {
                 renameText = playlist.title
                 renaming = playlist
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Label("playlists.rename", systemImage: "pencil")
             }
             Button(role: .destructive) {
                 Task { await model.delete(playlist) }
             } label: {
-                Label("Delete Playlist", systemImage: "trash")
+                Label("playlists.delete", systemImage: "trash")
             }
         }
     }

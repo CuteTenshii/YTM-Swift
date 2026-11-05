@@ -47,7 +47,7 @@ final class HomeViewModel {
                 params: chip?.params
             )
             if feed.shelves.isEmpty {
-                if !isChipLoad { state = .failed("No content was returned.") }
+                if !isChipLoad { state = .failed(String(localized: "feed.empty")) }
             } else {
                 state = .loaded(feed)
             }

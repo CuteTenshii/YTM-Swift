@@ -44,16 +44,16 @@ struct EditPlaylistSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Edit Playlist").font(.headline)
+            Text("playlists.edit.title").font(.headline)
 
             VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("Name")
-                TextField("Name", text: $name)
+                fieldLabel("playlists.field.name")
+                TextField("playlists.field.name", text: $name)
                     .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("Visibility")
+                fieldLabel("playlists.edit.visibility")
                 DescribedMenu(
                     selection: displayedPrivacy,
                     choices: PlaylistPrivacy.allCases.map {
@@ -64,7 +64,7 @@ struct EditPlaylistSheet: View {
 
             if !voteOptions.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    fieldLabel("Voting")
+                    fieldLabel("playlists.edit.voting")
                     DescribedMenu(
                         selection: $votePermission,
                         choices: voteOptions.map {
@@ -76,7 +76,7 @@ struct EditPlaylistSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("Description")
+                fieldLabel("playlists.edit.description")
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $description)
                         .font(.body)
@@ -88,7 +88,7 @@ struct EditPlaylistSheet: View {
                                 .stroke(.quaternary, lineWidth: 1)
                         )
                     if description.isEmpty {
-                        Text("Add a description for this playlist")
+                        Text("playlists.edit.description.placeholder")
                             .font(.body)
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 6)
@@ -101,14 +101,14 @@ struct EditPlaylistSheet: View {
 
             HStack(spacing: 12) {
                 if failed {
-                    Text("Couldn't save. Check your connection and try again.")
+                    Text("playlists.edit.save_failed")
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
                 Spacer(minLength: 0)
-                Button("Cancel") { onFinish() }
+                Button("common.cancel") { onFinish() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") { saveEdits() }
+                Button("common.save") { saveEdits() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
@@ -117,7 +117,7 @@ struct EditPlaylistSheet: View {
         .frame(width: 460, height: voteOptions.isEmpty ? 380 : 440)
     }
 
-    private func fieldLabel(_ text: String) -> some View {
+    private func fieldLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -132,17 +132,17 @@ struct EditPlaylistSheet: View {
 
     private func visibilityLabel(_ level: PlaylistPrivacy) -> String {
         switch level {
-        case .private: return "Private"
-        case .unlisted: return "Unlisted"
-        case .public: return "Public"
+        case .private: return String(localized: "playlists.visibility.private")
+        case .unlisted: return String(localized: "playlists.visibility.unlisted")
+        case .public: return String(localized: "playlists.visibility.public")
         }
     }
 
     private func visibilityDetail(_ level: PlaylistPrivacy) -> String {
         switch level {
-        case .private: return "Only you can view"
-        case .unlisted: return "Anyone with the link can view"
-        case .public: return "Anyone can search for and view"
+        case .private: return String(localized: "playlists.visibility.private.detail")
+        case .unlisted: return String(localized: "playlists.visibility.unlisted.detail")
+        case .public: return String(localized: "playlists.visibility.public.detail")
         }
     }
 

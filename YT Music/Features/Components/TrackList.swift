@@ -131,7 +131,7 @@ struct TrackRow: View {
                 Button(role: .destructive) {
                     onRemove(track)
                 } label: {
-                    Label("Remove from Playlist", systemImage: "minus.circle")
+                    Label("components.track_list.remove_from_playlist", systemImage: "minus.circle")
                 }
             }
         }
@@ -145,7 +145,7 @@ struct TrackRow: View {
             } label: {
                 Image(systemName: vote.status == .up ? "arrowshape.up.fill" : "arrowshape.up")
             }
-            .accessibilityLabel(vote.status == .up ? "Remove upvote" : "Upvote")
+            .accessibilityLabel(vote.status == .up ? String(localized: "components.vote.up_remove") : String(localized: "components.vote.up"))
 
             Text(vote.count)
                 .font(.callout.monospacedDigit())
@@ -156,7 +156,7 @@ struct TrackRow: View {
             } label: {
                 Image(systemName: vote.status == .down ? "arrowshape.down.fill" : "arrowshape.down")
             }
-            .accessibilityLabel(vote.status == .down ? "Remove downvote" : "Downvote")
+            .accessibilityLabel(vote.status == .down ? String(localized: "components.vote.down_remove") : String(localized: "components.vote.down"))
         }
         .buttonStyle(.borderless)
         .foregroundStyle(.secondary)

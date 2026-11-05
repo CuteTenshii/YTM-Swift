@@ -28,19 +28,24 @@ struct StatsForNerdsView: View {
         let details = player.streamDetails?.videoId == track?.videoId ? player.streamDetails : nil
         let ahead = max(player.bufferedTime - player.currentTime, 0)
         return [
-            ("Video ID", track?.videoId ?? "-"),
-            ("Source client", details?.source ?? "-"),
-            ("Format (itag)", details?.itag.map(String.init) ?? "-"),
-            ("MIME type", details?.mimeType ?? "-"),
-            ("Bitrate", details?.bitrate.map { "\($0 / 1000) kbps" } ?? "-"),
-            ("Audio quality", details?.audioQuality ?? "-"),
-            ("Stream host", details?.host ?? "-"),
-            ("Position", "\(Self.time(player.currentTime)) / \(Self.time(player.duration))"),
-            ("Buffered ahead", String(format: "%.1f s", ahead)),
-            ("State", player.isBuffering ? "Buffering" : player.isPlaying ? "Playing" : "Paused"),
-            ("Speed", String(format: "%.2fx", player.playbackRate)),
-            ("Volume", "\(Int(player.volume * 100))%"),
+            (String(localized: "nowplaying.stats.video_id"), track?.videoId ?? "-"),
+            (String(localized: "nowplaying.stats.source"), details?.source ?? "-"),
+            (String(localized: "nowplaying.stats.format"), details?.itag.map(String.init) ?? "-"),
+            (String(localized: "nowplaying.stats.mime"), details?.mimeType ?? "-"),
+            (String(localized: "nowplaying.stats.bitrate"), details?.bitrate.map { "\($0 / 1000) kbps" } ?? "-"),
+            (String(localized: "nowplaying.stats.quality"), details?.audioQuality ?? "-"),
+            (String(localized: "nowplaying.stats.host"), details?.host ?? "-"),
+            (String(localized: "nowplaying.stats.position"), "\(Self.time(player.currentTime)) / \(Self.time(player.duration))"),
+            (String(localized: "nowplaying.stats.buffered"), String(format: "%.1f s", ahead)),
+            (String(localized: "nowplaying.stats.state"), stateText),
+            (String(localized: "nowplaying.stats.speed"), String(format: "%.2fx", player.playbackRate)),
+            (String(localized: "nowplaying.stats.volume"), "\(Int(player.volume * 100))%"),
         ]
+    }
+
+    private var stateText: String {
+        if player.isBuffering { return String(localized: "nowplaying.stats.state.buffering") }
+        return player.isPlaying ? String(localized: "nowplaying.stats.state.playing") : String(localized: "nowplaying.stats.state.paused")
     }
 
     private static func time(_ seconds: Double) -> String {

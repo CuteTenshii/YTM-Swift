@@ -28,7 +28,7 @@ struct LibraryView: View {
 
                 switch model.state {
                 case .loading:
-                    ProgressView("Loading Library…")
+                    ProgressView("library.loading")
                         .controlSize(.large)
                         .tint(.primary)
                         .foregroundStyle(.primary)
@@ -43,24 +43,24 @@ struct LibraryView: View {
                     errorView(message)
                 }
             }
-            .pageTitle("Library")
+            .pageTitle(String(localized: "library.title"))
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
         }
-        .alert("Rename Playlist", isPresented: renamingBinding) {
-            TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { renaming = nil }
-            Button("Rename") {
+        .alert("playlists.add.rename.title", isPresented: renamingBinding) {
+            TextField("playlists.field.name", text: $renameText)
+            Button("common.cancel", role: .cancel) { renaming = nil }
+            Button("playlists.rename") {
                 if let item = renaming, let id = item.editablePlaylistId {
                     Task { await model.renamePlaylist(id, to: renameText, isSignedIn: auth.isSignedIn) }
                 }
                 renaming = nil
             }
         }
-        .alert("Delete Playlist", isPresented: deletingBinding) {
-            Button("Cancel", role: .cancel) { deleting = nil }
-            Button("Delete", role: .destructive) {
+        .alert("playlists.delete", isPresented: deletingBinding) {
+            Button("common.cancel", role: .cancel) { deleting = nil }
+            Button("common.delete", role: .destructive) {
                 if let item = deleting, let id = item.editablePlaylistId {
                     Task { await model.deletePlaylist(id, isSignedIn: auth.isSignedIn) }
                 }
@@ -68,7 +68,7 @@ struct LibraryView: View {
             }
         } message: {
             if let item = deleting {
-                Text("“\(item.title)” will be permanently deleted.")
+                Text(String(format: String(localized: "entity.delete.message"), item.title))
             }
         }
     }
@@ -135,13 +135,13 @@ struct LibraryView: View {
                                 renameText = item.title
                                 renaming = item
                             } label: {
-                                Label("Rename…", systemImage: "pencil")
+                                Label("playlists.rename.menu", systemImage: "pencil")
                             }
                             Divider()
                             Button(role: .destructive) {
                                 deleting = item
                             } label: {
-                                Label("Delete Playlist…", systemImage: "trash")
+                                Label("playlists.delete.menu", systemImage: "trash")
                             }
                         }
                     }
@@ -165,7 +165,7 @@ struct LibraryView: View {
     private var emptyFilterView: some View {
         VStack {
             Spacer()
-            Text("Nothing here yet")
+            Text("library.empty.filter")
                 .font(.title3)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -178,14 +178,14 @@ struct LibraryView: View {
             Image(systemName: "books.vertical.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("Your library lives here")
+            Text("library.signed_out.title")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-            Text("Sign in to see your playlists, albums, and saved music.")
+            Text("library.signed_out.message")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Sign in") { auth.isPresentingLogin = true }
+            Button("common.sign_in") { auth.isPresentingLogin = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
         }
@@ -201,7 +201,7 @@ struct LibraryView: View {
             Text(text)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.load(isSignedIn: auth.isSignedIn) }
             }
             .buttonStyle(.borderedProminent)

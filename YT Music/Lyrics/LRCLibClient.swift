@@ -71,13 +71,13 @@ nonisolated final class LRCLibClient: LyricsProviding, Sendable {
 
     private func lyrics(from track: LRCLibTrack) -> Lyrics? {
         if track.instrumental == true {
-            return Lyrics(text: "♪ Instrumental ♪", source: "LRCLIB")
+            return Lyrics(text: String(localized: "lyrics.instrumental"), source: "LRCLIB")
         }
         let synced = track.syncedLyrics.map(LRCParser.parse) ?? []
         // Flatten synced lyrics to plain text when no plain text exists.
         let plain = track.plainLyrics.flatMap { $0.isEmpty ? nil : $0 }
             ?? synced.map(\.text).joined(separator: "\n")
         guard !plain.isEmpty else { return nil }
-        return Lyrics(text: plain, source: "Source: LRCLIB", lines: synced)
+        return Lyrics(text: plain, source: String(format: String(localized: "lyrics.source"), "LRCLIB"), lines: synced)
     }
 }

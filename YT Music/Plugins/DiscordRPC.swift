@@ -26,8 +26,8 @@ nonisolated enum DiscordStatusDisplay: String, CaseIterable, Sendable, Identifia
     var label: String {
         switch self {
         case .name:     "YT Music"
-        case .state:    "Artist"
-        case .details:  "Song"
+        case .state:    String(localized: "plugins.discord.display.artist")
+        case .details:  String(localized: "plugins.discord.display.song")
         }
     }
 }
@@ -231,8 +231,8 @@ final class DiscordRPC: @unchecked Sendable {
 
         var activity: [String: Any] = [
             "type": 2,  // "Listening to …"
-            "details": title.isEmpty ? "Unknown track" : title,
-            "state": artist.isEmpty ? "Unknown artist" : artist,
+            "details": title.isEmpty ? String(localized: "plugins.discord.unknown_track") : title,
+            "state": artist.isEmpty ? String(localized: "plugins.discord.unknown_artist") : artist,
             // Which field feeds the "Listening to" status text: app name, state, or details.
             "status_display_type": style.discordValue,
         ]

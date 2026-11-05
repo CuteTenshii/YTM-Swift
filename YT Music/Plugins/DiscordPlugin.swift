@@ -11,7 +11,7 @@ import SwiftUI
 final class DiscordPlugin: Plugin {
     let id = "discord-rpc"
     let name = "Discord Rich Presence"
-    let summary = "Show the track you're listening to as your Discord status. Requires the Discord desktop app to be running."
+    let summary = String(localized: "plugins.discord.summary")
 
     private let rpc = DiscordRPC()
     private let defaults: UserDefaults
@@ -75,22 +75,22 @@ private struct DiscordConfigView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Status display type")
+            Text("plugins.discord.display")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Picker("Status display type", selection: $plugin.statusDisplay) {
+            Picker("plugins.discord.display", selection: $plugin.statusDisplay) {
                 ForEach(DiscordStatusDisplay.allCases) { display in
                     Text(display.label).tag(display)
                 }
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            Text("Controls what appears after “Listening to …” on your profile.")
+            Text("plugins.discord.display.help")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Toggle("Parse video titles as “Artist - Track”", isOn: $plugin.parseTitleAsArtistTrack)
-            Text("For uploads whose byline only names the uploader channel, take the artist from the video title instead.")
+            Toggle("plugins.discord.parse_title", isOn: $plugin.parseTitleAsArtistTrack)
+            Text("plugins.discord.parse_title.help")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

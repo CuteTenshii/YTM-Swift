@@ -27,7 +27,7 @@ struct HomeView: View {
 
                 switch model.state {
                 case .idle, .loading:
-                    ProgressView("Loading Home…")
+                    ProgressView("home.loading")
                         .controlSize(.large)
                         .tint(.primary)
                         .foregroundStyle(.primary)
@@ -43,11 +43,11 @@ struct HomeView: View {
                     errorView(message)
                 }
             }
-            .pageTitle("Home")
+            .pageTitle(String(localized: "home.title"))
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
-            .searchable(text: $searchText, placement: .toolbar, prompt: "Songs, albums, artists, playlists…")
+            .searchable(text: $searchText, placement: .toolbar, prompt: "search.prompt")
             .searchSuggestions {
                 ForEach(searchModel.suggestions, id: \.self) { suggestion in
                     Text(suggestion)
@@ -106,14 +106,14 @@ struct HomeView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("Couldn't load Home")
+            Text("home.load_failed")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.load() }
             }
             .buttonStyle(.borderedProminent)

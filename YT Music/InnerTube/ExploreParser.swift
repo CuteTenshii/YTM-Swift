@@ -42,7 +42,7 @@ nonisolated enum ExploreParser {
         let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0) }
         guard !items.isEmpty else { return nil }
         return Shelf(
-            title: title.isEmpty ? "Explore" : title, items: items, buttons: buttons,
+            title: title.isEmpty ? String(localized: "nav.explore") : title, items: items, buttons: buttons,
             rowsPerColumn: rowsPerColumn
         )
     }

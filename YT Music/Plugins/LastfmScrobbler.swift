@@ -296,11 +296,11 @@ nonisolated enum LastfmError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Last.fm API key not configured."
+            return String(localized: "plugins.lastfm.error.not_configured")
         case .malformedResponse:
-            return "Unexpected response from Last.fm."
+            return String(localized: "plugins.lastfm.error.malformed")
         case .api(let code, let message):
-            return "Last.fm error \(code): \(message)"
+            return String(format: String(localized: "plugins.lastfm.error.api"), code, message)
         }
     }
 }

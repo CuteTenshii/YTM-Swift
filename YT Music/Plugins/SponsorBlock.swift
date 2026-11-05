@@ -20,14 +20,14 @@ nonisolated enum SponsorBlockCategory: String, CaseIterable, Codable, Sendable, 
 
     var label: String {
         switch self {
-        case .musicOfftopic: "Non-music section"
-        case .sponsor: "Sponsor"
-        case .selfpromo: "Self-promotion"
-        case .interaction: "Interaction reminder"
-        case .intro: "Intro"
-        case .outro: "Outro"
-        case .preview: "Preview / recap"
-        case .filler: "Filler"
+        case .musicOfftopic: String(localized: "plugins.sponsorblock.music_offtopic")
+        case .sponsor: String(localized: "plugins.sponsorblock.sponsor")
+        case .selfpromo: String(localized: "plugins.sponsorblock.self_promo")
+        case .interaction: String(localized: "plugins.sponsorblock.interaction")
+        case .intro: String(localized: "plugins.sponsorblock.intro")
+        case .outro: String(localized: "plugins.sponsorblock.outro")
+        case .preview: String(localized: "plugins.sponsorblock.preview")
+        case .filler: String(localized: "plugins.sponsorblock.filler")
         }
     }
 

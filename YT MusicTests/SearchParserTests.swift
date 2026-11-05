@@ -57,7 +57,7 @@ struct SearchParserTests {
 
         #expect(shelves.count == 2)
 
-        let songs = try #require(shelves.first { $0.title == "Songs" })
+        let songs = try #require(shelves.first { $0.title == String(localized: "search.filter.songs") })
         let song = try #require(songs.items.first)
         #expect(song.kind == .song)
         #expect(song.title == "Bohemian Rhapsody")
@@ -65,7 +65,7 @@ struct SearchParserTests {
         #expect(song.videoId == "fJ9rUzIMcZQ")
         #expect(song.entityDestination == nil)   // songs play, they don't navigate
 
-        let albums = try #require(shelves.first { $0.title == "Albums" })
+        let albums = try #require(shelves.first { $0.title == String(localized: "search.filter.albums") })
         let album = try #require(albums.items.first)
         #expect(album.kind == .album)
         #expect(album.title == "A Night at the Opera")
@@ -162,23 +162,25 @@ struct SearchParserTests {
         let shelves = SearchParser.parse(response)
 
         #expect(shelves.map(\.title) == [
-            "Top result", "Songs", "Videos", "Albums", "Podcasts", "Episodes", "Profiles",
+            String(localized: "search.top_result"), String(localized: "search.filter.songs"), String(localized: "search.filter.videos"),
+            String(localized: "search.filter.albums"), String(localized: "search.filter.podcasts"),
+            String(localized: "search.filter.episodes"), String(localized: "search.filter.profiles"),
         ])
 
-        let top = try #require(shelves.first { $0.title == "Top result" })
+        let top = try #require(shelves.first { $0.title == String(localized: "search.top_result") })
         #expect(top.items.first?.kind == .artist)
         #expect(top.items.first?.browseId == "UCqueen")
 
-        let song = try #require(shelves.first { $0.title == "Songs" }?.items.first)
+        let song = try #require(shelves.first { $0.title == String(localized: "search.filter.songs") }?.items.first)
         #expect(song.videoId == "bdf_ll68Z8o")
 
-        let video = try #require(shelves.first { $0.title == "Videos" }?.items.first)
+        let video = try #require(shelves.first { $0.title == String(localized: "search.filter.videos") }?.items.first)
         #expect(video.videoId == "vid_omv")
 
-        #expect(shelves.first { $0.title == "Albums" }?.items.first?.browseId == "MPREb_hits")
-        #expect(shelves.first { $0.title == "Episodes" }?.items.first?.videoId == "ep_id")
-        #expect(shelves.first { $0.title == "Profiles" }?.items.first?.browseId == "UCprofile")
-        #expect(shelves.first { $0.title == "Podcasts" }?.items.first?.browseId == "MPSPpodcast")
+        #expect(shelves.first { $0.title == String(localized: "search.filter.albums") }?.items.first?.browseId == "MPREb_hits")
+        #expect(shelves.first { $0.title == String(localized: "search.filter.episodes") }?.items.first?.videoId == "ep_id")
+        #expect(shelves.first { $0.title == String(localized: "search.filter.profiles") }?.items.first?.browseId == "UCprofile")
+        #expect(shelves.first { $0.title == String(localized: "search.filter.podcasts") }?.items.first?.browseId == "MPSPpodcast")
     }
 }
 

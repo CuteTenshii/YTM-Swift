@@ -11,19 +11,19 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            Tab("General", systemImage: "gearshape") {
+            Tab("settings.tab.general", systemImage: "gearshape") {
                 GeneralSettingsTab(updater: updater)
             }
-            Tab("Playback", systemImage: "speaker.wave.2") {
+            Tab("settings.tab.playback", systemImage: "speaker.wave.2") {
                 PlaybackSettingsTab()
             }
-            Tab("Equalizer", systemImage: "slider.horizontal.3") {
+            Tab("settings.tab.equalizer", systemImage: "slider.horizontal.3") {
                 EqualizerSettingsTab()
             }
-            Tab("Plugins", systemImage: "puzzlepiece.extension") {
+            Tab("settings.tab.plugins", systemImage: "puzzlepiece.extension") {
                 PluginsSettingsTab()
             }
-            Tab("Storage", systemImage: "internaldrive") {
+            Tab("settings.tab.storage", systemImage: "internaldrive") {
                 StorageSettingsTab()
             }
         }
@@ -39,28 +39,43 @@ private struct GeneralSettingsTab: View {
         @Bindable var settings = settings
 
         Form {
-            Section("Startup") {
-                Toggle("Open at login", isOn: $settings.openAtLogin)
+            Section("settings.general.startup") {
+                Toggle("settings.general.open_at_login", isOn: $settings.openAtLogin)
             }
 
-            Section("Network") {
-                TextField("HTTP proxy URL", text: $settings.proxyURL)
+            Section("settings.general.language") {
+                Picker("settings.general.language.title", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { Text($0.label).tag($0) }
+                }
+                if settings.needsRelaunchForLanguage {
+                    LabeledContent {
+                        Button("settings.general.language.relaunch") { settings.relaunch() }
+                    } label: {
+                        Text("settings.general.language.help")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.disabled)
+                    }
+                }
+            }
+
+            Section("settings.general.network") {
+                TextField("settings.general.proxy.title", text: $settings.proxyURL)
                     .textFieldStyle(.roundedBorder)
-                Text(verbatim: "Example: http://localhost:8888. Leave blank to use the system connection. "
-                    + "Relaunch the app after changing it.")
+                Text("settings.general.proxy.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
                 if !settings.proxyURL.isEmpty && NetworkProxy(string: settings.proxyURL) == nil {
-                    Text("Enter a valid http:// or https:// proxy URL.")
+                    Text("settings.general.proxy.invalid")
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
             }
 
             if let updater {
-                Section("Updates") {
-                    Toggle("Check for updates automatically", isOn: $checksForUpdates)
+                Section("settings.general.updates") {
+                    Toggle("settings.general.updates.auto", isOn: $checksForUpdates)
                         .onChange(of: checksForUpdates) { _, enabled in
                             updater.automaticallyChecksForUpdates = enabled
                         }
@@ -79,44 +94,44 @@ private struct PlaybackSettingsTab: View {
         @Bindable var settings = settings
 
         Form {
-            Section("Audio") {
-                Picker("Audio quality", selection: $settings.audioQuality) {
+            Section("settings.playback.audio") {
+                Picker("settings.playback.quality", selection: $settings.audioQuality) {
                     ForEach(AudioQuality.allCases) { quality in
                         Text(quality.label).tag(quality)
                     }
                 }
-                Toggle("Prefer audio over video", isOn: $settings.preferAudioOverVideo)
-                Text("Play music videos as audio-only streams. Turn off to allow combined video+audio streams when they're higher quality.")
+                Toggle("settings.playback.prefer_audio", isOn: $settings.preferAudioOverVideo)
+                Text("settings.playback.prefer_audio.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Normalize volume", isOn: $settings.volumeNormalization)
-                Text("Turn down tracks that are louder than YouTube's reference level, as YouTube does.")
+                Toggle("settings.playback.normalize", isOn: $settings.volumeNormalization)
+                Text("settings.playback.normalize.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Crossfade") {
-                Toggle("Crossfade between tracks", isOn: $settings.crossfadeEnabled)
+            Section("settings.playback.crossfade") {
+                Toggle("settings.playback.crossfade.toggle", isOn: $settings.crossfadeEnabled)
                 if settings.crossfadeEnabled {
                     HStack {
                         Slider(value: $settings.crossfadeSeconds, in: 1...12, step: 1)
-                        Text("\(Int(settings.crossfadeSeconds))s")
+                        Text(String(format: String(localized: "settings.playback.seconds"), Int(settings.crossfadeSeconds)))
                             .font(.callout.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(width: 34, alignment: .trailing)
                     }
-                    Text("Overlap the end of each track with the start of the next.")
+                    Text("settings.playback.crossfade.help")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Section("Next track") {
-                Toggle("Autoplay", isOn: $settings.autoplay)
-                Text("When the queue ends, keep playing a radio based on the last track.")
+            Section("settings.playback.next_track") {
+                Toggle("settings.playback.autoplay", isOn: $settings.autoplay)
+                Text("settings.playback.autoplay.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Preload next track", isOn: Binding(
+                Toggle("settings.playback.preload", isOn: Binding(
                     get: { settings.nextTrackPreloadSeconds > 0 },
                     set: { settings.nextTrackPreloadSeconds = $0 ? 5 : 0 }
                 ))
@@ -130,27 +145,27 @@ private struct PlaybackSettingsTab: View {
                         step: 5
                     )
                     Text(settings.nextTrackPreloadSeconds > 0
-                         ? "\(Int(settings.nextTrackPreloadSeconds))s"
-                         : "Off")
+                         ? String(format: String(localized: "settings.playback.seconds"), Int(settings.nextTrackPreloadSeconds))
+                         : String(localized: "settings.playback.preload.off"))
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: 36, alignment: .trailing)
                 }
                 .disabled(settings.nextTrackPreloadSeconds == 0)
-                Text("Start buffering the next track before the current one ends. This can reduce gaps on a slow connection.")
+                Text("settings.playback.preload.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Track lists") {
-                Toggle("Play tracks with a single click", isOn: $settings.playOnSingleClick)
-                Text("Start album, playlist, and history rows with one click instead of a double click.")
+            Section("settings.playback.track_lists") {
+                Toggle("settings.playback.single_click", isOn: $settings.playOnSingleClick)
+                Text("settings.playback.single_click.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Lyrics") {
-                LabeledContent("Lyrics source") {
+            Section("settings.playback.lyrics") {
+                LabeledContent("settings.playback.lyrics.source") {
                     DescribedMenu(
                         selection: $settings.lyricsProvider,
                         choices: LyricsProvider.allCases.map {
@@ -165,9 +180,9 @@ private struct PlaybackSettingsTab: View {
 
     private func lyricsDetail(_ provider: LyricsProvider) -> String {
         switch provider {
-        case .youtubeMusic: "Matches the playing track exactly"
-        case .lrclib: "Open database with wider coverage and synced lyrics"
-        case .musixmatch: "Word-by-word timing, but less reliable"
+        case .youtubeMusic: String(localized: "settings.playback.lyrics.youtube_music")
+        case .lrclib: String(localized: "settings.playback.lyrics.lrclib")
+        case .musixmatch: String(localized: "settings.playback.lyrics.musixmatch")
         }
     }
 }
@@ -184,17 +199,17 @@ private struct EqualizerSettingsTab: View {
 
         Form {
             Section {
-                Toggle("Enable equalizer", isOn: $settings.equalizerEnabled)
+                Toggle("settings.eq.enable", isOn: $settings.equalizerEnabled)
             }
 
             if settings.equalizerEnabled {
                 Section {
-                    Picker("Preset", selection: Binding(
+                    Picker("settings.eq.preset", selection: Binding(
                         get: { selectedPreset },
                         set: { if let preset = $0 { settings.applyEqualizerPreset(preset) } }
                     )) {
                         if selectedPreset == nil {
-                            Text("Custom").tag(EqualizerPreset?.none)
+                            Text("settings.eq.custom").tag(EqualizerPreset?.none)
                         }
                         ForEach(EqualizerPreset.allCases) { preset in
                             Text(preset.label).tag(EqualizerPreset?.some(preset))
@@ -214,7 +229,7 @@ private struct EqualizerSettingsTab: View {
                     }
                     .padding(.vertical, 4)
 
-                    Button("Reset to flat") { settings.applyEqualizerPreset(.flat) }
+                    Button("settings.eq.reset") { settings.applyEqualizerPreset(.flat) }
                         .disabled(selectedPreset == .flat)
                 }
             }
@@ -251,18 +266,18 @@ private struct StorageSettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Cache") {
-                LabeledContent("Cache size") {
+            Section("settings.storage.cache") {
+                LabeledContent("settings.storage.size") {
                     Text(Int64(cacheBytes).formatted(.byteCount(style: .file)))
                         .monospacedDigit()
                 }
-                Button("Clear Cache") {
+                Button("settings.storage.clear") {
                     URLCache.shared.removeAllCachedResponses()
                     ImageCache.shared.removeAll()
                     cacheBytes = URLCache.shared.currentDiskUsage
                 }
                 .disabled(cacheBytes == 0)
-                Text("Cached API responses and artwork. They are downloaded again as needed.")
+                Text("settings.storage.help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

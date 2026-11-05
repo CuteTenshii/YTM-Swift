@@ -22,7 +22,7 @@ struct ExploreView: View {
 
                 switch model.state {
                 case .idle, .loading:
-                    ProgressView("Loading Explore…")
+                    ProgressView("explore.loading")
                         .controlSize(.large)
                         .tint(.primary)
                         .foregroundStyle(.primary)
@@ -34,7 +34,7 @@ struct ExploreView: View {
                     errorView(message)
                 }
             }
-            .pageTitle("Explore")
+            .pageTitle(String(localized: "explore.title"))
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
             }
@@ -58,14 +58,14 @@ struct ExploreView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("Couldn't load Explore")
+            Text("explore.load_failed")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.load() }
             }
             .buttonStyle(.borderedProminent)

@@ -24,7 +24,7 @@ struct HistoryView: View {
 
                 switch model.state {
                 case .loading:
-                    ProgressView("Loading History…")
+                    ProgressView("history.loading")
                         .controlSize(.large)
                         .tint(.primary)
                         .foregroundStyle(.primary)
@@ -45,24 +45,24 @@ struct HistoryView: View {
                         Button(role: .destructive) {
                             confirmingClear = true
                         } label: {
-                            Label("Clear History", systemImage: "trash")
+                            Label("history.clear", systemImage: "trash")
                         }
-                        .help("Remove everything from your listening history")
+                        .help("history.clear.help")
                     }
                 }
             }
-            .pageTitle("History")
+            .pageTitle(String(localized: "history.title"))
             .confirmationDialog(
-                "Clear your entire listening history?",
+                "history.clear.confirm.title",
                 isPresented: $confirmingClear,
                 titleVisibility: .visible
             ) {
-                Button("Clear History", role: .destructive) {
+                Button("history.clear", role: .destructive) {
                     Task { await model.clearAll() }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("common.cancel", role: .cancel) {}
             } message: {
-                Text("This can't be undone.")
+                Text("history.clear.confirm.message")
             }
             .navigationDestination(for: EntityDestination.self) { destination in
                 EntityView(destination: destination)
@@ -87,14 +87,14 @@ struct HistoryView: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("Your history lives here")
+            Text("history.signed_out.title")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-            Text("Sign in to see the music you've recently played.")
+            Text("history.signed_out.message")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Sign in") { auth.isPresentingLogin = true }
+            Button("common.sign_in") { auth.isPresentingLogin = true }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
         }
@@ -110,7 +110,7 @@ struct HistoryView: View {
             Text(text)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Try Again") {
+            Button("common.retry") {
                 Task { await model.load(isSignedIn: auth.isSignedIn) }
             }
             .buttonStyle(.borderedProminent)
@@ -218,7 +218,7 @@ private struct HistoryTrackRow: View {
                 Button(role: .destructive) {
                     Task { await model.remove(track) }
                 } label: {
-                    Label("Remove from history", systemImage: "clock.badge.xmark")
+                    Label("history.remove", systemImage: "clock.badge.xmark")
                 }
             }
         }
