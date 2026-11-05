@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0 - 2026-11-05
+
+### New
+
+- The app is available in English and French, with a Language setting that follows the macOS per-app language and a Relaunch button when a change needs one
+- Stats for Nerds window with live stream and playback details
+- The mute button remembers its state, and the transport block is narrower
+- The like count comes from YouTube Music itself instead of the Return YouTube Dislike plugin
+
+### Fixes
+
+- The old track pauses when you skip, and a spinner shows while the next one buffers
+- The artist line stays visible while a track loads
+
 ## 1.2.0 - 2026-10-16
 
 ### New
