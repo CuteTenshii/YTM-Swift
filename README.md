@@ -1,26 +1,28 @@
 # YouTube Music
 
-YouTube Music is a native macOS client for YouTube Music, built with SwiftUI. It
-uses YouTube's private InnerTube API directly from Swift. Playback, stream
-resolution, and signature decoding stay inside the app, with JavaScriptCore
-used for the player code that signs stream URLs.
+YouTube Music is a native macOS client for YouTube Music, built with SwiftUI. It uses YouTube's private InnerTube API directly from Swift. Playback, stream resolution, and signature decoding stay inside the app, with JavaScriptCore used for the player code that signs stream URLs.
 
 ## Screenshots
 
 ![Home view](.forgejo/screenshots/home.png)
 
-The app combines browse shelves, search, a docked playback bar, and a
-now-playing inspector with Queue, Lyrics, Related, and Comments tabs.
+The app combines browse shelves, search, a docked playback bar, and a now-playing inspector with Queue, Lyrics, Related, and Comments tabs.
 
 ![Playlist view](.forgejo/screenshots/playlist.png)
 
-Playlist pages show artwork, playlist actions, search within the playlist, and
-the track list with playback controls.
+Playlist pages show artwork, playlist actions, search within the playlist, and the track list with playback controls.
+
+![Artist page](.forgejo/screenshots/artist.png)
+
+Artist pages show the bio, play, shuffle, mix, and subscribe actions, and top songs.
+
+![Immersive lyrics](.forgejo/screenshots/lyrics.png)
+
+The full-screen lyrics view follows the current line with timed lyrics.
 
 ![Plugins settings](.forgejo/screenshots/plugins.png)
 
-The native settings window includes a Plugins tab for enabling and configuring
-integrations.
+The native settings window includes a Plugins tab for enabling and configuring integrations.
 
 ## Features
 
@@ -57,23 +59,18 @@ xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' build
 
 ## Linting
 
-The project uses [SwiftLint](https://github.com/realm/SwiftLint). Install it
-with Homebrew, then run it from the repository root:
+The project uses [SwiftLint](https://github.com/realm/SwiftLint). Install it with Homebrew, then run it from the repository root:
 
 ```sh
 brew install swiftlint
 swiftlint lint
 ```
 
-Xcode runs SwiftLint on each app build. It must be installed, and lint
-violations fail the build.
+Xcode runs SwiftLint on each app build. It must be installed, and lint violations fail the build.
 
 ## Architecture
 
-The app uses `@Observable` state injected through SwiftUI's environment. The
-project defaults to `@MainActor` isolation, while networking, parsing, and
-stream resolution types that run off the main actor are explicitly marked
-`nonisolated` or implemented as actors.
+The app uses `@Observable` state injected through SwiftUI's environment. The project defaults to `@MainActor` isolation, while networking, parsing, and stream resolution types that run off the main actor are explicitly marked `nonisolated` or implemented as actors.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -87,16 +84,11 @@ stream resolution types that run off the main actor are explicitly marked
 
 ## Stream resolution
 
-`StreamResolver` selects an AAC or MP4 stream that AVPlayer can decode.
-`SignatureDecipher` fetches YouTube's current `base.js` player code and runs
-the signature and `n` parameter solver in JavaScriptCore. This part depends on
-YouTube's current player build and may need updating when that code changes.
+`StreamResolver` selects an AAC or MP4 stream that AVPlayer can decode. `SignatureDecipher` fetches YouTube's current `base.js` player code and runs the signature and `n` parameter solver in JavaScriptCore. This part depends on YouTube's current player build and may need updating when that code changes.
 
 ## Testing
 
-Tests use Swift Testing and run without network access. They cover signature
-and `n` decoding, stream format selection, credential headers, parsing, lyrics,
-playlist behavior, and queue and playback state.
+Tests use Swift Testing and run without network access. They cover signature and `n` decoding, stream format selection, credential headers, parsing, lyrics, playlist behavior, and queue and playback state.
 
 ```sh
 xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' test
@@ -104,5 +96,4 @@ xcodebuild -scheme "YouTube Music" -destination 'platform=macOS' test
 
 ## Disclaimer
 
-YT Music is an unofficial client for personal use. It is not affiliated with,
-endorsed by, or sponsored by Google or YouTube.
+YT Music is an unofficial client for personal use. It is not affiliated with, endorsed by, or sponsored by Google or YouTube.
