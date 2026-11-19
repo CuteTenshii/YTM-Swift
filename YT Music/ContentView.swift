@@ -436,6 +436,11 @@ private struct NowPlayingBar: View {
                 .font(.caption)
                 .foregroundStyle(.red)
                 .lineLimit(1)
+        } else if let notice = player.skipNotice {
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         } else if !nowPlaying.artists.isEmpty {
             // Plain-text artist with a linked album would render a stray bullet album; fall back to the full subtitle.
             linksRow(artists: nowPlaying.artists, album: nowPlaying.albumLink)
@@ -609,6 +614,15 @@ private struct NowPlayingBar: View {
     private var playButton: some View {
         if player.isLoading || player.isBuffering {
             LoadingPlayButton(size: 36)
+        } else if player.loadError != nil {
+            Button(action: player.retry) {
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            .help("player.retry.help")
+            .accessibilityLabel("common.retry")
         } else {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -616,7 +630,6 @@ private struct NowPlayingBar: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
-            .disabled(player.loadError != nil)
         }
     }
 

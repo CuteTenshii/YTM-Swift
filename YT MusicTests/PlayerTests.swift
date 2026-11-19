@@ -34,11 +34,12 @@ nonisolated struct StubResolver: StreamResolving {
     var streamEnd: Double? = nil
     var isEpisode = false
     var shouldThrow = false
+    var failing: Set<String> = []
     let calls = ResolverCalls()
 
     func audioStream(videoId: String, playlistId: String?, preferences: StreamPreferences) async throws -> ResolvedStream {
         calls.record(videoId: videoId, playlistId: playlistId)
-        if shouldThrow { throw StubError.boom }
+        if shouldThrow || failing.contains(videoId) { throw StubError.boom }
         return ResolvedStream(url: url, duration: duration, historyURL: historyURL,
                               watchtimeURL: watchtimeURL, cpn: cpn, loudnessDb: loudnessDb,
                               streamEnd: streamEnd, isEpisode: isEpisode)

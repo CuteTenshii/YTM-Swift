@@ -22,6 +22,13 @@ final class PlayerState {
     /// The stream is with the engine but not yet audible.
     private var awaitingAudio = false
     private(set) var loadError: String?
+    /// Shown briefly after an unplayable track is skipped.
+    private(set) var skipNotice: String?
+    private var skipNoticeTask: Task<Void, Never>?
+    /// Failed loads in a row; auto-skipping stops at `maxFailuresInARow`.
+    private var failedInARow = 0
+    private var isSkippingFailure = false
+    static let maxFailuresInARow = 3
     private(set) var repeatMode: RepeatMode = .off
     private(set) var isEpisode = false
     /// How the current track's stream was chosen; may lag `nowPlaying` while a track loads.
@@ -603,6 +610,7 @@ final class PlayerState {
     }
 
     private func startTrack(_ track: NowPlaying, startAt position: Double? = nil) {
+        if !isSkippingFailure { failedInARow = 0 }
         awaitingResume = false
         lastPersistedPosition = 0
         crossfadeArmed = false
@@ -666,11 +674,37 @@ final class PlayerState {
             emitPlaybackChange()
             history.arm(resolved)
         } catch {
-            if !Task.isCancelled {
-                loadError = error.localizedDescription
-                isLoading = false
-            }
+            if !Task.isCancelled { handleLoadFailure(error) }
         }
+    }
+
+    private func handleLoadFailure(_ error: Error) {
+        isLoading = false
+        failedInARow += 1
+        guard canGoNext, failedInARow < Self.maxFailuresInARow, let title = nowPlaying?.title else {
+            loadError = error.localizedDescription
+            return
+        }
+        showSkipNotice(String(format: String(localized: "player.skipped"), title))
+        isSkippingFailure = true
+        next()
+        isSkippingFailure = false
+    }
+
+    private func showSkipNotice(_ text: String) {
+        skipNotice = text
+        skipNoticeTask?.cancel()
+        skipNoticeTask = Task {
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            skipNotice = nil
+        }
+    }
+
+    /// Reloads the current track after a failed load.
+    func retry() {
+        guard loadError != nil, let nowPlaying else { return }
+        startTrack(nowPlaying)
     }
 
     // MARK: - Crossfade

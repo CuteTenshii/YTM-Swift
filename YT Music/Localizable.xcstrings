@@ -3219,6 +3219,22 @@
         }
       }
     },
+    "player.retry.help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try playing this track again"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer de lire ce titre"
+          }
+        }
+      }
+    },
     "player.skip.back": {
       "localizations": {
         "en": {
@@ -3247,6 +3263,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Avancer de %lld secondes"
+          }
+        }
+      }
+    },
+    "player.skipped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped “%@”: it can’t be played"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » ignoré : lecture impossible"
           }
         }
       }

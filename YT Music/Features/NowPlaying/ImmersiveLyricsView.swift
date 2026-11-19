@@ -260,6 +260,15 @@ struct ImmersiveLyricsView: View {
     private var playButton: some View {
         if player.isLoading {
             LoadingPlayButton(size: 44, color: .white)
+        } else if player.loadError != nil {
+            Button(action: player.retry) {
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .help("player.retry.help")
+            .accessibilityLabel("common.retry")
         } else {
             Button(action: player.togglePlayPause) {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -267,7 +276,6 @@ struct ImmersiveLyricsView: View {
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
-            .disabled(player.loadError != nil)
         }
     }
 
