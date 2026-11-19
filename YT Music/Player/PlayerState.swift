@@ -8,69 +8,9 @@
 
 import SwiftUI
 
-/// A batch of a mix/radio plus a token for its next batch (nil when exhausted).
-struct RadioPage: Sendable {
-    let tracks: [Track]
-    let continuation: String?
-}
-
-protocol RadioProviding: Sendable {
-    func radio(for videoId: String) async throws -> RadioPage
-    func continueRadio(_ token: String) async throws -> RadioPage
-    func watchQueue(videoId: String, playlistId: String) async throws -> [Track]
-}
-
-extension RadioProviding {
-    func watchQueue(videoId: String, playlistId: String) async throws -> [Track] {
-        try await radio(for: videoId).tracks
-    }
-}
-
-extension InnerTubeClient: RadioProviding {}
-
-enum MixIds {
-    /// A song's auto-generated radio: `RDAMVM<videoId>`.
-    static func songRadio(for videoId: String) -> String { "RDAMVM\(videoId)" }
-    /// A playlist's or album's radio: `RDAMPL<playlistId>`.
-    static func playlistRadio(for playlistId: String) -> String { "RDAMPL\(playlistId)" }
-}
-
 @MainActor
 @Observable
 final class PlayerState {
-    struct NowPlaying: Equatable, Codable {
-        var title: String
-        var subtitle: String
-        var album: String
-        var thumbnailURL: URL?
-        var videoId: String
-        var artists: [EntityLink] = []
-        var albumLink: EntityLink?
-
-        init(title: String, subtitle: String, album: String, thumbnailURL: URL?,
-             videoId: String, artists: [EntityLink] = [], albumLink: EntityLink? = nil) {
-            self.title = title
-            self.subtitle = subtitle
-            self.album = album
-            self.thumbnailURL = thumbnailURL
-            self.videoId = videoId
-            self.artists = artists
-            self.albumLink = albumLink
-        }
-
-        // Custom decode so older snapshots without links still load.
-        init(from decoder: any Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            title = try c.decode(String.self, forKey: .title)
-            subtitle = try c.decode(String.self, forKey: .subtitle)
-            album = try c.decode(String.self, forKey: .album)
-            thumbnailURL = try c.decodeIfPresent(URL.self, forKey: .thumbnailURL)
-            videoId = try c.decode(String.self, forKey: .videoId)
-            artists = try c.decodeIfPresent([EntityLink].self, forKey: .artists) ?? []
-            albumLink = try c.decodeIfPresent(EntityLink.self, forKey: .albumLink)
-        }
-    }
-
     enum RepeatMode: String, Codable {
         case off
         case all
@@ -118,7 +58,7 @@ final class PlayerState {
     private let resolver: StreamResolving
     private let radioProvider: RadioProviding
     private let likeProvider: LikeProviding
-    private let historyReporter: WatchHistoryReporting
+    private let history: WatchHistoryTracker
     private let store: PlaybackStore?
     private let settings: AppSettings?
     private let handoff = Handoff()
@@ -134,13 +74,7 @@ final class PlayerState {
     private var crossfadeArmed = false
     /// True from arming a crossfade until the incoming track takes over.
     private(set) var crossfadeLoading = false
-    private var preparedVideoId: String?
-    private var preparedStream: ResolvedStream?
-    private var preloadTask: Task<Void, Never>?
-
-    private var pendingHistory: ResolvedStream?
-    private var playbackPinged = false
-    private var lastWatchtimeAt: Double = -1
+    private let preloader = NextTrackPreloader()
 
     var onPlaybackChange: ((PlaybackSnapshot?) -> Void)?
     var onPlaybackProgress: ((Double, Double) -> Void)?
@@ -156,7 +90,7 @@ final class PlayerState {
         self.resolver = resolver ?? StreamResolver.shared
         self.radioProvider = radioProvider ?? InnerTubeClient.shared
         self.likeProvider = likeProvider ?? InnerTubeClient.shared
-        self.historyReporter = historyReporter ?? InnerTubeClient.shared
+        self.history = WatchHistoryTracker(reporter: historyReporter ?? InnerTubeClient.shared)
         self.store = store
         self.settings = settings
 
@@ -193,9 +127,8 @@ final class PlayerState {
         playlistContext = nil
         radioContinuation = nil
         resetShuffle()
-        startTrack(title: title, subtitle: subtitle, album: album,
-                   thumbnailURL: thumbnailURL, videoId: videoId,
-                   artists: artists, albumLink: albumLink)
+        startTrack(NowPlaying(title: title, subtitle: subtitle, album: album, thumbnailURL: thumbnailURL,
+                              videoId: videoId, artists: artists, albumLink: albumLink))
     }
 
     func play(_ track: Track, album: String = "") {
@@ -243,11 +176,7 @@ final class PlayerState {
                           artists: artists, albumLink: albumLink)
 
         if queue.isEmpty {
-            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
-                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL,
-                                  videoId: nowPlaying.videoId, artists: nowPlaying.artists,
-                                  albumLink: nowPlaying.albumLink)
-            queue = [seedTrack, track]
+            queue = [nowPlaying.asTrack, track]
             currentIndex = 0
         } else {
             queue.insert(track, at: currentIndex + 1)
@@ -277,10 +206,7 @@ final class PlayerState {
             currentIndex = index
         } else {
             // Some radio responses omit the seed; keep it as head so the current row matches.
-            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
-                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL, videoId: videoId,
-                                  artists: nowPlaying.artists, albumLink: nowPlaying.albumLink)
-            queue = [seedTrack] + playable
+            queue = [nowPlaying.asTrack] + playable
             currentIndex = 0
         }
         albumContext = ""
@@ -317,11 +243,7 @@ final class PlayerState {
             return
         }
         if queue.isEmpty {
-            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
-                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL,
-                                  videoId: nowPlaying.videoId, artists: nowPlaying.artists,
-                                  albumLink: nowPlaying.albumLink)
-            queue = [seedTrack]
+            queue = [nowPlaying.asTrack]
             currentIndex = 0
         }
         queue.insert(contentsOf: playable, at: next ? currentIndex + 1 : queue.count)
@@ -362,10 +284,7 @@ final class PlayerState {
         if isFreshRadio { playlistContext = MixIds.songRadio(for: videoId) }
         if queue.isEmpty {
             guard let nowPlaying else { return }
-            let seedTrack = Track(index: 1, title: nowPlaying.title, subtitle: nowPlaying.subtitle,
-                                  duration: nil, thumbnailURL: nowPlaying.thumbnailURL, videoId: videoId,
-                                  artists: nowPlaying.artists, albumLink: nowPlaying.albumLink)
-            queue = [seedTrack] + continuation
+            queue = [nowPlaying.asTrack] + continuation
             currentIndex = 0
         } else {
             queue.append(contentsOf: continuation)
@@ -616,7 +535,7 @@ final class PlayerState {
     private func handleTrackFinished() {
         // Crossfade already advanced; ignore the faded-out track's end.
         if crossfadeLoading { return }
-        reportFinalWatchtime()
+        history.finish(engineDuration: audio.duration)
         switch repeatMode {
         case .one:        audio.restart()
         case .off, .all:  next()
@@ -661,11 +580,7 @@ final class PlayerState {
         if !queue.isEmpty {
             startCurrent(at: position)
         } else if let nowPlaying {
-            startTrack(title: nowPlaying.title, subtitle: nowPlaying.subtitle,
-                       album: nowPlaying.album, thumbnailURL: nowPlaying.thumbnailURL,
-                       videoId: nowPlaying.videoId,
-                       artists: nowPlaying.artists, albumLink: nowPlaying.albumLink,
-                       startAt: position)
+            startTrack(nowPlaying, startAt: position)
         }
     }
 
@@ -674,83 +589,74 @@ final class PlayerState {
     private func startCurrent(at position: Double? = nil) {
         guard queue.indices.contains(currentIndex),
               let videoId = queue[currentIndex].videoId else { return }
-        let track = queue[currentIndex]
-        startTrack(title: track.title, subtitle: track.subtitle, album: albumContext,
-                   thumbnailURL: track.thumbnailURL, videoId: videoId,
-                   artists: track.artists, albumLink: track.albumLink, startAt: position)
+        startTrack(NowPlaying(queue[currentIndex], videoId: videoId, album: albumContext), startAt: position)
     }
 
-    private func startTrack(title: String, subtitle: String, album: String,
-                            thumbnailURL: URL?, videoId: String,
-                            artists: [EntityLink] = [], albumLink: EntityLink? = nil,
-                            startAt position: Double? = nil) {
+    /// Resets per-track state and makes `track` current.
+    private func becomeCurrent(_ track: NowPlaying) {
+        history.reset()
+        likeStatus = .indifferent
+        likeCount = nil
+        likeInteracted = false
+        nowPlaying = track
+        loadError = nil
+    }
+
+    private func startTrack(_ track: NowPlaying, startAt position: Double? = nil) {
         awaitingResume = false
         lastPersistedPosition = 0
         crossfadeArmed = false
         crossfadeLoading = false
-        pendingHistory = nil
-        playbackPinged = false
-        lastWatchtimeAt = -1
-        likeStatus = .indifferent
-        likeCount = nil
-        likeInteracted = false
-        nowPlaying = NowPlaying(
-            title: title,
-            subtitle: subtitle,
-            album: album,
-            thumbnailURL: thumbnailURL,
-            videoId: videoId,
-            artists: artists,
-            albumLink: albumLink
-        )
-        loadError = nil
+        becomeCurrent(track)
         isLoading = true
         awaitingAudio = false
         if audio.isPlaying { audio.togglePlayPause() }
-        if preparedVideoId != videoId {
-            preloadTask?.cancel()
-            preloadTask = nil
-            preparedVideoId = nil
-            preparedStream = nil
-        }
+        preloader.discard(keeping: track.videoId)
         persist()
         emitPlaybackChange()
-        fetchLikeStatus(for: videoId)
+        fetchLikeStatus(for: track.videoId)
 
         loadTask?.cancel()
-        loadTask = Task { await loadStream(videoId: videoId, startAt: position) }
+        loadTask = Task { await loadStream(videoId: track.videoId, startAt: position) }
 
         maybeContinueWithRadio()
     }
 
+    /// The preloaded stream when it matches, otherwise a fresh resolve.
+    private func resolveStream(videoId: String) async throws -> (stream: ResolvedStream, preloaded: Bool) {
+        if let stream = preloader.take(videoId) { return (stream, true) }
+        let stream = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
+                                                    preferences: settings?.streamPreferences ?? StreamPreferences())
+        return (stream, false)
+    }
+
+    /// Applies the stream's per-track properties and returns its engine metadata.
+    private func adopt(_ resolved: ResolvedStream) -> NowPlayingMetadata {
+        isEpisode = resolved.isEpisode
+        streamDetails = resolved.details
+        applyPlaybackRate()
+        return Self.metadata(for: nowPlaying, resolved: resolved)
+    }
+
+    private static func metadata(for track: NowPlaying?, resolved: ResolvedStream) -> NowPlayingMetadata {
+        NowPlayingMetadata(
+            title: track?.title ?? "",
+            artist: track?.artistLine ?? "",
+            album: track?.album ?? "",
+            artworkURL: track?.thumbnailURL,
+            knownDuration: resolved.duration,
+            loudnessDb: resolved.loudnessDb,
+            streamEnd: resolved.streamEnd,
+            isEpisode: resolved.isEpisode
+        )
+    }
+
     func loadStream(videoId: String, startAt position: Double? = nil) async {
         do {
-            let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved: ResolvedStream
-            let usedPreloadedStream = preparedVideoId == videoId
-            if usedPreloadedStream, let preparedStream {
-                resolved = preparedStream
-                self.preparedVideoId = nil
-                self.preparedStream = nil
-            } else {
-                resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
-                                                          preferences: preferences)
-            }
+            let (resolved, preloaded) = try await resolveStream(videoId: videoId)
             if Task.isCancelled { return }
-            let metadata = NowPlayingMetadata(
-                title: nowPlaying?.title ?? "",
-                artist: Self.cleanedArtist(nowPlaying),
-                album: nowPlaying?.album ?? "",
-                artworkURL: nowPlaying?.thumbnailURL,
-                knownDuration: resolved.duration,
-                loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd,
-                isEpisode: resolved.isEpisode
-            )
-            isEpisode = resolved.isEpisode
-            streamDetails = resolved.details
-            applyPlaybackRate()
-            if usedPreloadedStream {
+            let metadata = adopt(resolved)
+            if preloaded {
                 audio.loadPreloaded(url: resolved.url, metadata: metadata)
             } else {
                 audio.load(url: resolved.url, metadata: metadata)
@@ -758,8 +664,7 @@ final class PlayerState {
             awaitingAudio = true
             if let position { audio.seek(to: position) }
             emitPlaybackChange()
-            // History is armed here; handleProgress fires it once the listener is underway.
-            armHistory(resolved)
+            history.arm(resolved)
         } catch {
             if !Task.isCancelled {
                 loadError = error.localizedDescription
@@ -768,45 +673,10 @@ final class PlayerState {
         }
     }
 
-    private func armHistory(_ resolved: ResolvedStream) {
-        guard resolved.historyURL != nil || resolved.watchtimeURL != nil, resolved.cpn != nil else {
-            return
-        }
-        pendingHistory = resolved
-        playbackPinged = false
-        lastWatchtimeAt = -1
-    }
-
-    private func reportHistoryProgress(current: Double, duration: Double) {
-        guard let pending = pendingHistory, let cpn = pending.cpn else { return }
-        guard audio.isPlaying, current >= 1 else { return }
-        let length = pending.duration ?? (duration > 0 ? duration : nil)
-
-        if !playbackPinged, let playbackURL = pending.historyURL {
-            playbackPinged = true
-            Task { await historyReporter.reportPlaybackStart(
-                playbackURL: playbackURL, cpn: cpn, position: current, length: length) }
-        }
-        if let watchtimeURL = pending.watchtimeURL, lastWatchtimeAt < 0 || current - lastWatchtimeAt >= 20 {
-            lastWatchtimeAt = current
-            Task { await historyReporter.reportWatchtime(
-                watchtimeURL: watchtimeURL, cpn: cpn, position: current, length: length) }
-        }
-    }
-
-    private func reportFinalWatchtime() {
-        guard playbackPinged, let pending = pendingHistory, let cpn = pending.cpn,
-              let watchtimeURL = pending.watchtimeURL else { return }
-        let length = pending.duration
-        let position = length ?? audio.duration
-        Task { await historyReporter.reportWatchtime(
-            watchtimeURL: watchtimeURL, cpn: cpn, position: position, length: length) }
-    }
-
     // MARK: - Crossfade
 
     private func handleProgress(current: Double, duration: Double) {
-        reportHistoryProgress(current: current, duration: duration)
+        history.progress(current: current, duration: duration, isPlaying: audio.isPlaying)
         onPlaybackProgress?(current, duration)
 
         if abs(current - lastPersistedPosition) >= 5 {
@@ -846,25 +716,9 @@ final class PlayerState {
         }
         guard let videoId = queue[nextIndex].videoId else { return }
 
-        let track = queue[nextIndex]
         currentIndex = nextIndex
         crossfadeLoading = true
-        pendingHistory = nil
-        playbackPinged = false
-        lastWatchtimeAt = -1
-        likeStatus = .indifferent
-        likeCount = nil
-        likeInteracted = false
-        nowPlaying = NowPlaying(
-            title: track.title,
-            subtitle: track.subtitle,
-            album: albumContext,
-            thumbnailURL: track.thumbnailURL,
-            videoId: videoId,
-            artists: track.artists,
-            albumLink: track.albumLink
-        )
-        loadError = nil
+        becomeCurrent(NowPlaying(queue[nextIndex], videoId: videoId, album: albumContext))
         persist()
         emitPlaybackChange()
         fetchLikeStatus(for: videoId)
@@ -877,39 +731,17 @@ final class PlayerState {
 
     private func loadCrossfade(videoId: String, seconds: Double) async {
         do {
-            let preferences = settings?.streamPreferences ?? StreamPreferences()
-            let resolved: ResolvedStream
-            let usedPreloadedStream = preparedVideoId == videoId
-            if usedPreloadedStream, let preparedStream {
-                resolved = preparedStream
-                self.preparedVideoId = nil
-                self.preparedStream = nil
-            } else {
-                resolved = try await resolver.audioStream(videoId: videoId, playlistId: playlistContext,
-                                                           preferences: preferences)
-            }
+            let (resolved, preloaded) = try await resolveStream(videoId: videoId)
             if Task.isCancelled { return }
-            let metadata = NowPlayingMetadata(
-                title: nowPlaying?.title ?? "",
-                artist: Self.cleanedArtist(nowPlaying),
-                album: nowPlaying?.album ?? "",
-                artworkURL: nowPlaying?.thumbnailURL,
-                knownDuration: resolved.duration,
-                loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd,
-                isEpisode: resolved.isEpisode
-            )
-            isEpisode = resolved.isEpisode
-            streamDetails = resolved.details
-            applyPlaybackRate()
-            if usedPreloadedStream {
+            let metadata = adopt(resolved)
+            if preloaded {
                 audio.crossfadePreloaded(url: resolved.url, metadata: metadata, duration: seconds)
             } else {
                 audio.crossfade(to: resolved.url, metadata: metadata, duration: seconds)
             }
             crossfadeLoading = false
             emitPlaybackChange()
-            armHistory(resolved)
+            history.arm(resolved)
         } catch {
             crossfadeLoading = false
             if !Task.isCancelled { startCurrent() }
@@ -917,39 +749,20 @@ final class PlayerState {
     }
 
     private func beginPreloadingNext() {
-        guard preparedVideoId == nil, preloadTask == nil,
-              repeatMode != .one, let nextTrack = nextQueuedTrack(),
+        guard preloader.isIdle, repeatMode != .one, let nextTrack = nextQueuedTrack(),
               let videoId = nextTrack.videoId else { return }
 
-        let track = nextTrack
         let playlistId = playlistContext
         let preferences = settings?.streamPreferences ?? StreamPreferences()
-        preloadTask = Task { [weak self] in
-            guard let self else { return }
-            defer { self.preloadTask = nil }
-            do {
-                let resolved = try await self.resolver.audioStream(videoId: videoId, playlistId: playlistId,
-                                                                    preferences: preferences)
-                guard !Task.isCancelled,
-                      self.nowPlaying?.videoId != videoId,
-                      self.nextQueuedTrack()?.videoId == videoId else { return }
-                let metadata = NowPlayingMetadata(
-                    title: track.title,
-                    artist: Self.cleanedArtist(NowPlaying(
-                        title: track.title, subtitle: track.subtitle, album: self.albumContext,
-                        thumbnailURL: track.thumbnailURL, videoId: videoId,
-                        artists: track.artists, albumLink: track.albumLink)),
-                    album: self.albumContext,
-                    artworkURL: track.thumbnailURL,
-                    knownDuration: resolved.duration,
-                    loudnessDb: resolved.loudnessDb,
-                streamEnd: resolved.streamEnd,
-                isEpisode: resolved.isEpisode
-                )
-                self.preparedVideoId = videoId
-                self.preparedStream = resolved
-                self.audio.preload(url: resolved.url, metadata: metadata)
-            } catch {}
+        let resolver = resolver
+        preloader.start(videoId: videoId) {
+            try await resolver.audioStream(videoId: videoId, playlistId: playlistId, preferences: preferences)
+        } accept: { [weak self] resolved in
+            guard let self, self.nowPlaying?.videoId != videoId,
+                  self.nextQueuedTrack()?.videoId == videoId else { return false }
+            let upcoming = NowPlaying(nextTrack, videoId: videoId, album: self.albumContext)
+            self.audio.preload(url: resolved.url, metadata: Self.metadata(for: upcoming, resolved: resolved))
+            return true
         }
     }
 
@@ -965,7 +778,7 @@ final class PlayerState {
         guard let nowPlaying else { return nil }
         return PlaybackSnapshot(
             title: nowPlaying.title,
-            artist: Self.cleanedArtist(nowPlaying),
+            artist: nowPlaying.artistLine,
             album: nowPlaying.album,
             videoId: nowPlaying.videoId,
             artists: nowPlaying.artists,
@@ -983,37 +796,5 @@ final class PlayerState {
         onPlaybackChange?(snapshot)
     }
 
-    var nowPlayingArtist: String { Self.cleanedArtist(nowPlaying) }
-
-    private static func cleanedArtist(_ nowPlaying: NowPlaying?) -> String {
-        guard let nowPlaying else { return "" }
-        let names = nowPlaying.artists.map(\.name).filter { !$0.isEmpty }
-        if !names.isEmpty { return names.joined(separator: ", ") }
-        return withoutTypeLabel(nowPlaying.subtitle).components(separatedBy: " • ").first ?? ""
-    }
-
-    /// Strips the type label, view counts and bare durations from a subtitle.
-    static func withoutTypeLabel(_ subtitle: String) -> String {
-        var components = subtitle.components(separatedBy: " • ")
-        let labels: Set<String> = ["Song", "Video", "Episode", "Podcast"]
-        if components.count > 1, let first = components.first, labels.contains(first) {
-            components.removeFirst()
-        }
-        components.removeAll { isViewCount($0) || isDuration($0) }
-        return components.joined(separator: " • ")
-    }
-
-    /// A view-count component like "3.5M views".
-    private static func isViewCount(_ component: String) -> Bool {
-        let text = component.trimmingCharacters(in: .whitespaces).lowercased()
-        guard text.hasSuffix(" views") || text.hasSuffix(" view") else { return false }
-        return text.first?.isNumber ?? false
-    }
-
-    /// A bare duration like "2:46" or "1:02:30".
-    private static func isDuration(_ component: String) -> Bool {
-        let parts = component.trimmingCharacters(in: .whitespaces).split(separator: ":")
-        guard parts.count >= 2 else { return false }
-        return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
-    }
+    var nowPlayingArtist: String { nowPlaying?.artistLine ?? "" }
 }
