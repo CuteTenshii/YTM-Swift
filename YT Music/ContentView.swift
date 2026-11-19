@@ -310,13 +310,8 @@ private struct AccountControl: View {
 
 private enum AvatarBadge {
     static func load(_ url: URL?) async -> NSImage? {
-        guard let url else { return nil }
-        if let cached = ImageCache.shared.image(for: url) {
-            return circular(cached, side: 22)
-        }
-        guard let (data, _) = try? await NetworkSession.shared.data(from: url),
-              let image = NSImage(data: data) else { return nil }
-        ImageCache.shared.insert(image, for: url)
+        guard let url,
+              let image = try? await ImageCache.shared.image(for: url, minPixelSize: 44) else { return nil }
         return circular(image, side: 22)
     }
 

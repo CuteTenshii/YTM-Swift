@@ -13,7 +13,7 @@ struct ArtworkView: View {
     let size: CGFloat
 
     var body: some View {
-        CachedAsyncImage(url: url) { phase in
+        CachedAsyncImage(url: url, pointSize: size) { phase in
             switch phase {
             case .success(let image):
                 image.resizable().scaledToFill()
