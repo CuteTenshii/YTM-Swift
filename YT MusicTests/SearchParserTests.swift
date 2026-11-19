@@ -53,7 +53,7 @@ struct SearchParserTests {
     @Test("Groups results into category shelves with the right kinds")
     func parsesCategories() throws {
         let response = try JSONDecoder().decode(SearchResponse.self, from: Data(fixture.utf8))
-        let shelves = SearchParser.parse(response)
+        let shelves = SearchParser.parse(response).shelves
 
         #expect(shelves.count == 2)
 
@@ -93,7 +93,22 @@ struct SearchParserTests {
         "onTap":{"browseEndpoint":{
           "browseId":"UCqueen",
           "browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}
-        }}
+        }},
+        "buttons":[
+          {"buttonRenderer":{"icon":{"iconType":"MUSIC_SHUFFLE"},"command":{"watchPlaylistEndpoint":{"playlistId":"RDAOqueen"}}}},
+          {"buttonRenderer":{"icon":{"iconType":"MIX"},"command":{"watchPlaylistEndpoint":{"playlistId":"RDEMqueen"}}}},
+          {"buttonRenderer":{"icon":{"iconType":"PLAYLIST_ADD"},"command":{}}}
+        ],
+        "contents":[
+          {"messageRenderer":{"text":{"runs":[{"text":"From your search"}]}}},
+          {"musicResponsiveListItemRenderer":{
+            "flexColumns":[
+              {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Under Pressure"}]}}},
+              {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song • 4:08"}]}}}
+            ],
+            "playlistItemData":{"videoId":"a01QQZyl-_I"}
+          }}
+        ]
       }},
       {"itemSectionRenderer":{"contents":[{"musicResponsiveListItemRenderer":{
         "flexColumns":[
@@ -160,17 +175,13 @@ struct SearchParserTests {
     @Test("Flat results are grouped into ordered category shelves")
     func parsesFlatLayout() throws {
         let response = try JSONDecoder().decode(SearchResponse.self, from: Data(flatFixture.utf8))
-        let shelves = SearchParser.parse(response)
+        let shelves = SearchParser.parse(response).shelves
 
         #expect(shelves.map(\.title) == [
-            String(localized: "search.top_result"), String(localized: "search.filter.songs"), String(localized: "search.filter.videos"),
+            String(localized: "search.filter.songs"), String(localized: "search.filter.videos"),
             String(localized: "search.filter.albums"), String(localized: "search.filter.podcasts"),
             String(localized: "search.filter.episodes"), String(localized: "search.filter.profiles"),
         ])
-
-        let top = try #require(shelves.first { $0.title == String(localized: "search.top_result") })
-        #expect(top.items.first?.kind == .artist)
-        #expect(top.items.first?.browseId == "UCqueen")
 
         let song = try #require(shelves.first { $0.title == String(localized: "search.filter.songs") }?.items.first)
         #expect(song.videoId == "bdf_ll68Z8o")
@@ -187,6 +198,24 @@ struct SearchParserTests {
         #expect(shelves.first { $0.title == String(localized: "search.filter.episodes") }?.items.first?.videoId == "ep_id")
         #expect(shelves.first { $0.title == String(localized: "search.filter.profiles") }?.items.first?.browseId == "UCprofile")
         #expect(shelves.first { $0.title == String(localized: "search.filter.podcasts") }?.items.first?.browseId == "MPSPpodcast")
+    }
+}
+
+extension SearchParserTests {
+    @Test("The top-result card keeps its playable buttons and tracks")
+    func parsesTopResult() throws {
+        let response = try JSONDecoder().decode(SearchResponse.self, from: Data(flatFixture.utf8))
+        let top = try #require(SearchParser.parse(response).topResult)
+
+        #expect(top.item.kind == .artist)
+        #expect(top.item.browseId == "UCqueen")
+        #expect(top.actions == [.shuffle(playlistId: "RDAOqueen"), .mix(playlistId: "RDEMqueen")])
+
+        let track = try #require(top.tracks.first)
+        #expect(top.tracks.count == 1)
+        #expect(track.title == "Under Pressure")
+        #expect(track.subtitle.isEmpty)
+        #expect(track.duration == "4:08")
     }
 }
 

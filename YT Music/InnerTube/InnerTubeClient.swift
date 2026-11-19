@@ -237,9 +237,9 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
     }
 
     /// Non-`.all` filters return pre-grouped, server-titled shelves.
-    func search(_ query: String, filter: SearchFilter = .all) async throws -> [Shelf] {
+    func search(_ query: String, filter: SearchFilter = .all) async throws -> SearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
+        guard !trimmed.isEmpty else { return SearchResults(shelves: []) }
         var body: [String: Any] = ["query": trimmed]
         if let params = filter.params { body["params"] = params }
         let response: SearchResponse = try await post("search", body: body)

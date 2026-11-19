@@ -11,7 +11,7 @@ final class SearchViewModel {
     enum State {
         case idle
         case loading
-        case results([Shelf])
+        case results(SearchResults)
         case empty(String)
         case failed(String)
     }
@@ -69,9 +69,9 @@ final class SearchViewModel {
 
         state = .loading
         do {
-            let shelves = try await client.search(trimmed, filter: filter)
+            let results = try await client.search(trimmed, filter: filter)
             guard !Task.isCancelled else { return }
-            state = shelves.isEmpty ? .empty(trimmed) : .results(shelves)
+            state = results.isEmpty ? .empty(trimmed) : .results(results)
         } catch {
             guard !Task.isCancelled else { return }
             state = .failed(error.localizedDescription)

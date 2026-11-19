@@ -329,6 +329,21 @@ nonisolated struct MusicCardShelfRenderer: Decodable {
     let subtitle: InnerTubeText?
     let thumbnail: ThumbnailRendererWrapper?
     let onTap: NavigationEndpoint?
+    let buttons: [CardButton]?
+    let contents: [CarouselItem]?
+
+    struct CardButton: Decodable {
+        let buttonRenderer: Renderer?
+
+        struct Renderer: Decodable {
+            let icon: Icon?
+            let command: NavigationEndpoint?
+        }
+
+        struct Icon: Decodable {
+            let iconType: String?
+        }
+    }
 
     struct Header: Decodable {
         let musicCardShelfHeaderBasicRenderer: Basic?

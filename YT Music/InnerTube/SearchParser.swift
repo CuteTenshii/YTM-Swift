@@ -80,14 +80,14 @@ nonisolated enum SearchCategory: CaseIterable {
 
 nonisolated enum SearchParser {
 
-    static func parse(_ response: SearchResponse) -> [Shelf] {
+    static func parse(_ response: SearchResponse) -> SearchResults {
         let sections = response.contents?
             .tabbedSearchResultsRenderer?
             .tabs?.first?
             .tabRenderer?.content?
             .sectionListRenderer?.contents ?? []
 
-        var topResult: ShelfItem?
+        var topResult: SearchTopResult?
         var grouped: [Shelf] = []
         var byCategory: [SearchCategory: [ShelfItem]] = [:]
 
@@ -111,16 +111,13 @@ nonisolated enum SearchParser {
         }
 
         var shelves: [Shelf] = []
-        if let topResult {
-            shelves.append(Shelf(title: String(localized: "search.top_result"), items: [topResult]))
-        }
         for category in SearchCategory.allCases {
             if let items = byCategory[category], !items.isEmpty {
                 shelves.append(Shelf(title: category.title, items: items))
             }
         }
         shelves += grouped
-        return shelves
+        return SearchResults(topResult: topResult, shelves: shelves)
     }
 
     // MARK: - Categorization
@@ -155,13 +152,36 @@ nonisolated enum SearchParser {
         return Shelf(title: title.isEmpty ? String(localized: "shelf.results") : title, items: items)
     }
 
-    private static func makeTopResult(_ card: MusicCardShelfRenderer) -> ShelfItem? {
-        HomeFeedParser.makeItem(
+    private static func makeTopResult(_ card: MusicCardShelfRenderer) -> SearchTopResult? {
+        guard let item = HomeFeedParser.makeItem(
             title: card.title?.text ?? "",
             subtitle: card.subtitle?.text ?? "",
             thumbnailURL: card.thumbnail?.bestURL,
             endpoint: card.onTap
+        ) else { return nil }
+        return SearchTopResult(
+            item: item,
+            actions: (card.buttons ?? []).compactMap { action(for: $0.buttonRenderer) },
+            tracks: (card.contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0).map(tidy) }
         )
+    }
+
+    /// Unsupported buttons (Save, Subscribe…) are dropped.
+    private static func action(for button: MusicCardShelfRenderer.CardButton.Renderer?) -> SearchTopResult.Action? {
+        let command = button?.command
+        switch button?.icon?.iconType {
+        case "PLAY_ARROW":
+            let videoId = command?.watchEndpoint?.videoId
+            let playlistId = command?.playlistId
+            guard videoId != nil || playlistId != nil else { return nil }
+            return .play(videoId: videoId, playlistId: playlistId)
+        case "MUSIC_SHUFFLE":
+            return command?.playlistId.map { .shuffle(playlistId: $0) }
+        case "MIX":
+            return command?.playlistId.map { .mix(playlistId: $0) }
+        default:
+            return nil
+        }
     }
 
     // MARK: - Subtitle cleanup

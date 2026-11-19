@@ -14,6 +14,7 @@ struct SearchContent: View {
     @State private var model = SearchViewModel()
     let query: String
     @FocusState private var focusedItem: ShelfItem.ID?
+    @State private var width: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
@@ -72,8 +73,8 @@ struct SearchContent: View {
                 .tint(.primary)
             Spacer()
 
-        case .results(let shelves):
-            shelfList(shelves)
+        case .results(let results):
+            resultList(results)
 
         case .empty(let term):
             prompt(
@@ -87,40 +88,71 @@ struct SearchContent: View {
         }
     }
 
-    private func shelfList(_ shelves: [Shelf]) -> some View {
-        ScrollViewReader { proxy in
+    private func resultList(_ results: SearchResults) -> some View {
+        let rowIds = (results.topResult?.tracks ?? []).map(\.id)
+            + results.shelves.filter(isTrackShelf).flatMap { $0.items.map(\.id) }
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
-                    ForEach(shelves) { shelf in
+                    if let topResult = results.topResult {
+                        topSection(topResult)
+                    }
+                    ForEach(results.shelves) { shelf in
                         section(shelf)
                     }
                 }
                 .padding(.vertical, 8)
                 .padding(.bottom, 24)
             }
-            .rowArrowNavigation($focusedItem,
-                                ids: shelves.filter(isTrackShelf).flatMap { $0.items.map(\.id) },
-                                proxy: proxy)
+            .rowArrowNavigation($focusedItem, ids: rowIds, proxy: proxy)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    private func topSection(_ result: SearchTopResult) -> some View {
+        let layout = width >= 820
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 16))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionTitle(String(localized: "search.top_result"))
+                .padding(.horizontal, 24)
+
+            layout {
+                TopResultCard(result: result)
+                if !result.tracks.isEmpty {
+                    trackRows(result.tracks)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.title2.weight(.bold))
+            .foregroundStyle(.primary)
+    }
+
+    private func trackRows(_ items: [ShelfItem]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(items) { item in
+                SearchResultRow(item: item)
+                    .focused($focusedItem, equals: item.id)
+                    .id(item.id)
+            }
         }
     }
 
     @ViewBuilder
     private func section(_ shelf: Shelf) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(shelf.title)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.primary)
+            sectionTitle(shelf.title)
                 .padding(.horizontal, 24)
 
             if isTrackShelf(shelf) {
-                VStack(spacing: 0) {
-                    ForEach(shelf.items) { item in
-                        SearchResultRow(item: item)
-                            .focused($focusedItem, equals: item.id)
-                            .id(item.id)
-                    }
-                }
-                .padding(.horizontal, 16)
+                trackRows(shelf.items)
+                    .padding(.horizontal, 16)
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                     ForEach(shelf.items) { item in
@@ -276,6 +308,133 @@ private struct SearchResultRow: View {
     }
 
     private func play() {
+        guard let videoId = item.videoId else { return }
+        player.play(
+            title: item.title,
+            subtitle: item.subtitle,
+            thumbnailURL: item.thumbnailURL,
+            videoId: videoId,
+            artists: item.artists,
+            albumLink: item.albumLink
+        )
+    }
+}
+
+private struct TopResultCard: View {
+    @Environment(PlayerState.self) private var player
+    let result: SearchTopResult
+
+    private var item: ShelfItem { result.item }
+
+    var body: some View {
+        HStack(spacing: 20) {
+            opener {
+                ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 120)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    opener {
+                        Text(item.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    if item.isExplicit {
+                        ExplicitBadge()
+                    }
+                }
+                Text(item.subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    ForEach(Array(result.actions.enumerated()), id: \.element) { index, action in
+                        actionButton(action, prominent: index == 0)
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.05), in: .rect(cornerRadius: 12))
+        .musicContextMenu(
+            title: item.title,
+            subtitle: item.subtitle,
+            thumbnailURL: item.thumbnailURL,
+            videoId: item.videoId,
+            playlistId: item.playlistId,
+            browseId: item.browseId,
+            artists: item.artists,
+            albumLink: item.albumLink,
+            entityDestination: item.entityDestination,
+            likeStatus: item.likeStatus
+        )
+    }
+
+    /// Entities open their page; songs and videos play.
+    @ViewBuilder
+    private func opener<Label: View>(@ViewBuilder _ label: () -> Label) -> some View {
+        if let destination = item.entityDestination {
+            NavigationLink(value: destination, label: label)
+                .buttonStyle(.plain)
+        } else if item.videoId != nil {
+            Button(action: playItem, label: label)
+                .buttonStyle(.plain)
+        } else {
+            label()
+        }
+    }
+
+    @ViewBuilder
+    private func actionButton(_ action: SearchTopResult.Action, prominent: Bool) -> some View {
+        let button = Button { run(action) } label: {
+            Label(title(for: action), systemImage: icon(for: action))
+                .font(.headline)
+                .padding(.horizontal, 8)
+        }
+        if prominent {
+            button.buttonStyle(.borderedProminent).tint(.red)
+        } else {
+            button.buttonStyle(.bordered)
+        }
+    }
+
+    private func title(for action: SearchTopResult.Action) -> LocalizedStringKey {
+        switch action {
+        case .play: "common.play"
+        case .shuffle: "common.shuffle"
+        case .mix: "entity.mix"
+        }
+    }
+
+    private func icon(for action: SearchTopResult.Action) -> String {
+        switch action {
+        case .play: "play.fill"
+        case .shuffle: "shuffle"
+        case .mix: "dot.radiowaves.left.and.right"
+        }
+    }
+
+    private func run(_ action: SearchTopResult.Action) {
+        switch action {
+        case .play(let videoId, let playlistId?):
+            player.playAll(videoId: videoId, playlistId: playlistId)
+        case .play:
+            playItem()
+        case .shuffle(let playlistId):
+            player.playAll(videoId: nil, playlistId: playlistId, shuffled: true)
+        case .mix(let playlistId):
+            player.playAll(videoId: nil, playlistId: playlistId)
+        }
+    }
+
+    private func playItem() {
         guard let videoId = item.videoId else { return }
         player.play(
             title: item.title,
