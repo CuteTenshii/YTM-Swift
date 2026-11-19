@@ -44,6 +44,7 @@ struct ContentView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
     @Environment(PlaylistCoordinator.self) private var playlists
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var comments = CommentsViewModel()
     @State private var library = LibraryViewModel()
@@ -115,7 +116,7 @@ struct ContentView: View {
                                         safeAreaTop: geo.safeAreaInsets.top)
                         .ignoresSafeArea()
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .zIndex(1)
             }
         }

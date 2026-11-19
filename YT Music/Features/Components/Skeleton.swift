@@ -34,8 +34,17 @@ struct SkeletonBox: View {
 
 private struct Shimmer: ViewModifier {
     @State private var animating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            shimmering(content)
+        }
+    }
+
+    private func shimmering(_ content: Content) -> some View {
         content
             .overlay {
                 GeometryReader { geo in

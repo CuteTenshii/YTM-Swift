@@ -45,6 +45,7 @@ struct SyncedLyricsScroller: View {
     let lines: [LyricLine]
     var source: String?
     var style: LyricsStyle
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var focus: LyricsFocus { LyricsFocus.resolve(lines, at: player.currentTime) }
 
@@ -57,7 +58,7 @@ struct SyncedLyricsScroller: View {
                             InterludeIndicator(progress: progress, color: style.activeColor)
                                 .id("interlude-\(index)")
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .transition(.opacity.combined(with: .scale(scale: 0.6, anchor: .leading)))
+                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.6, anchor: .leading)))
                         }
                         LyricLineRow(line: line,
                                      now: player.currentTime,
@@ -97,7 +98,7 @@ struct SyncedLyricsScroller: View {
 
     private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
         guard let target = scrollTarget else { return }
-        if animated {
+        if animated, !reduceMotion {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.9)) {
                 proxy.scrollTo(target, anchor: style.scrollAnchor)
             }
@@ -128,13 +129,14 @@ struct LyricLineRow: View {
     let now: Double
     let appearance: Appearance
     let style: LyricsStyle
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content
             .font(style.font)
             .opacity(opacity)
             .blur(radius: appearance.isActive ? 0 : blur)
-            .scaleEffect(appearance.isActive ? style.activeScale : 1, anchor: .leading)
+            .scaleEffect(appearance.isActive && !reduceMotion ? style.activeScale : 1, anchor: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .animation(.spring(response: 0.45, dampingFraction: 0.9), value: appearance)
     }
@@ -170,6 +172,7 @@ struct LyricLineRow: View {
 struct InterludeIndicator: View {
     let progress: Double
     var color: Color = .primary
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 8) {
@@ -178,7 +181,7 @@ struct InterludeIndicator: View {
                     .fill(color)
                     .frame(width: 9, height: 9)
                     .opacity(fill(i) * 0.7 + 0.25)
-                    .scaleEffect(0.8 + 0.3 * fill(i))
+                    .scaleEffect(reduceMotion ? 1 : 0.8 + 0.3 * fill(i))
             }
         }
         .padding(.vertical, 10)
