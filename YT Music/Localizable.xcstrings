@@ -1377,6 +1377,22 @@
         }
       }
     },
+    "history.clear.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t clear history"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’effacer l’historique"
+          }
+        }
+      }
+    },
     "history.clear.help": {
       "localizations": {
         "en": {
@@ -1437,6 +1453,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retirer de l’historique"
+          }
+        }
+      }
+    },
+    "history.remove.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t remove from history"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de retirer de l’historique"
           }
         }
       }
@@ -3299,6 +3331,22 @@
         }
       }
     },
+    "playlists.add.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t add to playlist"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’ajouter à la playlist"
+          }
+        }
+      }
+    },
     "playlists.add.new_name.placeholder": {
       "localizations": {
         "en": {
@@ -3555,6 +3603,22 @@
         }
       }
     },
+    "playlists.create.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t create playlist"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de créer la playlist"
+          }
+        }
+      }
+    },
     "playlists.delete": {
       "localizations": {
         "en": {
@@ -3567,6 +3631,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Supprimer la playlist"
+          }
+        }
+      }
+    },
+    "playlists.delete.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t delete playlist"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de supprimer la playlist"
           }
         }
       }
@@ -3727,6 +3807,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Renommer"
+          }
+        }
+      }
+    },
+    "playlists.rename.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t rename playlist"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de renommer la playlist"
           }
         }
       }

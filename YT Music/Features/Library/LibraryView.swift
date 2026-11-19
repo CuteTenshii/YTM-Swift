@@ -71,6 +71,7 @@ struct LibraryView: View {
                 Text(String(format: String(localized: "entity.delete.message"), item.title))
             }
         }
+        .actionFailureAlert(Bindable(model).failure)
     }
 
     private var chipRow: some View {

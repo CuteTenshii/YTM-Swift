@@ -19,6 +19,7 @@ final class LibraryViewModel {
     private(set) var chips: [FeedChip] = []
     private(set) var selectedChip: FeedChip?
     private(set) var chipState: State = .loading
+    var failure: ActionFailure?
 
     private var isLoadingMoreLanding = false
     private var isLoadingMoreChip = false
@@ -90,12 +91,20 @@ final class LibraryViewModel {
     func renamePlaylist(_ playlistId: String, to title: String, isSignedIn: Bool) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        try? await client.renamePlaylist(playlistId: playlistId, title: trimmed)
-        await load(isSignedIn: isSignedIn)
+        do {
+            try await client.renamePlaylist(playlistId: playlistId, title: trimmed)
+            await load(isSignedIn: isSignedIn)
+        } catch {
+            failure = ActionFailure(title: String(localized: "playlists.rename.failed"), error: error)
+        }
     }
 
     func deletePlaylist(_ playlistId: String, isSignedIn: Bool) async {
-        try? await client.deletePlaylist(playlistId: playlistId)
-        await load(isSignedIn: isSignedIn)
+        do {
+            try await client.deletePlaylist(playlistId: playlistId)
+            await load(isSignedIn: isSignedIn)
+        } catch {
+            failure = ActionFailure(title: String(localized: "playlists.delete.failed"), error: error)
+        }
     }
 }

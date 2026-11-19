@@ -21,6 +21,7 @@ final class AddToPlaylistModel {
 
     private(set) var state: State = .loading
     private(set) var busy = false
+    var failure: ActionFailure?
     private var videoId: String?
 
     private let client: InnerTubeClient
@@ -51,6 +52,7 @@ final class AddToPlaylistModel {
             try await client.addToPlaylist(playlistId: playlist.id, videoIds: [videoId])
             return true
         } catch {
+            failure = ActionFailure(title: String(localized: "playlists.add.failed"), error: error)
             return false
         }
     }
@@ -64,6 +66,7 @@ final class AddToPlaylistModel {
             try await client.createPlaylist(title: title, videoIds: [videoId])
             return true
         } catch {
+            failure = ActionFailure(title: String(localized: "playlists.create.failed"), error: error)
             return false
         }
     }
@@ -73,16 +76,24 @@ final class AddToPlaylistModel {
         guard !title.isEmpty, !busy else { return }
         busy = true
         defer { busy = false }
-        try? await client.renamePlaylist(playlistId: playlist.id, title: title)
-        await reload()
+        do {
+            try await client.renamePlaylist(playlistId: playlist.id, title: title)
+            await reload()
+        } catch {
+            failure = ActionFailure(title: String(localized: "playlists.rename.failed"), error: error)
+        }
     }
 
     func delete(_ playlist: EditablePlaylist) async {
         guard !busy else { return }
         busy = true
         defer { busy = false }
-        try? await client.deletePlaylist(playlistId: playlist.id)
-        await reload()
+        do {
+            try await client.deletePlaylist(playlistId: playlist.id)
+            await reload()
+        } catch {
+            failure = ActionFailure(title: String(localized: "playlists.delete.failed"), error: error)
+        }
     }
 }
 
@@ -105,6 +116,7 @@ struct AddToPlaylistSheet: View {
         }
         .frame(width: 420, height: 520)
         .task { await model.load(videoId: add.videoId) }
+        .actionFailureAlert($model.failure)
         .alert("playlists.add.rename.title", isPresented: renamingBinding) {
             TextField("playlists.field.name", text: $renameText)
             Button("common.cancel", role: .cancel) { renaming = nil }

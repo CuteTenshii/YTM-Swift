@@ -16,6 +16,7 @@ final class HistoryViewModel {
     }
 
     private(set) var state: State = .loading
+    var failure: ActionFailure?
 
     private let client: InnerTubeClient
 
@@ -45,21 +46,31 @@ final class HistoryViewModel {
     }
 
     func remove(_ track: Track) async {
-        guard let token = track.feedbackToken, case .loaded(var sections) = state else { return }
+        guard let token = track.feedbackToken, case .loaded(let previous) = state else { return }
+        var sections = previous
         for index in sections.indices {
             sections[index].tracks.removeAll { $0.id == track.id }
         }
         sections.removeAll { $0.tracks.isEmpty }
         state = sections.isEmpty ? emptyState : .loaded(sections)
-        try? await client.removeHistoryItems(feedbackTokens: [token])
+        await commitRemoval(of: [token], restoring: previous, title: String(localized: "history.remove.failed"))
     }
 
     func clearAll() async {
-        guard case .loaded(let sections) = state else { return }
-        let tokens = sections.flatMap { $0.tracks.compactMap(\.feedbackToken) }
+        guard case .loaded(let previous) = state else { return }
+        let tokens = previous.flatMap { $0.tracks.compactMap(\.feedbackToken) }
         guard !tokens.isEmpty else { return }
         state = emptyState
-        try? await client.removeHistoryItems(feedbackTokens: tokens)
+        await commitRemoval(of: tokens, restoring: previous, title: String(localized: "history.clear.failed"))
+    }
+
+    private func commitRemoval(of tokens: [String], restoring previous: [HistorySection], title: String) async {
+        do {
+            try await client.removeHistoryItems(feedbackTokens: tokens)
+        } catch {
+            state = .loaded(previous)
+            failure = ActionFailure(title: title, error: error)
+        }
     }
 
     private var emptyState: State { .failed(String(localized: "history.empty")) }

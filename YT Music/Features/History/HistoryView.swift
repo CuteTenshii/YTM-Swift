@@ -69,6 +69,7 @@ struct HistoryView: View {
             }
         }
         .task(id: auth.generation) { await model.load(isSignedIn: auth.isSignedIn) }
+        .actionFailureAlert($model.failure)
     }
 
     private func content(_ sections: [HistorySection]) -> some View {
