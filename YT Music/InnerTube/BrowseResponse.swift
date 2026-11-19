@@ -542,6 +542,23 @@ nonisolated struct MusicResponsiveListItemRenderer: Decodable {
     let customIndexColumn: CustomIndexColumn?
     // Up/down vote buttons, on playlists with voting turned on.
     let engagementBar: EngagementBar?
+    let badges: [Badge]?
+
+    struct Badge: Decodable {
+        let musicInlineBadgeRenderer: Renderer?
+
+        struct Renderer: Decodable {
+            let icon: Icon?
+        }
+
+        struct Icon: Decodable {
+            let iconType: String?
+        }
+    }
+
+    var isExplicit: Bool {
+        (badges ?? []).contains { $0.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" }
+    }
 
     struct FlexColumn: Decodable {
         let musicResponsiveListItemFlexColumnRenderer: FlexRenderer?

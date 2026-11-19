@@ -108,9 +108,10 @@ struct SearchParserTests {
       {"itemSectionRenderer":{"contents":[{"musicResponsiveListItemRenderer":{
         "flexColumns":[
           {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Another One Bites The Dust"}]}}},
-          {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song • Queen"}]}}}
+          {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song • Queen • 3:35"}]}}}
         ],
         "playlistItemData":{"videoId":"bdf_ll68Z8o"},
+        "badges":[{"musicInlineBadgeRenderer":{"icon":{"iconType":"MUSIC_EXPLICIT_BADGE"}}}],
         "overlay":{"musicItemThumbnailOverlayRenderer":{"content":{"musicPlayButtonRenderer":{
           "playNavigationEndpoint":{"watchEndpoint":{"videoId":"bdf_ll68Z8o","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}}}
         }}}}
@@ -173,8 +174,13 @@ struct SearchParserTests {
 
         let song = try #require(shelves.first { $0.title == String(localized: "search.filter.songs") }?.items.first)
         #expect(song.videoId == "bdf_ll68Z8o")
+        #expect(song.subtitle == "Queen")
+        #expect(song.duration == "3:35")
+        #expect(song.isExplicit)
 
         let video = try #require(shelves.first { $0.title == String(localized: "search.filter.videos") }?.items.first)
+        #expect(video.duration == nil)
+        #expect(!video.isExplicit)
         #expect(video.videoId == "vid_omv")
 
         #expect(shelves.first { $0.title == String(localized: "search.filter.albums") }?.items.first?.browseId == "MPREb_hits")

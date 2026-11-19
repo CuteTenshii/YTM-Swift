@@ -194,32 +194,28 @@ private struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            ZStack {
-                ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 44)
-                if isCurrent {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.black.opacity(0.45))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-            }
+            artwork
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.body)
-                    .fontWeight(isCurrent ? .semibold : .regular)
-                    .foregroundStyle(isCurrent ? Color.red : .primary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .font(.body)
+                        .fontWeight(isCurrent ? .semibold : .regular)
+                        .foregroundStyle(isCurrent ? Color.red : .primary)
+                        .lineLimit(1)
+                    if item.isExplicit {
+                        ExplicitBadge()
+                    }
+                }
                 subtitle
             }
 
             Spacer(minLength: 8)
 
-            if hovering {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 13))
+            if let duration = item.duration {
+                Text(duration)
+                    .font(.callout)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
         }
@@ -243,6 +239,20 @@ private struct SearchResultRow: View {
             albumLink: item.albumLink,
             likeStatus: item.likeStatus
         )
+    }
+
+    private var artwork: some View {
+        ZStack {
+            ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 44)
+            if isCurrent || hovering {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.black.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                Image(systemName: isCurrent ? "speaker.wave.2.fill" : "play.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
     }
 
     @ViewBuilder
@@ -275,6 +285,17 @@ private struct SearchResultRow: View {
             artists: item.artists,
             albumLink: item.albumLink
         )
+    }
+}
+
+private struct ExplicitBadge: View {
+    var body: some View {
+        Text(verbatim: "E")
+            .font(.system(size: 9, weight: .heavy))
+            .foregroundStyle(Color.appBackground)
+            .frame(width: 13, height: 13)
+            .background(.secondary, in: .rect(cornerRadius: 3))
+            .accessibilityLabel(Text("search.explicit"))
     }
 }
 

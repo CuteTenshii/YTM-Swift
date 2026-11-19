@@ -35,6 +35,8 @@ struct ShelfItem: Identifiable, Sendable {
     var likeStatus: LikeStatus? = nil
     var chartRank: ChartRank? = nil
     var editablePlaylistId: String? = nil
+    var isExplicit = false
+    var duration: String? = nil
 
     var prefersCircularArtwork: Bool { kind == .artist || kind == .profile }
 

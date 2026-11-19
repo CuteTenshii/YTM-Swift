@@ -105,7 +105,7 @@ nonisolated enum SearchParser {
             } else if let itemSection = section.itemSectionRenderer {
                 for carouselItem in itemSection.contents ?? [] {
                     guard let item = HomeFeedParser.makeItem(from: carouselItem) else { continue }
-                    byCategory[category(for: carouselItem), default: []].append(stripType(item))
+                    byCategory[category(for: carouselItem), default: []].append(tidy(item))
                 }
             }
         }
@@ -150,7 +150,7 @@ nonisolated enum SearchParser {
     // MARK: - Shelves
 
     private static func makeShelf(title: String, contents: [CarouselItem]?) -> Shelf? {
-        let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0).map(stripType) }
+        let items = (contents ?? []).compactMap { HomeFeedParser.makeItem(from: $0).map(tidy) }
         guard !items.isEmpty else { return nil }
         return Shelf(title: title.isEmpty ? String(localized: "shelf.results") : title, items: items)
     }
@@ -166,8 +166,8 @@ nonisolated enum SearchParser {
 
     // MARK: - Subtitle cleanup
 
-    /// The category shelf header already conveys the content-type token.
-    private static func stripType(_ item: ShelfItem) -> ShelfItem {
+    /// Drops the content-type token the shelf header already conveys and lifts a trailing duration out.
+    private static func tidy(_ item: ShelfItem) -> ShelfItem {
         var item = item
         var parts = item.subtitle.components(separatedBy: " • ")
         let labels: Set<String> = [
@@ -176,8 +176,12 @@ nonisolated enum SearchParser {
         ]
         if parts.count > 1, let first = parts.first, labels.contains(first) {
             parts.removeFirst()
-            item.subtitle = parts.joined(separator: " • ")
         }
+        if let last = parts.last, last.wholeMatch(of: /\d{1,2}(:\d{2}){1,2}/) != nil {
+            item.duration = last
+            parts.removeLast()
+        }
+        item.subtitle = parts.joined(separator: " • ")
         return item
     }
 }

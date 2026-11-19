@@ -175,7 +175,8 @@ nonisolated enum HomeFeedParser {
             deleteEntityId: row.deleteEntityId,
             likeStatus: row.likeStatus,
             chartRank: row.chartRank,
-            editablePlaylistId: row.menu?.editablePlaylistId
+            editablePlaylistId: row.menu?.editablePlaylistId,
+            isExplicit: row.isExplicit
         )
     }
 

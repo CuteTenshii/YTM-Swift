@@ -4883,6 +4883,22 @@
         }
       }
     },
+    "search.explicit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explicit"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explicite"
+          }
+        }
+      }
+    },
     "search.filter.all": {
       "localizations": {
         "en": {
