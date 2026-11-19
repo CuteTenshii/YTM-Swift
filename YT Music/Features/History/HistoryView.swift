@@ -14,6 +14,7 @@ struct HistoryView: View {
     @Environment(Navigator.self) private var navigator
     @State private var model = HistoryViewModel()
     @State private var confirmingClear = false
+    @FocusState private var focusedTrack: Track.ID?
 
     var body: some View {
         @Bindable var navigator = navigator
@@ -73,13 +74,16 @@ struct HistoryView: View {
     }
 
     private func content(_ sections: [HistorySection]) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
-                ForEach(sections) { section in
-                    HistorySectionView(section: section, model: model)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    ForEach(sections) { section in
+                        HistorySectionView(section: section, model: model, focus: $focusedTrack)
+                    }
                 }
+                .padding(.vertical, 24)
             }
-            .padding(.vertical, 24)
+            .rowArrowNavigation($focusedTrack, ids: sections.flatMap { $0.tracks.map(\.id) }, proxy: proxy)
         }
     }
 
@@ -125,6 +129,7 @@ struct HistoryView: View {
 private struct HistorySectionView: View {
     let section: HistorySection
     let model: HistoryViewModel
+    var focus: FocusState<Track.ID?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -136,6 +141,8 @@ private struct HistorySectionView: View {
             VStack(spacing: 0) {
                 ForEach(Array(section.tracks.enumerated()), id: \.element.id) { index, track in
                     HistoryTrackRow(track: track, index: index, tracks: section.tracks, model: model)
+                        .focused(focus, equals: track.id)
+                        .id(track.id)
                     if track.id != section.tracks.last?.id {
                         Divider().overlay(.primary.opacity(0.08))
                     }
@@ -203,6 +210,7 @@ private struct HistoryTrackRow: View {
         .contentShape(.rect)
         .onHover { hovering = $0 }
         .onTapGesture(count: settings.playClickCount) { player.play(tracks, startAt: index, album: "") }
+        .playableRow { player.play(tracks, startAt: index, album: "") }
         .musicContextMenu(
             title: track.title,
             subtitle: track.subtitle,

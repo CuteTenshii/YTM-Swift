@@ -121,6 +121,7 @@ struct NowPlayingPanelView: View {
 
 private struct QueueListView: View {
     let player: PlayerState
+    @FocusState private var focusedTrack: Track.ID?
 
     var body: some View {
         if player.queue.isEmpty {
@@ -130,39 +131,48 @@ private struct QueueListView: View {
                 description: Text("nowplaying.queue.empty.description")
             )
         } else {
-            List {
-                ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
-                    QueueRow(track: track, isCurrent: index == player.currentIndex)
-                        .contentShape(.rect)
-                        .onTapGesture { player.playQueueItem(at: index) }
-                        .musicContextMenu(
-                            title: track.title,
-                            subtitle: track.subtitle,
-                            thumbnailURL: track.thumbnailURL,
-                            videoId: track.videoId,
-                            playlistId: nil,
-                            browseId: nil,
-                            artists: track.artists,
-                            albumLink: track.albumLink,
-                            likeStatus: track.likeStatus
-                        ) {
-                            Divider()
-                            Button(role: .destructive) {
-                                player.removeFromQueue(at: index)
-                            } label: {
-                                Label("nowplaying.queue.remove", systemImage: "minus.circle")
-                            }
-                        }
-                }
-                .onMove { player.moveInQueue(fromOffsets: $0, toOffset: $1) }
-                .onDelete { offsets in
-                    // High to low so earlier removals don't shift the rest.
-                    for index in offsets.sorted(by: >) { player.removeFromQueue(at: index) }
-                }
+            ScrollViewReader { proxy in
+                queueList
+                    .rowArrowNavigation($focusedTrack, ids: player.queue.map(\.id), proxy: proxy)
             }
-            .listStyle(.inset)
-            .scrollContentBackground(.hidden)
         }
+    }
+
+    private var queueList: some View {
+        List {
+            ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, track in
+                QueueRow(track: track, isCurrent: index == player.currentIndex)
+                    .contentShape(.rect)
+                    .onTapGesture { player.playQueueItem(at: index) }
+                    .playableRow { player.playQueueItem(at: index) }
+                    .focused($focusedTrack, equals: track.id)
+                    .musicContextMenu(
+                        title: track.title,
+                        subtitle: track.subtitle,
+                        thumbnailURL: track.thumbnailURL,
+                        videoId: track.videoId,
+                        playlistId: nil,
+                        browseId: nil,
+                        artists: track.artists,
+                        albumLink: track.albumLink,
+                        likeStatus: track.likeStatus
+                    ) {
+                        Divider()
+                        Button(role: .destructive) {
+                            player.removeFromQueue(at: index)
+                        } label: {
+                            Label("nowplaying.queue.remove", systemImage: "minus.circle")
+                        }
+                    }
+            }
+            .onMove { player.moveInQueue(fromOffsets: $0, toOffset: $1) }
+            .onDelete { offsets in
+                // High to low so earlier removals don't shift the rest.
+                for index in offsets.sorted(by: >) { player.removeFromQueue(at: index) }
+            }
+        }
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
     }
 }
 

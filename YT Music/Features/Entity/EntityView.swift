@@ -15,6 +15,7 @@ struct EntityView: View {
     @State private var searchText = ""
     @State private var searchResults: [Track]?
     @State private var searchCompleted = false
+    @FocusState private var focusedTrack: Track.ID?
 
     init(destination: EntityDestination) {
         _model = State(initialValue: EntityViewModel(destination: destination))
@@ -102,56 +103,59 @@ struct EntityView: View {
         return GeometryReader { proxy in
             let topInset = proxy.safeAreaInsets.top
 
-            // List, not ScrollView, so playlist tracks reorder like the queue.
-            List {
-                if page.isFeed {
-                    Text(page.header.title)
-                        .font(.system(size: 40, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 24)
-                        .padding(.top, topInset + 16)
-                        .sectionSpacing()
-
-                    ForEach(page.shelves) { shelf in
-                        ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
+            ScrollViewReader { scroller in
+                // List, not ScrollView, so playlist tracks reorder like the queue.
+                List {
+                    if page.isFeed {
+                        Text(page.header.title)
+                            .font(.system(size: 40, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 24)
+                            .padding(.top, topInset + 16)
                             .sectionSpacing()
-                    }
-                } else {
-                    HeaderView(header: page.header, tracks: page.tracks, shufflePlaylistId: page.shufflePlaylistId,
-                               album: album, model: model, topInset: topInset)
-                        .sectionSpacing()
 
-                    if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
-                        HStack(spacing: 12) {
-                            if page.filters.isEmpty {
-                                Spacer()
-                            } else {
-                                FilterChipRow(chips: page.filters, title: \.title,
-                                              selection: model.selectedFilter) { filter in
-                                    Task { await model.applyFilter(filter) }
+                        ForEach(page.shelves) { shelf in
+                            ShelfGridView(shelf: shelf, showsHeader: page.shelves.count > 1)
+                                .sectionSpacing()
+                        }
+                    } else {
+                        HeaderView(header: page.header, tracks: page.tracks, shufflePlaylistId: page.shufflePlaylistId,
+                                   album: album, model: model, topInset: topInset)
+                            .sectionSpacing()
+
+                        if !isSearching && (!page.filters.isEmpty || !page.sortOptions.isEmpty) {
+                            HStack(spacing: 12) {
+                                if page.filters.isEmpty {
+                                    Spacer()
+                                } else {
+                                    FilterChipRow(chips: page.filters, title: \.title,
+                                                  selection: model.selectedFilter) { filter in
+                                        Task { await model.applyFilter(filter) }
+                                    }
+                                }
+                                if !page.sortOptions.isEmpty {
+                                    sortMenu(page.sortOptions)
+                                        .padding(.trailing, 24)
                                 }
                             }
-                            if !page.sortOptions.isEmpty {
-                                sortMenu(page.sortOptions)
-                                    .padding(.trailing, 24)
-                            }
-                        }
-                        .sectionSpacing()
-                    }
-
-                    tracksSection(page, tracks: visibleTracks, album: album, isSearching: isSearching)
-
-                    ForEach(page.shelves) { shelf in
-                        ShelfView(shelf: shelf)
                             .sectionSpacing()
+                        }
+
+                        tracksSection(page, tracks: visibleTracks, album: album, isSearching: isSearching)
+
+                        ForEach(page.shelves) { shelf in
+                            ShelfView(shelf: shelf)
+                                .sectionSpacing()
+                        }
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
+                // Header gradient bleeds under the toolbar; the header re-pads by `topInset`.
+                .ignoresSafeArea(.container, edges: .top)
+                .rowArrowNavigation($focusedTrack, ids: visibleTracks.map(\.id), proxy: scroller)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .environment(\.defaultMinListRowHeight, 0)
-            // Header gradient bleeds under the toolbar; the header re-pads by `topInset`.
-            .ignoresSafeArea(.container, edges: .top)
         }
     }
 
@@ -191,6 +195,7 @@ struct EntityView: View {
                 TrackRow(track: track, index: index, tracks: tracks, album: album,
                          canRemove: model.editablePlaylistId != nil, onRemove: removeTrack,
                          onVote: isSearching ? nil : { track, target in Task { await model.vote(track, target) } })
+                    .focused($focusedTrack, equals: track.id)
                 if index < tracks.count - 1 {
                     Divider().overlay(.primary.opacity(0.08))
                 }

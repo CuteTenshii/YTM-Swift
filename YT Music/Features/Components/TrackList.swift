@@ -13,7 +13,15 @@ struct TrackListView: View {
     var onRemove: (Track) -> Void = { _ in }
     let onReachedEnd: () -> Void
 
+    @FocusState private var focusedIndex: Int?
+
     var body: some View {
+        ScrollViewReader { proxy in
+            rows.rowArrowNavigation($focusedIndex, ids: Array(tracks.indices), proxy: proxy)
+        }
+    }
+
+    private var rows: some View {
         LazyVStack(spacing: 0) {
             ForEach(tracks.indices, id: \.self) { index in
                 let track = tracks[index]
@@ -25,6 +33,7 @@ struct TrackListView: View {
                     canRemove: canRemove,
                     onRemove: onRemove
                 )
+                .focused($focusedIndex, equals: index)
                 if index < tracks.count - 1 {
                     Divider().overlay(.primary.opacity(0.08))
                 }
@@ -116,6 +125,7 @@ struct TrackRow: View {
         .contentShape(.rect)
         .onHover { hovering = $0 }
         .onTapGesture(count: settings.playClickCount) { player.play(tracks, startAt: index, album: album) }
+        .playableRow { player.play(tracks, startAt: index, album: album) }
         .musicContextMenu(
             title: track.title,
             subtitle: track.subtitle,

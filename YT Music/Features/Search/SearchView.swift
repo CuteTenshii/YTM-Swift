@@ -14,6 +14,7 @@ struct SearchContent: View {
     @State private var model = SearchViewModel()
     @Binding private var query: String
     @Binding private var isActive: Bool
+    @FocusState private var focusedItem: ShelfItem.ID?
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
 
@@ -104,14 +105,19 @@ struct SearchContent: View {
     }
 
     private func shelfList(_ shelves: [Shelf]) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
-                ForEach(shelves) { shelf in
-                    section(shelf)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    ForEach(shelves) { shelf in
+                        section(shelf)
+                    }
                 }
+                .padding(.vertical, 8)
+                .padding(.bottom, 24)
             }
-            .padding(.vertical, 8)
-            .padding(.bottom, 24)
+            .rowArrowNavigation($focusedItem,
+                                ids: shelves.filter(isTrackShelf).flatMap { $0.items.map(\.id) },
+                                proxy: proxy)
         }
     }
 
@@ -127,6 +133,8 @@ struct SearchContent: View {
                 VStack(spacing: 0) {
                     ForEach(shelf.items) { item in
                         SearchResultRow(item: item)
+                            .focused($focusedItem, equals: item.id)
+                            .id(item.id)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -240,6 +248,7 @@ private struct SearchResultRow: View {
         .onHover { hovering = $0 }
         // Inline artist/album links intercept their own taps.
         .onTapGesture { play() }
+        .playableRow(play)
         .musicContextMenu(
             title: item.title,
             subtitle: item.subtitle,
