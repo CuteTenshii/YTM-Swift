@@ -22,9 +22,7 @@ final class PlayerState {
     /// The stream is with the engine but not yet audible.
     private var awaitingAudio = false
     private(set) var loadError: String?
-    /// Shown briefly after an unplayable track is skipped.
-    private(set) var skipNotice: String?
-    private var skipNoticeTask: Task<Void, Never>?
+    private var loadErrorToast: Toast.ID?
     /// Failed loads in a row; auto-skipping stops at `maxFailuresInARow`.
     private var failedInARow = 0
     private var isSkippingFailure = false
@@ -68,6 +66,7 @@ final class PlayerState {
     private let history: WatchHistoryTracker
     private let store: PlaybackStore?
     private let settings: AppSettings?
+    private let toasts: ToastCenter
     private let handoff = Handoff()
     private var loadTask: Task<Void, Never>?
     private var radioTask: Task<Void, Never>?
@@ -91,7 +90,7 @@ final class PlayerState {
     init(audio: AudioOutput? = nil, resolver: StreamResolving? = nil,
          radioProvider: RadioProviding? = nil, store: PlaybackStore? = nil,
          settings: AppSettings? = nil, historyReporter: WatchHistoryReporting? = nil,
-         likeProvider: LikeProviding? = nil) {
+         likeProvider: LikeProviding? = nil, toasts: ToastCenter? = nil) {
         self.audio = audio ?? AudioPlayer()
         self.level = self.audio.volume
         self.resolver = resolver ?? StreamResolver.shared
@@ -100,6 +99,7 @@ final class PlayerState {
         self.history = WatchHistoryTracker(reporter: historyReporter ?? InnerTubeClient.shared)
         self.store = store
         self.settings = settings
+        self.toasts = toasts ?? ToastCenter()
 
         self.audio.onTrackFinished = { [weak self] in self?.handleTrackFinished() }
         self.audio.onNext = { [weak self] in self?.next() }
@@ -607,6 +607,8 @@ final class PlayerState {
         likeInteracted = false
         nowPlaying = track
         loadError = nil
+        if let loadErrorToast { toasts.dismiss(loadErrorToast) }
+        loadErrorToast = nil
     }
 
     private func startTrack(_ track: NowPlaying, startAt position: Double? = nil) {
@@ -683,22 +685,18 @@ final class PlayerState {
         failedInARow += 1
         guard canGoNext, failedInARow < Self.maxFailuresInARow, let title = nowPlaying?.title else {
             loadError = error.localizedDescription
+            let toast = Toast(message: error.localizedDescription, style: .error,
+                              action: Toast.Action(title: String(localized: "common.retry")) { [weak self] in
+                                  self?.retry()
+                              })
+            loadErrorToast = toast.id
+            toasts.show(toast, for: .seconds(10))
             return
         }
-        showSkipNotice(String(format: String(localized: "player.skipped"), title))
+        toasts.show(Toast(message: String(format: String(localized: "player.skipped"), title)))
         isSkippingFailure = true
         next()
         isSkippingFailure = false
-    }
-
-    private func showSkipNotice(_ text: String) {
-        skipNotice = text
-        skipNoticeTask?.cancel()
-        skipNoticeTask = Task {
-            try? await Task.sleep(for: .seconds(6))
-            guard !Task.isCancelled else { return }
-            skipNotice = nil
-        }
     }
 
     /// Reloads the current track after a failed load.

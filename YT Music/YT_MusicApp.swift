@@ -24,6 +24,7 @@ struct YT_MusicApp: App {
     @State private var pluginHost: PluginHost
     @State private var navigator = Navigator()
     @State private var playlists = PlaylistCoordinator()
+    @State private var toasts: ToastCenter
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
     )
@@ -34,9 +35,12 @@ struct YT_MusicApp: App {
         // Created before the player, which reads audio prefs from it.
         let settings = AppSettings()
         _settings = State(initialValue: settings)
+        let toasts = ToastCenter()
+        _toasts = State(initialValue: toasts)
         let player = PlayerState(
             store: UserDefaultsPlaybackStore(),
-            settings: settings
+            settings: settings,
+            toasts: toasts
         )
         _player = State(initialValue: player)
         AppDependencyManager.shared.add(dependency: player)
@@ -65,6 +69,7 @@ struct YT_MusicApp: App {
                 .environment(pluginHost)
                 .environment(navigator)
                 .environment(playlists)
+                .environment(toasts)
                 .pluginBridge(player: player, host: pluginHost)
         }
         .commands {

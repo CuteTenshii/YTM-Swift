@@ -44,12 +44,19 @@ struct ContentView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
     @Environment(PlaylistCoordinator.self) private var playlists
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var nowPlayingBarHeight: CGFloat = 0
 
     @State private var comments = CommentsViewModel()
     @State private var library = LibraryViewModel()
     /// Held here, not in the toolbar item, which AppKit recreates on relayout.
     @State private var avatar: NSImage?
+
+    private var toastBottomInset: CGFloat {
+        let bar = navigator.showingImmersiveLyrics || player.nowPlaying == nil ? 0 : nowPlayingBarHeight
+        return bar + 16
+    }
 
     var body: some View {
         @Bindable var auth = auth
@@ -102,6 +109,7 @@ struct ContentView: View {
                         panelTab: $navigator.panelTab,
                         showingImmersiveLyrics: $navigator.showingImmersiveLyrics
                     )
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { nowPlayingBarHeight = $0 }
                 }
             }
             // Hidden while immersive is up so nothing floats over the overlay.
@@ -119,6 +127,11 @@ struct ContentView: View {
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .zIndex(1)
             }
+        }
+        .overlay(alignment: .bottom) {
+            ToastOverlay(center: toasts)
+                .padding(.horizontal, 24)
+                .padding(.bottom, toastBottomInset)
         }
         .sheet(isPresented: $auth.isPresentingLogin) {
             LoginView()
@@ -438,17 +451,7 @@ private struct NowPlayingBar: View {
 
     @ViewBuilder
     private func subtitle(_ nowPlaying: PlayerState.NowPlaying) -> some View {
-        if let error = player.loadError {
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .lineLimit(1)
-        } else if let notice = player.skipNotice {
-            Text(notice)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        } else if !nowPlaying.artists.isEmpty {
+        if !nowPlaying.artists.isEmpty {
             // Plain-text artist with a linked album would render a stray bullet album; fall back to the full subtitle.
             linksRow(artists: nowPlaying.artists, album: nowPlaying.albumLink)
         } else {
@@ -812,5 +815,6 @@ struct SeekBar: View {
         .environment(Navigator())
         .environment(PlaylistCoordinator())
         .environment(AppSettings())
+        .environment(ToastCenter())
         .frame(width: 1000, height: 700)
 }
