@@ -12,16 +12,10 @@ import SwiftUI
 
 struct SearchContent: View {
     @State private var model = SearchViewModel()
-    @Binding private var query: String
-    @Binding private var isActive: Bool
+    let query: String
     @FocusState private var focusedItem: ShelfItem.ID?
 
     private let columns = [GridItem(.adaptive(minimum: 160), spacing: 16, alignment: .top)]
-
-    init(query: Binding<String>, isActive: Binding<Bool> = .constant(false)) {
-        _query = query
-        _isActive = isActive
-    }
 
     var body: some View {
         ZStack {
@@ -38,14 +32,10 @@ struct SearchContent: View {
             }
         }
         .task(id: query) {
-            isActive = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 model.clear()
                 return
             }
-            // Debounce: the task restarts on every query change.
-            try? await Task.sleep(for: .milliseconds(350))
-            guard !Task.isCancelled else { return }
             await model.search(query)
         }
     }
@@ -75,14 +65,7 @@ struct SearchContent: View {
     @ViewBuilder
     private var results: some View {
         switch model.state {
-        case .idle:
-            prompt(
-                icon: "magnifyingglass",
-                title: "search.idle.title",
-                message: "search.idle.message"
-            )
-
-        case .loading:
+        case .idle, .loading:
             Spacer()
             ProgressView()
                 .controlSize(.large)
@@ -315,7 +298,7 @@ private struct SearchLink: View {
 }
 
 #Preview {
-    SearchContent(query: .constant(""))
+    SearchContent(query: "")
         .environment(PlayerState())
         .environment(AuthStore())
         .environment(Navigator())

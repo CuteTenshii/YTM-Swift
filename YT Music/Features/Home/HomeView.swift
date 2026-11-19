@@ -15,7 +15,7 @@ struct HomeView: View {
     @State private var model = HomeViewModel()
     @State private var searchModel = SearchViewModel()
     @State private var searchText = ""
-    @State private var showingSearch = false
+    @State private var submittedQuery = ""
     @State private var selectedChip: FeedChip?
 
     var body: some View {
@@ -33,8 +33,8 @@ struct HomeView: View {
                         .foregroundStyle(.primary)
 
                 case .loaded(let feed):
-                    if showingSearch {
-                        SearchContent(query: $searchText, isActive: $showingSearch)
+                    if !submittedQuery.isEmpty {
+                        SearchContent(query: submittedQuery)
                     } else {
                         feedContent(feed)
                     }
@@ -54,11 +54,12 @@ struct HomeView: View {
                         .searchCompletion(suggestion)
                 }
             }
+            .onSubmit(of: .search) { submittedQuery = searchText }
         }
         .task(id: auth.generation) { await model.load() }
         .task(id: searchText) {
-            showingSearch = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            guard showingSearch else {
+            guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                submittedQuery = ""
                 searchModel.clear()
                 return
             }

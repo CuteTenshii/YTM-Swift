@@ -5011,38 +5011,6 @@
         }
       }
     },
-    "search.idle.message": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Find songs, albums, artists, and playlists."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trouvez des titres, albums, artistes et playlists."
-          }
-        }
-      }
-    },
-    "search.idle.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search YouTube Music"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rechercher sur YouTube Music"
-          }
-        }
-      }
-    },
     "search.prompt": {
       "localizations": {
         "en": {
