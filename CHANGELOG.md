@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.0 - 2026-11-19
+
+### New
+
+- Search suggestions include artists, songs and albums, with the part you typed in bold
+- Search runs when you press Return instead of while you type
+- The top search result is a card with Play, Shuffle or Mix buttons and its top tracks
+- Search results show explicit badges and track durations
+- Track lists support keyboard focus, arrow keys, and Return to play
+- Playback skips, playback errors, and failed history or playlist edits show as toasts
+- VoiceOver labels for icon-only controls, and Reduce Motion is respected in lyrics, the immersive view and loading placeholders
+
+### Fixes
+
+- Search suggestions show up again
+- Unplayable tracks are skipped with a notice, and the play button retries a failed track
+- Artwork loads through the configured proxy
+- A history removal that fails is rolled back instead of disappearing from the list
+- Artwork uses less memory, and more of it stays cached between launches
+
 ## 1.3.0 - 2026-11-05
 
 ### New
