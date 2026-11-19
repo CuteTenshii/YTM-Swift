@@ -31,6 +31,7 @@ struct YT_MusicApp: App {
 
     init() {
         CrashHandler.install()
+        URLCache.shared.diskCapacity = 500 * 1024 * 1024
 
         // Created before the player, which reads audio prefs from it.
         let settings = AppSettings()
