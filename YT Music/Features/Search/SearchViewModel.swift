@@ -17,7 +17,7 @@ final class SearchViewModel {
     }
 
     private(set) var state: State = .idle
-    private(set) var suggestions: [String] = []
+    private(set) var suggestions = SearchSuggestions()
     private(set) var filter: SearchFilter = .all
 
     private let client: InnerTubeClient
@@ -29,7 +29,7 @@ final class SearchViewModel {
 
     func clear() {
         state = .idle
-        suggestions = []
+        suggestions = SearchSuggestions()
         filter = .all
         query = ""
     }
@@ -37,16 +37,17 @@ final class SearchViewModel {
     func loadSuggestions(for input: String) async {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            suggestions = []
+            suggestions = SearchSuggestions()
             return
         }
         do {
-            let values = try await client.searchSuggestions(trimmed)
+            var values = try await client.searchSuggestions(trimmed)
             guard !Task.isCancelled else { return }
-            suggestions = Array(values.prefix(8))
+            values.queries = Array(values.queries.prefix(8))
+            suggestions = values
         } catch {
             guard !Task.isCancelled else { return }
-            suggestions = []
+            suggestions = SearchSuggestions()
         }
     }
 

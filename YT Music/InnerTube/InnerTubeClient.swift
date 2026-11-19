@@ -246,9 +246,9 @@ nonisolated final class InnerTubeClient: Sendable, WatchHistoryReporting {
         return SearchParser.parse(response)
     }
 
-    func searchSuggestions(_ input: String) async throws -> [String] {
+    func searchSuggestions(_ input: String) async throws -> SearchSuggestions {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
+        guard !trimmed.isEmpty else { return SearchSuggestions() }
         let response: SearchSuggestionsResponse = try await post(
             "music/get_search_suggestions",
             body: ["input": trimmed]

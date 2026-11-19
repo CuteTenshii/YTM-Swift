@@ -204,7 +204,7 @@ struct SearchFilterTests {
 
 @Suite("Search suggestions")
 struct SearchSuggestionsTests {
-    @Test("Extracts queries across sections and removes duplicates")
+    @Test("Extracts queries and entity rows across sections, dropping duplicate queries")
     func parsesSuggestions() throws {
         let fixture = """
         {"contents":[
@@ -214,6 +214,13 @@ struct SearchSuggestionsTests {
             {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":""}]}}}
           ]}},
           {"searchSuggestionsSectionRenderer":{"contents":[
+            {"musicResponsiveListItemRenderer":{
+              "flexColumns":[
+                {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Radiohead"}]}}},
+                {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Artist"}]}}}
+              ],
+              "navigationEndpoint":{"browseEndpoint":{"browseId":"UCr_iyUANcn9OX_yy9piYoLw","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}
+            }},
             {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}}
           ]}}
         ]}
@@ -222,9 +229,13 @@ struct SearchSuggestionsTests {
             SearchSuggestionsResponse.self, from: Data(fixture.utf8)
         )
 
-        #expect(SearchSuggestionsParser.parse(response) == [
-            "radiohead", "radiohead in rainbows"
-        ])
+        let suggestions = SearchSuggestionsParser.parse(response)
+        #expect(suggestions.queries == ["radiohead", "radiohead in rainbows"])
+        let artist = try #require(suggestions.items.first)
+        #expect(suggestions.items.count == 1)
+        #expect(artist.title == "Radiohead")
+        #expect(artist.kind == .artist)
+        #expect(artist.browseId == "UCr_iyUANcn9OX_yy9piYoLw")
     }
 
     @Test("Missing suggestions decode as empty")
@@ -232,6 +243,8 @@ struct SearchSuggestionsTests {
         let response = try JSONDecoder().decode(
             SearchSuggestionsResponse.self, from: Data("{}".utf8)
         )
-        #expect(SearchSuggestionsParser.parse(response).isEmpty)
+        let suggestions = SearchSuggestionsParser.parse(response)
+        #expect(suggestions.queries.isEmpty)
+        #expect(suggestions.items.isEmpty)
     }
 }

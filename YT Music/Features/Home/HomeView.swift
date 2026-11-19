@@ -12,6 +12,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(Navigator.self) private var navigator
+    @Environment(PlayerState.self) private var player
     @State private var model = HomeViewModel()
     @State private var searchModel = SearchViewModel()
     @State private var searchText = ""
@@ -49,9 +50,12 @@ struct HomeView: View {
             }
             .searchable(text: $searchText, placement: .toolbar, prompt: "search.prompt")
             .searchSuggestions {
-                ForEach(searchModel.suggestions, id: \.self) { suggestion in
+                ForEach(searchModel.suggestions.queries, id: \.self) { suggestion in
                     Text(suggestion)
                         .searchCompletion(suggestion)
+                }
+                ForEach(searchModel.suggestions.items) { item in
+                    Button { open(item) } label: { suggestionRow(item) }
                 }
             }
             .onSubmit(of: .search) { submittedQuery = searchText }
@@ -66,6 +70,36 @@ struct HomeView: View {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             await searchModel.loadSuggestions(for: searchText)
+        }
+    }
+
+    // MARK: - Suggestions
+
+    private func suggestionRow(_ item: ShelfItem) -> some View {
+        HStack(spacing: 10) {
+            ArtworkView(url: item.thumbnailURL, circular: item.prefersCircularArtwork, size: 28)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title).lineLimit(1)
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func open(_ item: ShelfItem) {
+        if let videoId = item.videoId {
+            player.play(
+                title: item.title,
+                subtitle: item.subtitle,
+                thumbnailURL: item.thumbnailURL,
+                videoId: videoId,
+                artists: item.artists,
+                albumLink: item.albumLink
+            )
+        } else if let destination = item.entityDestination {
+            navigator.open(destination)
         }
     }
 

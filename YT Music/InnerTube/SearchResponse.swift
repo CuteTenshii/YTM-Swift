@@ -30,6 +30,7 @@ struct SearchSuggestionsResponse: Decodable {
 
     struct Content: Decodable {
         let searchSuggestionRenderer: Renderer?
+        let musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?
     }
 
     struct Renderer: Decodable {
@@ -58,19 +59,30 @@ struct SearchSuggestionsResponse: Decodable {
     }
 }
 
+nonisolated struct SearchSuggestions: Sendable {
+    var queries: [String] = []
+    var items: [ShelfItem] = []
+}
+
 nonisolated enum SearchSuggestionsParser {
-    static func parse(_ response: SearchSuggestionsResponse) -> [String] {
+    static func parse(_ response: SearchSuggestionsResponse) -> SearchSuggestions {
         let contents = (response.contents ?? []).flatMap {
             $0.searchSuggestionsSectionRenderer?.contents ?? []
         }
         var seen = Set<String>()
-        return contents.compactMap { content in
+        var result = SearchSuggestions()
+        for content in contents {
+            if let row = content.musicResponsiveListItemRenderer {
+                if let item = HomeFeedParser.makeItem(from: row) { result.items.append(item) }
+                continue
+            }
             let renderer = content.searchSuggestionRenderer
             let text = renderer?.navigationEndpoint?.searchEndpoint?.query
                 ?? renderer?.suggestion?.text
             guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  seen.insert(text).inserted else { return nil }
-            return text
+                  seen.insert(text).inserted else { continue }
+            result.queries.append(text)
         }
+        return result
     }
 }
