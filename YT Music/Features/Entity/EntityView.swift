@@ -521,7 +521,7 @@ private struct HeaderView: View {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await NetworkSession.shared.data(from: url)
             palette = await Task.detached { ArtworkPalette.extract(from: data) }.value
         } catch {
             palette = []

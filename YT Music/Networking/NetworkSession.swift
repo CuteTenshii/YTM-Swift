@@ -33,6 +33,8 @@ nonisolated struct NetworkProxy: Sendable, Equatable {
 enum NetworkSession {
     static let proxyDefaultsKey = "settings.proxyURL"
 
+    nonisolated static let shared = make()
+
     static func make(proxyURL: String? = nil) -> URLSession {
         let configuration = URLSessionConfiguration.default
         let value = proxyURL ?? UserDefaults.standard.string(forKey: proxyDefaultsKey)

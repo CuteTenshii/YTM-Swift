@@ -333,7 +333,7 @@ final class AudioPlayer: AudioOutput {
         guard let url, url != loadedArtworkURL else { return }
         loadedArtworkURL = url
         Task {
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
+            guard let (data, _) = try? await NetworkSession.shared.data(from: url),
                   let image = NSImage(data: data) else { return }
             let size = image.size
             // Capture Data (Sendable), rebuild the image inside the handler.

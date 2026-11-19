@@ -65,7 +65,7 @@ struct CachedAsyncImage<Content: View>: View {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await NetworkSession.shared.data(from: url)
             guard let nsImage = NSImage(data: data) else {
                 phase = .failure(URLError(.cannotDecodeContentData))
                 return

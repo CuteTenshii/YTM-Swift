@@ -297,7 +297,7 @@ private enum AvatarBadge {
         if let cached = ImageCache.shared.image(for: url) {
             return circular(cached, side: 22)
         }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
+        guard let (data, _) = try? await NetworkSession.shared.data(from: url),
               let image = NSImage(data: data) else { return nil }
         ImageCache.shared.insert(image, for: url)
         return circular(image, side: 22)
