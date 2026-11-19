@@ -144,6 +144,8 @@ struct UploadsView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+        .help("common.close")
+        .accessibilityLabel("common.close")
     }
 
     private func shelfSection(_ shelf: Shelf, showsTitle: Bool) -> some View {

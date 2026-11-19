@@ -160,6 +160,8 @@ private struct SessionExpiredBanner: View {
                 Image(systemName: "xmark").foregroundStyle(.black)
             }
             .buttonStyle(.plain)
+            .help("common.close")
+            .accessibilityLabel("common.close")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -259,6 +261,7 @@ private struct AccountControl: View {
             }
             .menuIndicator(.hidden)
             .help(auth.account?.name ?? String(localized: "account.menu.help"))
+            .accessibilityLabel(auth.account?.name ?? String(localized: "account.menu.help"))
         }
     }
 
@@ -387,6 +390,7 @@ private struct NowPlayingBar: View {
         }
         .buttonStyle(.plain)
         .help("player.fullscreen_lyrics")
+        .accessibilityLabel("player.fullscreen_lyrics")
     }
 
     private func panelButton(_ tab: NowPlayingPanelTab) -> some View {
@@ -405,6 +409,8 @@ private struct NowPlayingBar: View {
         }
         .buttonStyle(.plain)
         .help(tab.title)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     private let sideWidth: CGFloat = 300
@@ -519,6 +525,10 @@ private struct NowPlayingBar: View {
         .buttonStyle(.plain)
         .disabled(!isSignedIn || player.isUpdatingLike)
         .help(help)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(help)
+        .accessibilityValue(count.map { $0.formatted(.number.notation(.compactName)) } ?? "")
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: - Transport
@@ -533,6 +543,8 @@ private struct NowPlayingBar: View {
             .buttonStyle(.plain)
             .disabled(player.queue.isEmpty)
             .help("common.shuffle")
+            .accessibilityLabel("common.shuffle")
+            .accessibilityAddTraits(player.isShuffled ? .isSelected : [])
 
             Button(action: player.previous) {
                 Image(systemName: "backward.fill")
@@ -541,6 +553,8 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .disabled(!player.canGoPrevious)
+            .help("menu.controls.previous")
+            .accessibilityLabel("menu.controls.previous")
 
             if player.isEpisode {
                 skipButton(seconds: -PlayerState.skipBackSeconds, icon: "gobackward.15")
@@ -559,6 +573,8 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .disabled(!player.canGoNext)
+            .help("menu.controls.next")
+            .accessibilityLabel("menu.controls.next")
 
             Button(action: player.cycleRepeatMode) {
                 Image(systemName: repeatIcon)
@@ -567,6 +583,8 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .help("player.repeat")
+            .accessibilityLabel("player.repeat")
+            .accessibilityValue(repeatModeName)
         }
     }
 
@@ -576,7 +594,12 @@ private struct NowPlayingBar: View {
                 .font(.system(size: 18))
         }
         .buttonStyle(.plain)
-        .help(String(format: String(localized: seconds < 0 ? "player.skip.back" : "player.skip.forward"), Int(abs(seconds))))
+        .help(skipLabel(seconds))
+        .accessibilityLabel(skipLabel(seconds))
+    }
+
+    private func skipLabel(_ seconds: Double) -> String {
+        String(format: String(localized: seconds < 0 ? "player.skip.back" : "player.skip.forward"), Int(abs(seconds)))
     }
 
     private var speedMenu: some View {
@@ -596,6 +619,14 @@ private struct NowPlayingBar: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("player.speed.help")
+    }
+
+    private var repeatModeName: String {
+        switch player.repeatMode {
+        case .off: String(localized: "player.repeat.off")
+        case .all: String(localized: "player.repeat.all")
+        case .one: String(localized: "player.repeat.one")
+        }
     }
 
     private var repeatIcon: String {
@@ -630,6 +661,8 @@ private struct NowPlayingBar: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
+            .help(player.isPlaying ? String(localized: "menu.controls.pause") : String(localized: "common.play"))
+            .accessibilityLabel(player.isPlaying ? String(localized: "menu.controls.pause") : String(localized: "common.play"))
         }
     }
 
@@ -645,6 +678,7 @@ private struct NowPlayingBar: View {
             }
             .buttonStyle(.plain)
             .help(player.isMuted ? String(localized: "player.unmute") : String(localized: "player.mute"))
+            .accessibilityLabel(player.isMuted ? String(localized: "player.unmute") : String(localized: "player.mute"))
             Slider(value: Binding(get: { player.isMuted ? 0 : player.volume }, set: { player.volume = $0 }), in: 0...1)
                 .controlSize(.small)
                 .tint(.primary)

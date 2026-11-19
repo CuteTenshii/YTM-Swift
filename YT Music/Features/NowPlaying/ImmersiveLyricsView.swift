@@ -157,6 +157,7 @@ struct ImmersiveLyricsView: View {
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
             .help("nowplaying.immersive.close")
+            .accessibilityLabel("nowplaying.immersive.close")
         }
         .padding(.horizontal, 44)
         .padding(.top, 28 + safeAreaTop)
@@ -241,6 +242,8 @@ struct ImmersiveLyricsView: View {
                         .foregroundStyle(player.canGoPrevious ? .white : .white.opacity(0.35))
                 }
                 .buttonStyle(.plain).disabled(!player.canGoPrevious)
+                .help("menu.controls.previous")
+                .accessibilityLabel("menu.controls.previous")
 
                 playButton
 
@@ -249,6 +252,8 @@ struct ImmersiveLyricsView: View {
                         .foregroundStyle(player.canGoNext ? .white : .white.opacity(0.35))
                 }
                 .buttonStyle(.plain).disabled(!player.canGoNext)
+                .help("menu.controls.next")
+                .accessibilityLabel("menu.controls.next")
             }
         }
         .padding(.horizontal, 44)
@@ -276,6 +281,8 @@ struct ImmersiveLyricsView: View {
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
+            .help(player.isPlaying ? String(localized: "menu.controls.pause") : String(localized: "common.play"))
+            .accessibilityLabel(player.isPlaying ? String(localized: "menu.controls.pause") : String(localized: "common.play"))
         }
     }
 
