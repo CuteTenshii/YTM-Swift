@@ -18,7 +18,15 @@ struct SearchResponse: Decodable {
 }
 
 struct SearchSuggestionsResponse: Decodable {
-    let contents: [Content]?
+    let contents: [Section]?
+
+    struct Section: Decodable {
+        let searchSuggestionsSectionRenderer: SectionRenderer?
+    }
+
+    struct SectionRenderer: Decodable {
+        let contents: [Content]?
+    }
 
     struct Content: Decodable {
         let searchSuggestionRenderer: Renderer?
@@ -52,8 +60,11 @@ struct SearchSuggestionsResponse: Decodable {
 
 nonisolated enum SearchSuggestionsParser {
     static func parse(_ response: SearchSuggestionsResponse) -> [String] {
+        let contents = (response.contents ?? []).flatMap {
+            $0.searchSuggestionsSectionRenderer?.contents ?? []
+        }
         var seen = Set<String>()
-        return (response.contents ?? []).compactMap { content in
+        return contents.compactMap { content in
             let renderer = content.searchSuggestionRenderer
             let text = renderer?.navigationEndpoint?.searchEndpoint?.query
                 ?? renderer?.suggestion?.text

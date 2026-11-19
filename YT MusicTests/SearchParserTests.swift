@@ -204,13 +204,18 @@ struct SearchFilterTests {
 
 @Suite("Search suggestions")
 struct SearchSuggestionsTests {
-    @Test("Extracts ranked queries and removes duplicates")
+    @Test("Extracts queries across sections and removes duplicates")
     func parsesSuggestions() throws {
         let fixture = """
         {"contents":[
-          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}},
-          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead "},{"text":"in rainbows"}]},"navigationEndpoint":{"searchEndpoint":{"query":"radiohead in rainbows"}}}},
-          {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":""}]}}}
+          {"searchSuggestionsSectionRenderer":{"contents":[
+            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}},
+            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead "},{"text":"in rainbows"}]},"navigationEndpoint":{"searchEndpoint":{"query":"radiohead in rainbows"}}}},
+            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":""}]}}}
+          ]}},
+          {"searchSuggestionsSectionRenderer":{"contents":[
+            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}}
+          ]}}
         ]}
         """
         let response = try JSONDecoder().decode(
