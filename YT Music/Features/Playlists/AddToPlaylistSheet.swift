@@ -116,7 +116,7 @@ struct AddToPlaylistSheet: View {
         }
         .frame(width: 420, height: 520)
         .task { await model.load(videoId: add.videoId) }
-        .actionFailureAlert($model.failure)
+        .actionFailureToast($model.failure)
         .alert("playlists.add.rename.title", isPresented: renamingBinding) {
             TextField("playlists.field.name", text: $renameText)
             Button("common.cancel", role: .cancel) { renaming = nil }

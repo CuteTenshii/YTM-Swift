@@ -71,7 +71,7 @@ struct LibraryView: View {
                 Text(String(format: String(localized: "entity.delete.message"), item.title))
             }
         }
-        .actionFailureAlert(Bindable(model).failure)
+        .actionFailureToast(Bindable(model).failure)
     }
 
     private var chipRow: some View {
@@ -218,5 +218,6 @@ struct LibraryView: View {
         .environment(PlayerState())
         .environment(AuthStore())
         .environment(AppSettings())
+        .environment(ToastCenter())
         .frame(width: 900, height: 600)
 }

@@ -17,6 +17,7 @@ struct Toast: Identifiable {
     }
 
     let id = UUID()
+    var title: String?
     let message: String
     var style: Style = .info
     var action: Action?
@@ -34,7 +35,7 @@ final class ToastCenter {
     func show(_ toast: Toast, for duration: Duration = defaultDuration) {
         current = toast
         self.duration = duration
-        AccessibilityNotification.Announcement(toast.message).post()
+        AccessibilityNotification.Announcement([toast.title, toast.message].compactMap { $0 }.joined(separator: ". ")).post()
         scheduleDismissal()
     }
 

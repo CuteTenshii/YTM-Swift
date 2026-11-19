@@ -70,7 +70,7 @@ struct HistoryView: View {
             }
         }
         .task(id: auth.generation) { await model.load(isSignedIn: auth.isSignedIn) }
-        .actionFailureAlert($model.failure)
+        .actionFailureToast($model.failure)
     }
 
     private func content(_ sections: [HistorySection]) -> some View {
@@ -241,5 +241,6 @@ private struct HistoryTrackRow: View {
         .environment(AppSettings())
         .environment(Navigator())
         .environment(PlaylistCoordinator())
+        .environment(ToastCenter())
         .frame(width: 900, height: 600)
 }

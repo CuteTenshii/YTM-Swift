@@ -33,10 +33,17 @@ private struct ToastView: View {
                     .foregroundStyle(.red)
                     .accessibilityHidden(true)
             }
-            Text(toast.message)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                if let title = toast.title {
+                    Text(title)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                }
+                Text(toast.message)
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+            }
+            .fixedSize(horizontal: false, vertical: true)
             if let action = toast.action {
                 Button(action.title) {
                     center.dismiss(toast.id)
