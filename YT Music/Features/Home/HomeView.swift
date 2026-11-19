@@ -50,9 +50,9 @@ struct HomeView: View {
             }
             .searchable(text: $searchText, placement: .toolbar, prompt: "search.prompt")
             .searchSuggestions {
-                ForEach(searchModel.suggestions.queries, id: \.self) { suggestion in
-                    Text(suggestion)
-                        .searchCompletion(suggestion)
+                ForEach(searchModel.suggestions.queries, id: \.query) { suggestion in
+                    Text(suggestion.text)
+                        .searchCompletion(suggestion.query)
                 }
                 ForEach(searchModel.suggestions.items) { item in
                     Button { open(item) } label: { suggestionRow(item) }

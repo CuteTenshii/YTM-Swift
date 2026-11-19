@@ -210,7 +210,7 @@ struct SearchSuggestionsTests {
         {"contents":[
           {"searchSuggestionsSectionRenderer":{"contents":[
             {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead"}]}}},
-            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead "},{"text":"in rainbows"}]},"navigationEndpoint":{"searchEndpoint":{"query":"radiohead in rainbows"}}}},
+            {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":"radiohead ","bold":true},{"text":"in rainbows"}]},"navigationEndpoint":{"searchEndpoint":{"query":"radiohead in rainbows"}}}},
             {"searchSuggestionRenderer":{"suggestion":{"runs":[{"text":""}]}}}
           ]}},
           {"searchSuggestionsSectionRenderer":{"contents":[
@@ -230,7 +230,12 @@ struct SearchSuggestionsTests {
         )
 
         let suggestions = SearchSuggestionsParser.parse(response)
-        #expect(suggestions.queries == ["radiohead", "radiohead in rainbows"])
+        #expect(suggestions.queries.map(\.query) == ["radiohead", "radiohead in rainbows"])
+        let bold = suggestions.queries[1].text.runs.compactMap { run in
+            run.inlinePresentationIntent == .stronglyEmphasized
+                ? String(suggestions.queries[1].text[run.range].characters) : nil
+        }
+        #expect(bold == ["radiohead "])
         let artist = try #require(suggestions.items.first)
         #expect(suggestions.items.count == 1)
         #expect(artist.title == "Radiohead")

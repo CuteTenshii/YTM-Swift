@@ -48,6 +48,7 @@ struct SearchSuggestionsResponse: Decodable {
 
     struct Run: Decodable {
         let text: String
+        let bold: Bool?
     }
 
     struct Endpoint: Decodable {
@@ -59,8 +60,13 @@ struct SearchSuggestionsResponse: Decodable {
     }
 }
 
+nonisolated struct QuerySuggestion: Hashable, Sendable {
+    let query: String
+    let text: AttributedString
+}
+
 nonisolated struct SearchSuggestions: Sendable {
-    var queries: [String] = []
+    var queries: [QuerySuggestion] = []
     var items: [ShelfItem] = []
 }
 
@@ -77,12 +83,22 @@ nonisolated enum SearchSuggestionsParser {
                 continue
             }
             let renderer = content.searchSuggestionRenderer
-            let text = renderer?.navigationEndpoint?.searchEndpoint?.query
+            let query = renderer?.navigationEndpoint?.searchEndpoint?.query
                 ?? renderer?.suggestion?.text
-            guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  seen.insert(text).inserted else { continue }
-            result.queries.append(text)
+            guard let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  seen.insert(query).inserted else { continue }
+            let runs = renderer?.suggestion?.runs ?? []
+            let text = runs.isEmpty ? AttributedString(query) : styled(runs)
+            result.queries.append(QuerySuggestion(query: query, text: text))
         }
         return result
+    }
+
+    private static func styled(_ runs: [SearchSuggestionsResponse.Run]) -> AttributedString {
+        runs.reduce(into: AttributedString()) { text, run in
+            var part = AttributedString(run.text)
+            if run.bold == true { part.inlinePresentationIntent = .stronglyEmphasized }
+            text += part
+        }
     }
 }
